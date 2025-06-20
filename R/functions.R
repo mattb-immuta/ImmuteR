@@ -31,6 +31,7 @@ load_constants<-function(risk.vec=c('3. Low Risk','2. Moderate Risk','1. High Ri
 enrich_opportunities<-function(opportunity_report_id="00OVH000005p6A92AI",
                                account_report="00OVH0000069G8Y2AU",
                                marketplace_report_2="00OVH000006Zryr2AC",
+                               looker_user_data_path=looker_user_data_path,
                                re_tracker="https://docs.google.com/spreadsheets/d/1Rxl25OyKEW1W1ny8Vbv3TDa2QCqR9VSpTN0QVPu6o9w/edit?usp=sharing"){
 
 
@@ -48,7 +49,7 @@ enrich_opportunities<-function(opportunity_report_id="00OVH000005p6A92AI",
       renewals<-input_data[as.logical(input_data$`Opportunity Record Type` =='Renewal'),]
       expansions<-input_data[as.logical(input_data$`Opportunity Record Type` =='Expansion'),]
 
-      account.table<-enrich_account.table(account.table,renewals)
+      account.table<-enrich_account.table(account.table,renewals,looker_user_data_path)
 
       re.table=read_sheet(ss=re_tracker)
       account.table=merge(account.table,re.table[,c('Account Name','re_hyperlink')],all.x=TRUE)
@@ -137,8 +138,12 @@ enrich_renewals<-function(renewal.table,account.table,phat,fiscal.period,
   renewal.table$expected_churn=expected_array
   renewal.table$worst_case_churn=worst_array
   renewal.table$days_until_renewal=as.numeric(as.Date(renewal.table$`Close Date`)-rep(Sys.Date(),dim(renewal.table)[1]))
-  renewal.table$utilization_risk=renewal.table$days_until_renewal<120 & renewal.table$utilization<.6
+  renewal.table$utilization_risk=rep("moderate",length(renewal.table$utilization))
+  renewal.table$utilization_risk[renewal.table$days_until_renewal<120 & renewal.table$utilization<.6]="high"
+  renewal.table$utilization_risk[renewal.table$utilization>.9]="low"
   renewal.table$`Churn Forecast`[is.na(renewal.table$`Churn Forecast`)]=0
+  renewal.table$expected_churn[is.na(renewal.table$expected_churn)]=0
+  renewal.table$company_churn_hazard=renewal.table$expected_churn/sum(renewal.table$expected_churn)
   #temp=gsub("-","",renewal.table$`Next Step`)
   #temp[is.na(temp)]=Sys.Date()-100
   #renewal.table$age_nextstep=Sys.Date()-as.Date(str_extract(temp, "^(\\d{1,2})/(\\d{2})"),format = "%m/%d")
@@ -188,25 +193,25 @@ extract_usd_amount <- function(vector) {
   return(vector)
 }
 
-enrich_account.table<-function(input_data,renewal.table){
-  looker_data_path<-"https://docs.google.com/spreadsheets/d/1IHUD5cvNjj3PfdPqNvgTnU_01Lbrq9bVRY374jEqExk/edit?usp=sharing"
+enrich_account.table<-function(input_data,renewal.table,looker_user_data_path){
+
 
   input_data=merge(input_data,renewal.table,all.x=TRUE)
   input_data=input_data[as.logical(1-duplicated(input_data$`Account ID`)),]
   input_data=input_data[as.logical(1-duplicated(input_data$`Account Name`)),]
 
-  user_metrics=read_sheet(looker_data_path)
-  user_metrics=data.table(`Account Name`=user_metrics$ACCOUNT_NAME,
-                          saas=user_metrics$IS_SAAS_CUSTOMER,
+  user_metrics=read_sheet(looker_user_data_path)
+  user_metrics=data.table(`Account Name`=user_metrics$account_name,
                           licensed_users=user_metrics$salesforce_contracts.sum_of_all_contracted_user_types,
-                          registered_users=user_metrics$immuta_instance_metrics_daily.count_full_user_pricing_counts+user_metrics$immuta_instance_metrics_daily.count_policy_owner_pricing_counts)
+                          registered_users=user_metrics$full_user_pricing_counts+user_metrics$policy_owner_pricing_counts)
 
   input_data=merge(input_data,user_metrics,by="Account Name",all.x=TRUE)
   input_data=input_data[as.logical(1-duplicated(input_data$`Account Name`)),]
   input_data$utilization=input_data$registered_users/input_data$licensed_users
 
   input_data$utilization[is.infinite(input_data$utilization)]=NA
-  input_data$engagement_risk=(Sys.Date()-input_data$`Date of last QBR/EBR`)>180 | is.na(input_data$`Date of last QBR/EBR`)
+  input_data$engagement_risk=rep("low",length(input_data$`Date of last QBR/EBR`))
+  input_data$engagement_risk[((Sys.Date()-input_data$`Date of last QBR/EBR`)>180) | is.na(input_data$`Date of last QBR/EBR`)]="high"
   return(input_data)}
 
 

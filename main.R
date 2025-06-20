@@ -33,27 +33,30 @@ source('R/functions.R')
 
 new_op_list=enrich_opportunities()
 load(paste("data/opportunities_",diff_date,".RData",sep=""))
+op_list=output_list
 
 # compare differences in new_op_list and the comparison op_list
 op_list=generate_diff_tables(new_op_list,op_list)
 op_list=generate_bu_tables(op_list)
 
-customer_operations_tracker=list()
+
 
 sheet_write(op_list$renewal_changes,ss="https://docs.google.com/spreadsheets/d/1fuLLtwZGcZhUYthzPTZwVDLu6-PxQTrBAlRKYQ5l7WE/edit?gid=1417207907#gid=1417207907",
             sheet="renewal_changes")
+sheet_write(op_list$marketplace,ss=mb_tracker,
+            sheet="marketplace_updates")
 
 output=op_list$renewals %>%
   select( #basic renewal admin
           opportunity_link,`Opportunity Name`,Region,`Opportunity Owner`,
-         `Customer Success Manager`,`Fiscal Period`,`Close Date`,Amount,`Churn Forecast`,
+         `Customer Success Manager`,`Fiscal Period`,`Close Date`,Amount,`Churn Forecast`,`Priority`,
 
          # Comments
          `Next Step`,`RD Comment`,
          # Risk
          `Adoption Risk`,`Adoption Phase`,utilization_risk,licensed_users,
          registered_users,engagement_risk,`Date of last QBR/EBR`,`Date of next QBR/EBR`,
-         `days_until_renewal`,expected_churn) %>%
+         `days_until_renewal`,expected_churn,company_churn_hazard) %>%
   arrange(desc(expected_churn))
 
 sheet_write(output,ss=mb_tracker,sheet='renewal_sheet')
@@ -76,3 +79,23 @@ sheet_write(op_list$renewal_changes,ss=mb_tracker,
 
 save(op_list,file=paste("data/opportunities_",Sys.Date(),".RData",sep=""))
 output_ELT_updates(op_list)
+
+
+
+
+temp=op_list$renewals %>%
+  arrange(desc(company_churn_hazard)) %>%
+  slice_head(n = 25)
+
+output=temp %>%
+  select( #basic renewal admin
+    `Opportunity Name`,Region,`Opportunity Owner`,
+    `Fiscal Period`,`Close Date`,Amount,
+
+    # Comments
+    `Next Step`,`RD Comment`,
+    # Risk
+    `Adoption Risk`,`Adoption Phase`,utilization_risk,licensed_users,
+    registered_users,engagement_risk,`Date of last QBR/EBR`,`Date of next QBR/EBR`)
+
+sheet_write(output,ss=mb_tracker,sheet='ap_churn_top25')
