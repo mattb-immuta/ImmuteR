@@ -13,19 +13,19 @@ generate_bu_tables<-function(op.table){
     group_by(`Account ID`) %>%
     summarise(total_amount = sum(Amount),active_expansions = n())
 
-  customer_ops_tracker=merge(op.table$renewals[,c("Account ID","account_link","opportunity_link","Amount","Close Date",
+  customer_ops_tracker=merge(op.table$renewals[,c("Account ID","account_url","opportunity_url","Amount","Close Date",
                                                   "Fiscal Period","Region",
                                                   "Adoption Risk","Stage","registered_users","licensed_users","utilization_risk",
-                                                  "consumption_link",
+                                                  "consumption_url",
                                                   "Next Step","RD Comment","Date of last QBR/EBR","Date of next QBR/EBR",
                                                   "re_hyperlink")],
                              temp.expansions,by="Account ID",all.x=TRUE)
 
-  customer_ops_tracker=customer_ops_tracker[,c("account_link","opportunity_link","Amount","Close Date","Fiscal Period","Region",
+  customer_ops_tracker=customer_ops_tracker[,c("account_url","opportunity_url","Amount","Close Date","Fiscal Period","Region",
 
                                                #account health
                                                "Adoption Risk","Stage","registered_users","licensed_users","utilization_risk",
-                                               "consumption_link","active_expansions","total_amount",
+                                               "consumption_url","active_expansions","total_amount",
 
                                                #account team engagement
                                                "Next Step","RD Comment","Date of last QBR/EBR","Date of next QBR/EBR",

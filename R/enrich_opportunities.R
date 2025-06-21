@@ -19,9 +19,11 @@ enrich_opportunities<-function(opportunity_report_id="00OVH000005p6A92AI",
   input_data<-sf_run_report(opportunity_report_id)
   account.table<- sf_run_report(account_report)
   marketplace.table<-sf_run_report(marketplace_report_2)
-  input_data$opportunity_link=paste("[",input_data$`Opportunity Name`,"](https://immuta.lightning.force.com/lightning/r/Opportunity/",as.character(input_data$`Opportunity ID`),"/view)",sep="")
-  input_data$account_link=paste("[",input_data$`Account Name`,"](https://immuta.lightning.force.com/lightning/r/Account/",input_data$`Account ID`,"/view)",sep="")
-  input_data$consumption_link=paste("[consumption](https://immuta.cloud.looker.com/dashboards/1052?Name=",gsub(" ","+",input_data$`Account Name`),"&Account+ID=&Report+Month=6+month&Instance+Name=&Instance+Type=Production)",sep="")
+  input_data$opportunity_url=paste("https://immuta.lightning.force.com/lightning/r/Opportunity/",as.character(input_data$`Opportunity ID`),"/view",sep="")
+  input_data$account_url=paste("https://immuta.lightning.force.com/lightning/r/Account/",input_data$`Account ID`,"/view",sep="")
+  input_data$consumption_url=paste("https://immuta.cloud.looker.com/dashboards/1052?Name=",gsub(" ","+",input_data$`Account Name`),"&Account+ID=&Report+Month=6+month&Instance+Name=&Instance+Type=Production",sep="")
+
+
 
   # split into expansions and renewals
   renewals<-input_data[as.logical(input_data$`Opportunity Record Type` =='Renewal'),]
@@ -51,7 +53,5 @@ enrich_opportunities<-function(opportunity_report_id="00OVH000005p6A92AI",
   output_list[["expansions"]]=expansions
   output_list[["accounts"]]=account.table
   output_list[["marketplace"]]=marketplace.table
-
-  save(op_list=output_list,file=paste("data/opportunities_",Sys.Date(),".RData",sep=""))
 
   return(output_list)}

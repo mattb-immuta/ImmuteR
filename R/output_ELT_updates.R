@@ -20,10 +20,10 @@ output_ELT_updates<-function(op_list=op_list){
     #i=fiscal.period[1]
     temp=ELT_renewals %>%
       filter(`Fiscal Period`==i) %>%
-      select(opportunity_link,Region,`Customer Success Manager`,`Fiscal Period`,
+      select(opportunity_url,Region,`Customer Success Manager`,`Fiscal Period`,
              Amount,`Churn Forecast`,`Close Date`,
              `Adoption Risk`,utilization_risk,engagement_risk,`Date of last QBR/EBR`,`Date of next QBR/EBR`,
-             licensed_users,registered_users,consumption_link,changes) %>%
+             licensed_users,registered_users,consumption_url,changes) %>%
       arrange(`Adoption Risk`)
 
     temp <- temp %>%
@@ -68,7 +68,7 @@ output_ELT_updates<-function(op_list=op_list){
         )
       ) %>%
 
-      fmt_markdown(columns = c(consumption_link, opportunity_link)) %>%
+      fmt_markdown(columns = c(consumption_url, opportunity_url)) %>%
 
       summary_rows(
         groups = NULL,

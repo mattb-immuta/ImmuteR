@@ -63,9 +63,5 @@ enrich_renewals<-function(renewal.table,account.table,phat,fiscal.period,
   renewal.table$`Churn Forecast`[is.na(renewal.table$`Churn Forecast`)]=0
   renewal.table$expected_churn[is.na(renewal.table$expected_churn)]=0
   renewal.table$company_churn_hazard=renewal.table$expected_churn/sum(renewal.table$expected_churn)
-  #temp=gsub("-","",renewal.table$`Next Step`)
-  #temp[is.na(temp)]=Sys.Date()-100
-  #renewal.table$age_nextstep=Sys.Date()-as.Date(str_extract(temp, "^(\\d{1,2})/(\\d{2})"),format = "%m/%d")
 
-  #sheet_write(renewal.table,ss=mb_tracker, sheet = "renewal_sheet")
   return(renewal.table)}
