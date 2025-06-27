@@ -9,30 +9,34 @@
 #' @export
 enrich_list_object<-function(new_list,old_list){
 
-
+  # develop change report for churn forecast
   new_list$renewals$`Churn Forecast`[is.na( new_list$renewals$`Churn Forecast`)]=0
   old_list$renewals$`Churn Forecast`[is.na( old_list$renewals$`Churn Forecast`)]=0
+  renewal_change_df=merge(new_list$renewals,
+                          old_list$renewals[,c('Opportunity ID','Adoption Risk','Churn Forecast')],
+                          by='Opportunity ID',all.x=TRUE)
 
-  renewal_changes_risk=new_list$renewals$`Adoption Risk`!=old_list$renewals$`Adoption Risk`
+  renewal_changes_risk=renewal_change_df$`Adoption Risk.x`!=renewal_change_df$`Adoption Risk.y`
   message(paste("Renewal Changes:",sum(renewal_changes_risk)," changes to adoption risk..."))
-  renewal_changes_forecast=new_list$renewals$`Churn Forecast`!=old_list$renewals$`Churn Forecast`
+
+  renewal_changes_forecast=renewal_change_df$`Churn Forecast.x`!=renewal_change_df$`Churn Forecast.y`
   message(paste(sum(renewal_changes_forecast)," changes to churn forecast..."))
 
   renewal_changes=renewal_changes_risk|renewal_changes_forecast
   message(paste(sum(renewal_changes)," total changes to renewals..."))
 
-  output=data.table(`Opportunity Name`=new_list$renewals$`Opportunity Name`[renewal_changes],
-                    `Fiscal Period`=new_list$renewals$`Fiscal Period`[renewal_changes],
-                    `New Adoption Risk`=new_list$renewals$`Adoption Risk`[renewal_changes],
-                    `Old Adoption Risk`=old_list$renewals$`Adoption Risk`[renewal_changes],
-                    `New Forecast`=new_list$renewals$`Churn Forecast`[renewal_changes],
-                    `Old Forecast`=old_list$renewals$`Churn Forecast`[renewal_changes])
+  output=data.table(`Opportunity Name`=renewal_change_df$`Opportunity Name`[renewal_changes],
+                    `Fiscal Period`=renewal_change_df$`Fiscal Period`[renewal_changes],
+                    `New Adoption Risk`=renewal_change_df$`Adoption Risk.x`[renewal_changes],
+                    `Old Adoption Risk`=renewal_change_df$`Adoption Risk.y`[renewal_changes],
+                    `New Forecast`=renewal_change_df$`Churn Forecast.x`[renewal_changes],
+                    `Old Forecast`=renewal_change_df$`Churn Forecast.y`[renewal_changes])
   output$forecast_change=output$'New Forecast'-output$`Old Forecast`
   new_list[['renewal_changes']]=output
   message("renewal changes appended to list....")
 
 
-  #generate bottoms up data
+  #generate field customer operations tracker data
   temp.expansions=new_list$expansions[,c("Account ID","Amount")]
   temp.expansions=temp.expansions %>%
     group_by(`Account ID`) %>%
@@ -43,7 +47,7 @@ enrich_list_object<-function(new_list,old_list){
                                                   "Adoption Risk","Stage","registered_users","licensed_users","utilization_risk",
                                                   "consumption_url",
                                                   "Next Step","RD Comment","Date of last QBR/EBR","Date of next QBR/EBR",
-                                                  "re_hyperlink")],
+                                                  "running_estimate_hyperlink")],
                              temp.expansions,by="Account ID",all.x=TRUE)
 
   customer_ops_tracker=customer_ops_tracker[,c("account_url","opportunity_url","Amount","Close Date","Fiscal Period","Region",
@@ -54,7 +58,7 @@ enrich_list_object<-function(new_list,old_list){
 
                                                #account team engagement
                                                "Next Step","RD Comment","Date of last QBR/EBR","Date of next QBR/EBR",
-                                               "re_hyperlink")]
+                                               "running_estimate_hyperlink")]
   new_list[["customer_ops_tracker"]]=customer_ops_tracker
   message("customer_ops_tracker appended to list....")
 

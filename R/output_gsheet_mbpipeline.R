@@ -8,7 +8,7 @@
 #' @export
 #'
 
-output_gsheet_mbpipeline<-function(op.list,mb_tracker){
+output_gsheet_mbpipeline<-function(op_list,mb_tracker){
   output=op_list$renewals %>%
     select( #basic renewal admin
       opportunity_url,`Opportunity Name`,Region,`Opportunity Owner`,
@@ -37,10 +37,41 @@ output_gsheet_mbpipeline<-function(op.list,mb_tracker){
     arrange(desc(Amount))
 
   sheet_write(output,ss=mb_tracker,sheet='expansion_sheet')
-  sheet_write(op.list$renewal_changes,ss=mb_tracker,sheet="renewal_changes")
-  sheet_write(op.list$marketplace,ss=mb_tracker,sheet="marketplace_updates")
 
-  output=op.list$renewals %>%
+
+  temp=op_list$renewals %>%
+    select(`Account ID`,utilization_risk,days_until_renewal)
+
+  output=merge(op_list$accounts,temp,all.x=TRUE)
+
+  output=output %>%
+    select( #basic renewal admin
+      `Account ID`,`Account Name`,Region,`Account Owner`,`Customer Success Manager`,
+      Priority,`Adoption Risk`,
+
+
+      # technical attributes
+      `Is SaaS Customer`,`Customer on Unsupported Version`,Databricks,
+      Snowflake,`Tech Integrations`,
+
+      # Onboarding Risk
+      `Adoption Phase`,`Vitally Days as Customer`,
+
+      # utilization risk
+      utilization_risk, licensed_users,registered_users, days_until_renewal,
+      `Next Use Case Deployment Date`,`Expected User Count` ,
+
+      #engagement risk
+      engagement_risk,`Date of last QBR/EBR`, `Date of next QBR/EBR`) %>%
+    arrange(`Account Name`)
+
+  sheet_write(output,ss=mb_tracker,sheet='account_sheet')
+
+
+  sheet_write(op_list$renewal_changes,ss=mb_tracker,sheet="renewal_changes")
+  sheet_write(op_list$marketplace,ss=mb_tracker,sheet="marketplace_updates")
+
+  output=op_list$renewals %>%
     arrange(desc(company_churn_hazard)) %>%
     filter(`Adoption Risk` != 'Closed Lost') %>%
     slice_head(n = 25)%>%
@@ -60,5 +91,5 @@ output_gsheet_mbpipeline<-function(op.list,mb_tracker){
       #engagement risk
       engagement_risk,`Date of last QBR/EBR`,`Date of next QBR/EBR`)
 
-  sheet_write(output,ss=mb_tracker,sheet='ap_churn_top25')
+  sheet_write(output,ss=mb_tracker,sheet='critical_churn_risk')
 }

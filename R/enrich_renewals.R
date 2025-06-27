@@ -9,16 +9,12 @@
 #'
 enrich_renewals<-function(renewal.table,account.table,phat,fiscal.period,
                           fiscal.period.estimate){
-  #renewal.table=renewals
-  #phat=c$phat_adoption
-  #fiscal.period=c("Q2-2026","Q3-2026","Q4-2026","Q1-2027")
-  #sheet_write(data.table(name=renewals$`Opportunity Name`,id=renewals$`Opportunity ID`,strategic_renewal=rep(FALSE,length(renewals$`Opportunity Name`))),ss=mbexport, sheet="strategic_renewals")
+
   renewal.table=merge(renewal.table,
                       account.table[,c("Account ID",names(account.table)[as.logical(1-names(account.table) %in% names(renewal.table))])],
                       by="Account ID",all.x=TRUE)
 
-  strat_array=read_sheet(ss=mb_tracker, sheet="strategic_renewals")
-  renewal.table=merge(renewal.table,strat_array,by="Opportunity ID",all.x=TRUE)
+
   risk.values=c('3. Low Risk','2. Moderate Risk','1. High Risk','Planned Lost','Closed Lost','0. Will Lose','Planned Won',"Closed Won")
   renewal.table =renewal.table[renewal.table$`Fiscal Period` %in% fiscal.period,]
 
@@ -63,5 +59,5 @@ enrich_renewals<-function(renewal.table,account.table,phat,fiscal.period,
   renewal.table$`Churn Forecast`[is.na(renewal.table$`Churn Forecast`)]=0
   renewal.table$expected_churn[is.na(renewal.table$expected_churn)]=0
   renewal.table$company_churn_hazard=renewal.table$expected_churn/sum(renewal.table$expected_churn)
-
+  message(".. renewal data enriched /n")
   return(renewal.table)}

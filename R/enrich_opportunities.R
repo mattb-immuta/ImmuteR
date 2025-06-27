@@ -1,14 +1,15 @@
 #' pull current opportunities from salesforce and enrich them.
 #'
-#' @param opportunity_report_id A numeric value. The first number to be added.
+#' @param sf_opportunity_report A numeric value. The first number to be added.
 #' @return a list with renewal and expansion data tables with all opportunities and enriched hyperlinks: opportunity_link,account_link,
 #' and consumption_link.
 #' @examples
 #' enrich_optable("00OVH000005p6A92AI")
 #' @export
-enrich_opportunities<-function(opportunity_report_id="00OVH000005p6A92AI",
-                               account_report="00OVH0000069G8Y2AU",
-                               marketplace_report_2="00OVH000006Zryr2AC",
+enrich_opportunities<-function(sf_opportunity_report="00OVH000005p6A92AI",
+                               sf_account_report="00OVH0000069G8Y2AU",
+                               sf_provision_report="00OVH000006Zryr2AC",
+                               sf_support_case_report="00OVH000006dyX72AI",
                                looker_user_data_path=looker_user_data_path,
                                re_tracker="https://docs.google.com/spreadsheets/d/1Rxl25OyKEW1W1ny8Vbv3TDa2QCqR9VSpTN0QVPu6o9w/edit?usp=sharing"){
 
@@ -16,24 +17,28 @@ enrich_opportunities<-function(opportunity_report_id="00OVH000005p6A92AI",
   c=load_constants()
 
   # create necessary hyperlinks
-  input_data<-sf_run_report(opportunity_report_id)
-  account.table<- sf_run_report(account_report)
-  marketplace.table<-sf_run_report(marketplace_report_2)
-  input_data$opportunity_url=paste("https://immuta.lightning.force.com/lightning/r/Opportunity/",as.character(input_data$`Opportunity ID`),"/view",sep="")
-  input_data$account_url=paste("https://immuta.lightning.force.com/lightning/r/Account/",input_data$`Account ID`,"/view",sep="")
-  input_data$consumption_url=paste("https://immuta.cloud.looker.com/dashboards/1052?Name=",gsub(" ","+",input_data$`Account Name`),"&Account+ID=&Report+Month=6+month&Instance+Name=&Instance+Type=Production",sep="")
+  opportunity.table<-sf_run_report(sf_opportunity_report)
+  account.table<- sf_run_report(sf_account_report)
+  marketplace.table<-sf_run_report(sf_provision_report)
+  support.case.table<-sf_run_report(sf_support_case_report)
+
+  opportunity.table$opportunity_url=paste("https://immuta.lightning.force.com/lightning/r/Opportunity/",as.character(opportunity.table$`Opportunity ID`),"/view",sep="")
+  opportunity.table$account_url=paste("https://immuta.lightning.force.com/lightning/r/Account/",opportunity.table$`Account ID`,"/view",sep="")
+  opportunity.table$consumption_url=paste("https://immuta.cloud.looker.com/dashboards/1052?Name=",gsub(" ","+",opportunity.table$`Account Name`),"&Account+ID=&Report+Month=6+month&Instance+Name=&Instance+Type=Production",sep="")
 
 
 
   # split into expansions and renewals
-  renewals<-input_data[as.logical(input_data$`Opportunity Record Type` =='Renewal'),]
-  expansions<-input_data[as.logical(input_data$`Opportunity Record Type` =='Expansion'),]
+  renewals<-opportunity.table[as.logical(opportunity.table$`Opportunity Record Type` =='Renewal'),]
+  expansions<-opportunity.table[as.logical(opportunity.table$`Opportunity Record Type` =='Expansion'),]
+
+  message("opportunity data collected...enrich account data")
 
   account.table<-enrich_account.table(account.table,renewals,looker_user_data_path)
 
   re.table=read_sheet(ss=re_tracker)
-  account.table=merge(account.table,re.table[,c('Account Name','re_hyperlink')],all.x=TRUE)
-  account.table$re_hyperlink=paste("[Running Estimate](",account.table$re_hyperlink,")",sep="")
+  account.table=merge(account.table,re.table[,c('Account Name','running_estimate_url')],all.x=TRUE)
+  account.table$running_estimate_hyperlink=paste("[Running Estimate](",account.table$running_estimate_url,")",sep="")
 
   renewals=enrich_renewals(renewal.table=renewals,
                            account.table=account.table,
@@ -53,5 +58,6 @@ enrich_opportunities<-function(opportunity_report_id="00OVH000005p6A92AI",
   output_list[["expansions"]]=expansions
   output_list[["accounts"]]=account.table
   output_list[["marketplace"]]=marketplace.table
-
+  output_list[["support_cases"]]=support.case.table
+  message(".. new list object returned /n")
   return(output_list)}

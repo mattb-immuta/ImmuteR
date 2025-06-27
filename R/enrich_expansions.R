@@ -7,14 +7,9 @@
 #' @export
 #'
 enrich_expansions<-function(expansion.table,account.table,fiscal.period){
-  #expansion.table=optable[as.logical(optable$`Opportunity Record Type` =='Expansion'),]
-  #account.table=
-  #fiscal.period=c("Q2-2026","Q3-2026","Q4-2026","Q1-2027")
-  #sheet_write(data.table(name=expansions$`Opportunity Name`,id=expansions$`Opportunity ID`,strategic_renewal=rep(FALSE,length(renewals$`Opportunity Name`))),ss=mbexport, sheet="strategic_expansions")
+
   expansion.table=expansion.table %>%
     select(-`Adoption Risk`,-`Adoption Phase`)
-  strat_array=read_sheet(ss=mb_tracker, sheet="strategic_expansions")
-  expansion.table=merge(expansion.table,strat_array,by="Opportunity ID",all.x=TRUE)
   expansion.table=merge(expansion.table,
                         account.table[,c("Account ID",names(account.table)[as.logical(1-names(account.table) %in% names(expansion.table))])],
                         by="Account ID",all.x=TRUE)
@@ -28,6 +23,6 @@ enrich_expansions<-function(expansion.table,account.table,fiscal.period){
   expansion.table$days_until_close=as.numeric(as.Date(expansion.table$`Close Date`)-rep(Sys.Date(),dim(expansion.table)[1]))
   expansion.table$utilization_risk=expansion.table$days_until_close<120 & expansion.table$utilization<.6
 
-  #sheet_write(expansion.table,ss=mb_tracker, sheet = "expansion_sheet")
+  message(".. expansion data enriched /n")
   return(expansion.table)
 }
