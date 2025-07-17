@@ -10,7 +10,7 @@ enrich_opportunities<-function(sf_opportunity_report="00OVH000005p6A92AI",
                                sf_account_report="00OVH0000069G8Y2AU",
                                sf_provision_report="00OVH000006Zryr2AC",
                                sf_support_case_report="00OVH000006dyX72AI",
-                               looker_user_data_path=looker_user_data_path,
+                               idex=FALSE,
                                re_tracker="https://docs.google.com/spreadsheets/d/1Rxl25OyKEW1W1ny8Vbv3TDa2QCqR9VSpTN0QVPu6o9w/edit?usp=sharing"){
 
 
@@ -34,7 +34,7 @@ enrich_opportunities<-function(sf_opportunity_report="00OVH000005p6A92AI",
 
   message("opportunity data collected...enrich account data")
 
-  account.table<-enrich_account.table(account.table,renewals,looker_user_data_path)
+  account.table<-enrich_account.table(account.table,renewals,idex)
 
   re.table=read_sheet(ss=re_tracker)
   account.table=merge(account.table,re.table[,c('Account Name','running_estimate_url')],all.x=TRUE)

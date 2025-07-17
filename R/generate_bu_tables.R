@@ -15,7 +15,7 @@ generate_bu_tables<-function(op.table){
 
   customer_ops_tracker=merge(op.table$renewals[,c("Account ID","account_url","opportunity_url","Amount","Close Date",
                                                   "Fiscal Period","Region",
-                                                  "Adoption Risk","Stage","registered_users","licensed_users","utilization_risk",
+                                                  "Account Risk","Stage","registered_users","licensed_users","utilization_risk",
                                                   "consumption_url",
                                                   "Next Step","RD Comment","Date of last QBR/EBR","Date of next QBR/EBR",
                                                   "re_hyperlink")],
@@ -24,7 +24,7 @@ generate_bu_tables<-function(op.table){
   customer_ops_tracker=customer_ops_tracker[,c("account_url","opportunity_url","Amount","Close Date","Fiscal Period","Region",
 
                                                #account health
-                                               "Adoption Risk","Stage","registered_users","licensed_users","utilization_risk",
+                                               "Account Risk","Stage","registered_users","licensed_users","utilization_risk",
                                                "consumption_url","active_expansions","total_amount",
 
                                                #account team engagement

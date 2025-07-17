@@ -17,8 +17,8 @@ output_gsheet_mbpipeline<-function(op_list,mb_tracker){
       # Comments
       `Next Step`,`RD Comment`,
       # Risk
-      `Adoption Risk`,`Adoption Phase`,utilization_risk,licensed_users,
-      registered_users,engagement_risk,`Date of last QBR/EBR`,`Date of next QBR/EBR`,
+      `Account Risk`,`Adoption Phase`,utilization_risk,licensed_users,
+      registered_users,engagement_risk,`Date of last EBR`,`Date of next EBR`,
       `days_until_renewal`,expected_churn,company_churn_hazard) %>%
     arrange(desc(expected_churn))
 
@@ -32,8 +32,8 @@ output_gsheet_mbpipeline<-function(op_list,mb_tracker){
       # Comments
       `Next Step`,`RD Comment`,
       # Risk
-      `Adoption Risk`,`Adoption Phase`,utilization_risk,licensed_users,
-      registered_users,engagement_risk,`Date of last QBR/EBR`,`Date of next QBR/EBR`) %>%
+      `Account Risk`,`Adoption Phase`,utilization_risk,licensed_users,
+      registered_users,engagement_risk,`Date of last EBR`,`Date of next EBR`) %>%
     arrange(desc(Amount))
 
   sheet_write(output,ss=mb_tracker,sheet='expansion_sheet')
@@ -47,7 +47,7 @@ output_gsheet_mbpipeline<-function(op_list,mb_tracker){
   output=output %>%
     select( #basic renewal admin
       `Account ID`,`Account Name`,Region,`Account Owner`,`Customer Success Manager`,
-      Priority,`Adoption Risk`,
+      Priority,`Account Risk`,
 
 
       # technical attributes
@@ -62,7 +62,7 @@ output_gsheet_mbpipeline<-function(op_list,mb_tracker){
       `Next Use Case Deployment Date`,`Expected User Count` ,
 
       #engagement risk
-      engagement_risk,`Date of last QBR/EBR`, `Date of next QBR/EBR`) %>%
+      engagement_risk,`Date of last EBR`, `Date of next EBR`) %>%
     arrange(`Account Name`)
 
   sheet_write(output,ss=mb_tracker,sheet='account_sheet')
@@ -73,7 +73,7 @@ output_gsheet_mbpipeline<-function(op_list,mb_tracker){
 
   output=op_list$renewals %>%
     arrange(desc(company_churn_hazard)) %>%
-    filter(`Adoption Risk` != 'Closed Lost') %>%
+    filter(`Account Risk` != 'Closed Lost') %>%
     slice_head(n = 25)%>%
     select( #basic renewal admin
       `Opportunity Name`,Region,`Opportunity Owner`,
@@ -81,15 +81,15 @@ output_gsheet_mbpipeline<-function(op_list,mb_tracker){
 
       # Comments
       `Next Step`,`RD Comment`,
-      # Adoption Risk
-      `Adoption Risk`,`Adoption Phase`,`Vitally Days as Customer`,
+      # Account Risk
+      `Account Risk`,`Adoption Phase`,`Vitally Days as Customer`,
 
       #utilization risk
       utilization_risk,licensed_users,
       registered_users,`Next Use Case Deployment Date`,`Expected User Count`,
 
       #engagement risk
-      engagement_risk,`Date of last QBR/EBR`,`Date of next QBR/EBR`)
+      engagement_risk,`Date of last EBR`,`Date of next EBR`)
 
   sheet_write(output,ss=mb_tracker,sheet='critical_churn_risk')
 }

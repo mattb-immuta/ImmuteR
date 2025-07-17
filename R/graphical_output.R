@@ -43,7 +43,7 @@ output_ELT_updates<-function(op_list=op_list){
       data_color(
         columns = `Adoption Risk`,
         fn = scales::col_factor(
-          palette = c( "0. Will Lose" = "black", "Closed Lost" = "black",
+          palette = c( "0. Will Lose (Formally Notified)" = "black", "Closed Lost" = "black",
                         "1. High Risk" = "#e74c3c",
                         "2. Moderate Risk" = "#f5b041",
                         "3. Low Risk" = "#7dcea0","Closed Won" = "#27ae60",

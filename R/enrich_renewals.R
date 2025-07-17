@@ -15,7 +15,7 @@ enrich_renewals<-function(renewal.table,account.table,phat,fiscal.period,
                       by="Account ID",all.x=TRUE)
 
 
-  risk.values=c('3. Low Risk','2. Moderate Risk','1. High Risk','Planned Lost','Closed Lost','0. Will Lose','Planned Won',"Closed Won")
+  risk.values=c('3. Low Risk','2. Moderate Risk','1. High Risk','Planned Lost','Closed Lost','0. Will Lose','0. Will Lose (Formally Notified)','Planned Won',"Closed Won")
   renewal.table =renewal.table[renewal.table$`Fiscal Period` %in% fiscal.period,]
 
 
@@ -23,7 +23,7 @@ enrich_renewals<-function(renewal.table,account.table,phat,fiscal.period,
   renewal.table$`Churn Forecast`=as.numeric(extract_usd_amount(renewal.table$`Churn Forecast`),scientific=FALSE)
 
   temp_tier <- matrix(c('Tier III','Tier III','Tier II','Tier III','Tier II','Tier I','Tier II','Tier I','Tier I',
-                        rep('plan lost',3),rep('closed lost',3),rep('0. Will Lose',3),rep('plan won',3),rep('closed won',3)),ncol=3,byrow=TRUE)
+                        rep('plan lost',3),rep('closed lost',3),rep('0. Will Lose',3),rep('0. Will Lose (Formally Notified)',3),rep('plan won',3),rep('closed won',3)),ncol=3,byrow=TRUE)
   row.names(temp_tier)=risk.values
   colnames(temp_tier)=c('small','medium','large')
 
@@ -31,7 +31,7 @@ enrich_renewals<-function(renewal.table,account.table,phat,fiscal.period,
   value_array=priority_array=array("No Risk Estimate",dim=d)
   worst_array=expected_array=best_array=array(NA,dim=d)
   p_sequence=1:d
-  p_sequence=p_sequence[-which(renewal.table$`Adoption Risk`=="-")]
+  p_sequence=p_sequence[-which(renewal.table$`Account Risk`=="-")]
 
   small_indecies=which(renewal.table$Amount<150000)
   med_indecies=which(renewal.table$Amount>=150000 & renewal.table$Amount<500000)
@@ -41,10 +41,10 @@ enrich_renewals<-function(renewal.table,account.table,phat,fiscal.period,
   value_array[large_indecies]='large'
 
   for(i in p_sequence){
-    priority_array[i]<-temp_tier[which(rownames(temp_tier)==renewal.table$`Adoption Risk`[i]),which(colnames(temp_tier)==value_array[i])]
-    worst_array[i]<-(1-phat$worst_case[which(phat$risk.vec==renewal.table$`Adoption Risk`[i])])*as.numeric(renewal.table$Amount[i])
-    expected_array[i]<-(1-phat$expected[which(phat$risk.vec==renewal.table$`Adoption Risk`[i])])*renewal.table$Amount[i]
-    best_array[i]<-(1-phat$best_case[which(phat$risk.vec==renewal.table$`Adoption Risk`[i])])*renewal.table$Amount[i]
+    priority_array[i]<-temp_tier[which(rownames(temp_tier)==renewal.table$`Account Risk`[i]),which(colnames(temp_tier)==value_array[i])]
+    worst_array[i]<-(1-phat$worst_case[which(phat$risk.vec==renewal.table$`Account Risk`[i])])*as.numeric(renewal.table$Amount[i])
+    expected_array[i]<-(1-phat$expected[which(phat$risk.vec==renewal.table$`Account Risk`[i])])*renewal.table$Amount[i]
+    best_array[i]<-(1-phat$best_case[which(phat$risk.vec==renewal.table$`Account Risk`[i])])*renewal.table$Amount[i]
   }
 
   renewal.table$priority_change=renewal.table$Priority!=priority_array #bug

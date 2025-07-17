@@ -9,7 +9,7 @@
 enrich_expansions<-function(expansion.table,account.table,fiscal.period){
 
   expansion.table=expansion.table %>%
-    select(-`Adoption Risk`,-`Adoption Phase`)
+    select(-`Account Risk`,-`Adoption Phase`)
   expansion.table=merge(expansion.table,
                         account.table[,c("Account ID",names(account.table)[as.logical(1-names(account.table) %in% names(expansion.table))])],
                         by="Account ID",all.x=TRUE)

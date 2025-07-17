@@ -13,8 +13,8 @@ generate_diff_tables<-function(new_list,old_list){
   new_list$renewals$`Churn Forecast`[is.na( new_list$renewals$`Churn Forecast`)]=0
   old_list$renewals$`Churn Forecast`[is.na( old_list$renewals$`Churn Forecast`)]=0
 
-  renewal_changes_risk=new_list$renewals$`Adoption Risk`!=old_list$renewals$`Adoption Risk`
-  message(paste("Renewal Changes:",sum(renewal_changes_risk)," changes to adoption risk..."))
+  renewal_changes_risk=new_list$renewals$`Account Risk`!=old_list$renewals$`Account Risk`
+  message(paste("Renewal Changes:",sum(renewal_changes_risk)," changes to Account Risk..."))
   renewal_changes_forecast=new_list$renewals$`Churn Forecast`!=old_list$renewals$`Churn Forecast`
   message(paste(sum(renewal_changes_forecast)," changes to churn forecast..."))
 
@@ -23,8 +23,8 @@ generate_diff_tables<-function(new_list,old_list){
 
   output=data.table(`Opportunity Name`=new_list$renewals$`Opportunity Name`[renewal_changes],
                     `Fiscal Period`=new_list$renewals$`Fiscal Period`[renewal_changes],
-                    `New Adoption Risk`=new_list$renewals$`Adoption Risk`[renewal_changes],
-                    `Old Adoption Risk`=old_list$renewals$`Adoption Risk`[renewal_changes],
+                    `New Account Risk`=new_list$renewals$`Account Risk`[renewal_changes],
+                    `Old Account Risk`=old_list$renewals$`Account Risk`[renewal_changes],
                     `New Forecast`=new_list$renewals$`Churn Forecast`[renewal_changes],
                     `Old Forecast`=old_list$renewals$`Churn Forecast`[renewal_changes])
   output$forecast_change=output$'New Forecast'-output$`Old Forecast`
@@ -40,8 +40,8 @@ generate_diff_tables<-function(new_list,old_list){
 
   #output=data.table(`Opportunity Name`=new_list$renewals$`Opportunity Name`[renewal_changes],
   #                  `Fiscal Period`=new_list$renewals$`Fiscal Period`[renewal_changes],
-  #                  `New Adoption Risk`=new_list$renewals$`Adoption Risk`[renewal_changes],
-  #                  `Old Adoption Risk`=old_list$renewals$`Adoption Risk`[renewal_changes],
+  #                  `New Account Risk`=new_list$renewals$`Account Risk`[renewal_changes],
+  #                  `Old Account Risk`=old_list$renewals$`Account Risk`[renewal_changes],
   #                  `New Forecast`=new_list$renewals$`Churn Forecast`[renewal_changes],
   #                  `Old Forecast`=old_list$renewals$`Churn Forecast`[renewal_changes])
   #output$forecast_change=output$'New Forecast'-output$`Old Forecast`
