@@ -11,7 +11,16 @@
 enrich_account.table<-function(account.table,renewal.table,
                                idex){
 
-  if(idex){system("uvx idex all -p /Users/matt.benigni/Documents/projects/ImmuteR/data/idex/")}
+  if(idex){
+    system("uvx idex all -p /Users/matt.benigni/Documents/projects/ImmuteR/data/idex/")
+    system("uvx idex -f /Users/matt.benigni/Documents/projects/ImmuteR/data/idex/users.parquet metrics -m 3 users")
+    system("uvx idex -f /Users/matt.benigni/Documents/projects/ImmuteR/data/idex/queries.parquet metrics -m 3 queries")
+    system("uvx idex -f /Users/matt.benigni/Documents/projects/ImmuteR/data/idex/marketplace.parquet metrics -m 3 marketplace")
+    system("uvx idex -f /Users/matt.benigni/Documents/projects/ImmuteR/data/idex/datasources.parquet metrics -m 3 datasources")
+    system("uvx idex -f /Users/matt.benigni/Documents/projects/ImmuteR/data/idex/data-policies.parquet metrics -m 3 data-policies")
+    system("uvx idex -f /Users/matt.benigni/Documents/projects/ImmuteR/data/idex/subscription-policies.parquet metrics -m 3 subscription-policies")
+  }
+
   renewal.table = renewal.table %>%
     group_by(`Account ID`) %>%
     slice_max(order_by=Amount, n=1, with_ties=FALSE) %>%

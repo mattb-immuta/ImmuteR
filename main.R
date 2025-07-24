@@ -27,7 +27,7 @@ mb_tracker<-"https://docs.google.com/spreadsheets/d/1BLwqFOZpEmDvBkIAH7rCYBzPIJ0
 
 #authenticate
 diff_date="2025-07-10"
-fiscal.period=c("Q2-2026","Q3-2026","Q4-2026","Q1-2027")
+fiscal.period=c("Q2-2026","Q3-2026","Q4-2026","Q1-2027","Q2-2027")
 
 sf_auth()
 
@@ -39,6 +39,7 @@ new_op_list=enrich_opportunities(#input paths
   sf_account_report <- "00OVH0000069G8Y2AU",
   sf_provision_report<-"00OVH000006Zryr2AC",
   sf_support_case_report="00OVH000006dyX72AI",
+  fiscal.period<-fiscal.period,
   idex=TRUE)
 
 load(paste("data/opportunities_",diff_date,".RData",sep=""))

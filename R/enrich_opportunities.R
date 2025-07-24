@@ -11,6 +11,7 @@ enrich_opportunities<-function(sf_opportunity_report="00OVH000005p6A92AI",
                                sf_provision_report="00OVH000006Zryr2AC",
                                sf_support_case_report="00OVH000006dyX72AI",
                                idex=FALSE,
+                               fiscal.period,
                                re_tracker="https://docs.google.com/spreadsheets/d/1Rxl25OyKEW1W1ny8Vbv3TDa2QCqR9VSpTN0QVPu6o9w/edit?usp=sharing"){
 
 
@@ -43,11 +44,11 @@ enrich_opportunities<-function(sf_opportunity_report="00OVH000005p6A92AI",
   renewals=enrich_renewals(renewal.table=renewals,
                            account.table=account.table,
                            phat=c$phat_adoption,
-                           fiscal.period=c("Q2-2026","Q3-2026","Q4-2026","Q1-2027"))
+                           fiscal.period=fiscal.period)
 
   expansions=enrich_expansions(expansion.table=expansions,
                                account.table=account.table,
-                               fiscal.period=c("Q2-2026","Q3-2026","Q4-2026","Q1-2027"))
+                               fiscal.period=fiscal.period)
 
 
 

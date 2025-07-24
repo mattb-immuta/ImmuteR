@@ -9,7 +9,7 @@
 #'
 enrich_renewals<-function(renewal.table,account.table,phat,fiscal.period,
                           fiscal.period.estimate){
-
+  #renewal.table=renewals
   renewal.table=merge(renewal.table,
                       account.table[,c("Account ID",names(account.table)[as.logical(1-names(account.table) %in% names(renewal.table))])],
                       by="Account ID",all.x=TRUE)

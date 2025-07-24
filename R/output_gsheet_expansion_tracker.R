@@ -10,7 +10,7 @@
 
 output_gsheet_expansion_tracker<-function(op_list,
                                              customer_expansion_tracker="https://docs.google.com/spreadsheets/d/1gI5N6FHArFMn65y1y_9pc1l9TUJGViHxYkzVXbHNk9Y/edit?gid=0#gid=0",
-                                             fiscal.period=c("Q2-2026","Q3-2026","Q4-2026","Q1-2027")){
+                                             fiscal.period=fiscal.period){
 
 
   temp.expansions=op_list$expansions %>%
