@@ -9,6 +9,7 @@ library(roxygen2)
 library(gt)
 library(scales)
 library(arrow)
+library(tidyverse)
 
 options(scipen = 999)
 
@@ -26,8 +27,8 @@ customer_expansion_tracker="https://docs.google.com/spreadsheets/d/1gI5N6FHArFMn
 mb_tracker<-"https://docs.google.com/spreadsheets/d/1BLwqFOZpEmDvBkIAH7rCYBzPIJ0ADIUJfndzDRe9WgM/edit?usp=sharing"
 
 #authenticate
-diff_date="2025-07-10"
-fiscal.period=c("Q2-2026","Q3-2026","Q4-2026","Q1-2027","Q2-2027")
+diff_date="2025-08-14"
+fiscal.period=c("Q3-2026","Q4-2026","Q1-2027","Q2-2027")
 
 sf_auth()
 
@@ -52,8 +53,8 @@ op_list=enrich_list_object(new_list=new_op_list,
 
 # push updates to my spreadsheet
 output_gsheet_mbpipeline(op_list=op_list,mb_tracker)
-output_gsheet_customer_ops_tracker(op_list=op_list,customer_ops_tracker,fiscal.period)
-output_gsheet_expansion_tracker(op_list=op_list,customer_expansion_tracker,fiscal.period)
+output_customer_ops_tracker(op_list=op_list,customer_ops_tracker,fiscal.period)
+output_expansion_tracker(op_list=op_list,customer_expansion_tracker,fiscal.period)
 # produce confluence iframes via Rmarkdown
 
 

@@ -8,18 +8,9 @@
 #' example_optable("00OVH000005p6A92AI")
 #' @export
 #'
-enrich_account.table<-function(account.table,renewal.table,
-                               idex){
+enrich_account.table<-function(account.table,renewal.table,consumption.list){
 
-  if(idex){
-    system("uvx idex all -p /Users/matt.benigni/Documents/projects/ImmuteR/data/idex/")
-    system("uvx idex -f /Users/matt.benigni/Documents/projects/ImmuteR/data/idex/users.parquet metrics -m 3 users")
-    system("uvx idex -f /Users/matt.benigni/Documents/projects/ImmuteR/data/idex/queries.parquet metrics -m 3 queries")
-    system("uvx idex -f /Users/matt.benigni/Documents/projects/ImmuteR/data/idex/marketplace.parquet metrics -m 3 marketplace")
-    system("uvx idex -f /Users/matt.benigni/Documents/projects/ImmuteR/data/idex/datasources.parquet metrics -m 3 datasources")
-    system("uvx idex -f /Users/matt.benigni/Documents/projects/ImmuteR/data/idex/data-policies.parquet metrics -m 3 data-policies")
-    system("uvx idex -f /Users/matt.benigni/Documents/projects/ImmuteR/data/idex/subscription-policies.parquet metrics -m 3 subscription-policies")
-  }
+
 
   renewal.table = renewal.table %>%
     group_by(`Account ID`) %>%
@@ -34,33 +25,11 @@ enrich_account.table<-function(account.table,renewal.table,
 
 
   #load idex user metrics and keep the highest return with respect to registered users
-  user_metrics=read_parquet("/Users/matt.benigni/Documents/projects/ImmuteR/data/idex/users.parquet")
-  user_metrics=data.table(`Account Name`=user_metrics$account_name,
-                          licensed_users=user_metrics$salesforce_contracts.sum_of_all_contracted_user_types,
-                          registered_users=user_metrics$full_user_pricing_counts+user_metrics$policy_owner_pricing_counts) %>%
-    group_by(`Account Name`) %>%
-    slice_max(order_by=registered_users, n=1, with_ties=FALSE) %>%
-    ungroup()%>%
-    distinct()
+  user_metrics=as.data.frame(consumption.list$metrics_df)
 
-  account.table=merge(account.table,user_metrics,by="Account Name",all.x=TRUE)
-
-
-  #load idex user metrics and keep the highest return with respect to registered users
-  query_metrics=read_parquet("/Users/matt.benigni/Documents/projects/ImmuteR/data/idex/queries.parquet")
-  names(query_metrics)[4]="Account Name"
-  query_metrics=query_metrics %>%
-    select(`Account Name`,queries_failures, queries_success,queries_native) %>%
-    group_by(`Account Name`) %>%
-    slice_max(order_by=queries_success, n=1, with_ties=FALSE) %>%
-    ungroup() %>%
-    distinct()
-
-  account.table=merge(account.table,query_metrics,by="Account Name",all.x=TRUE)
-
-  # quantify utilization
-  account.table$utilization=account.table$registered_users/account.table$licensed_users
-  account.table$utilization[is.na(account.table$utilization)]=0
+  account.table=merge(account.table,user_metrics,by="Account Name",all.x=TRUE) %>%
+    select(-mean_queries.y,-median_queries.y) %>%
+    rename(mean_queries = mean_queries.x , median_queries = median_queries.x )
 
   # develop engagement risk
   account.table$engagement_risk=rep("low",length(account.table$`Date of last EBR`))

@@ -21,12 +21,12 @@ output_gsheet_expansion_tracker<-function(op_list,
                  # Comments
                  `Next Step`,`RD Comment`,
                  # Risk
-                 `Account Risk`,`Adoption Phase`,utilization_risk,licensed_users,
-                 registered_users,engagement_risk,`Date of last EBR`,`Date of next EBR`)
+                 `Account Risk`,`Adoption Phase`,consumption_risk,licensed_users,
+                 max_reg_users,engagement_risk,`Date of last EBR`,`Date of next EBR`)
 
 
   temp.accounts=op_list$accounts %>%
-    select(`Account ID`,`utilization`,`Vitally Days as Customer`,onboarding_risk,
+    select(`Account ID`,`max_consumption`,`Vitally Days as Customer`,onboarding_risk,
            `Next Use Case Deployment Date`,`Expected User Count`)
 
   output=merge(temp.expansions,temp.accounts,by="Account ID", all.x=TRUE)
@@ -46,8 +46,8 @@ output_gsheet_expansion_tracker<-function(op_list,
       # Onboarding Risk
       onboarding_risk,`Adoption Phase`,`Vitally Days as Customer`,
 
-      # utilization risk
-      utilization_risk, licensed_users,registered_users,
+      # consumption risk
+      consumption_risk, licensed_users,max_reg_users,
 
       #engagement risk
       engagement_risk,`Date of last EBR`, `Date of next EBR`)

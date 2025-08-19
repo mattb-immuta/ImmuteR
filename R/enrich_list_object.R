@@ -62,7 +62,7 @@ enrich_list_object<-function(new_list,old_list){
 
   customer_ops_tracker=merge(new_list$renewals[,c("Account ID","account_url","opportunity_url","Amount","Close Date",
                                                   "Fiscal Period","Region",
-                                                  "Account Risk","Stage","registered_users","licensed_users","utilization_risk",
+                                                  "Account Risk","Stage","max_reg_users","licensed_users","consumption_risk",
                                                   "consumption_url",
                                                   "Next Step","RD Comment","Date of last EBR","Date of next EBR",
                                                   "running_estimate_hyperlink")],
@@ -71,7 +71,7 @@ enrich_list_object<-function(new_list,old_list){
   customer_ops_tracker=customer_ops_tracker[,c("account_url","opportunity_url","Amount","Close Date","Fiscal Period","Region",
 
                                                #account health
-                                               "Account Risk","Stage","registered_users","licensed_users","utilization_risk",
+                                               "Account Risk","Stage","max_reg_users","licensed_users","consumption_risk",
                                                "consumption_url","active_expansions","total_amount",
 
                                                #account team engagement

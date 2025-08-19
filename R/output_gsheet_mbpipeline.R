@@ -17,8 +17,8 @@ output_gsheet_mbpipeline<-function(op_list,mb_tracker){
       # Comments
       `Next Step`,`RD Comment`,
       # Risk
-      `Account Risk`,`Adoption Phase`,utilization_risk,licensed_users,
-      registered_users,engagement_risk,`Date of last EBR`,`Date of next EBR`,
+      `Account Risk`,`Adoption Phase`,consumption_risk,licensed_users,
+      max_reg_users,engagement_risk,`Date of last EBR`,`Date of next EBR`,
       `days_until_renewal`,expected_churn,company_churn_hazard) %>%
     arrange(desc(expected_churn))
 
@@ -32,15 +32,15 @@ output_gsheet_mbpipeline<-function(op_list,mb_tracker){
       # Comments
       `Next Step`,`RD Comment`,
       # Risk
-      `Account Risk`,`Adoption Phase`,utilization_risk,licensed_users,
-      registered_users,engagement_risk,`Date of last EBR`,`Date of next EBR`) %>%
+      `Account Risk`,`Adoption Phase`,consumption_risk,licensed_users,
+      max_reg_users,engagement_risk,`Date of last EBR`,`Date of next EBR`) %>%
     arrange(desc(Amount))
 
   sheet_write(output,ss=mb_tracker,sheet='expansion_sheet')
 
 
   temp=op_list$renewals %>%
-    select(`Account ID`,utilization_risk,days_until_renewal)
+    select(`Account ID`,consumption_risk,days_until_renewal)
 
   output=merge(op_list$accounts,temp,all.x=TRUE)
 
@@ -57,8 +57,8 @@ output_gsheet_mbpipeline<-function(op_list,mb_tracker){
       # Onboarding Risk
       `Adoption Phase`,`Vitally Days as Customer`,
 
-      # utilization risk
-      utilization_risk, licensed_users,registered_users, days_until_renewal,
+      # consumption risk
+      consumption_risk, licensed_users,max_reg_users, days_until_renewal,
       `Next Use Case Deployment Date`,`Expected User Count` ,
 
       #engagement risk
@@ -84,9 +84,9 @@ output_gsheet_mbpipeline<-function(op_list,mb_tracker){
       # Account Risk
       `Account Risk`,`Adoption Phase`,`Vitally Days as Customer`,
 
-      #utilization risk
-      utilization_risk,licensed_users,
-      registered_users,`Next Use Case Deployment Date`,`Expected User Count`,
+      #consumption risk
+      consumption_risk,licensed_users,
+      max_reg_users,`Next Use Case Deployment Date`,`Expected User Count`,
 
       #engagement risk
       engagement_risk,`Date of last EBR`,`Date of next EBR`)

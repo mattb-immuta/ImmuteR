@@ -14,7 +14,7 @@ enrich_opportunities<-function(sf_opportunity_report="00OVH000005p6A92AI",
                                fiscal.period,
                                re_tracker="https://docs.google.com/spreadsheets/d/1Rxl25OyKEW1W1ny8Vbv3TDa2QCqR9VSpTN0QVPu6o9w/edit?usp=sharing"){
 
-
+  message(".. enrich_opportunities initiated /n")
   c=load_constants()
 
   # create necessary hyperlinks
@@ -22,6 +22,7 @@ enrich_opportunities<-function(sf_opportunity_report="00OVH000005p6A92AI",
   account.table<- sf_run_report(sf_account_report)
   marketplace.table<-sf_run_report(sf_provision_report)
   support.case.table<-sf_run_report(sf_support_case_report)
+
 
   opportunity.table$opportunity_url=paste("https://immuta.lightning.force.com/lightning/r/Opportunity/",as.character(opportunity.table$`Opportunity ID`),"/view",sep="")
   opportunity.table$account_url=paste("https://immuta.lightning.force.com/lightning/r/Account/",opportunity.table$`Account ID`,"/view",sep="")
@@ -35,7 +36,9 @@ enrich_opportunities<-function(sf_opportunity_report="00OVH000005p6A92AI",
 
   message("opportunity data collected...enrich account data")
 
-  account.table<-enrich_account.table(account.table,renewals,idex)
+  consumption=enrich_consumption(idex=TRUE)
+
+  account.table<-enrich_account.table(account.table,renewals,consumption.list=consumption)
 
   re.table=read_sheet(ss=re_tracker)
   account.table=merge(account.table,re.table[,c('Account Name','running_estimate_url')],all.x=TRUE)
@@ -43,7 +46,7 @@ enrich_opportunities<-function(sf_opportunity_report="00OVH000005p6A92AI",
 
   renewals=enrich_renewals(renewal.table=renewals,
                            account.table=account.table,
-                           phat=c$phat_adoption,
+                           phat=c$phat_account,
                            fiscal.period=fiscal.period)
 
   expansions=enrich_expansions(expansion.table=expansions,
@@ -55,10 +58,11 @@ enrich_opportunities<-function(sf_opportunity_report="00OVH000005p6A92AI",
 
   # package enriched data tables into a list object
   output_list=list()
+  output_list[["consumption"]]=consumption
   output_list[["renewals"]]=renewals
   output_list[["expansions"]]=expansions
   output_list[["accounts"]]=account.table
   output_list[["marketplace"]]=marketplace.table
   output_list[["support_cases"]]=support.case.table
-  message(".. new list object returned /n")
+  message(".. enrich_opportunities complete /n")
   return(output_list)}

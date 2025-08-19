@@ -21,7 +21,7 @@ enrich_expansions<-function(expansion.table,account.table,fiscal.period){
   expansion.table$expected_revenue=expansion.table$Amount*expansion.table$`Probability (%)`
   expansion.table$expansion_type=rep('expansion',dim(expansion.table)[1])
   expansion.table$days_until_close=as.numeric(as.Date(expansion.table$`Close Date`)-rep(Sys.Date(),dim(expansion.table)[1]))
-  expansion.table$utilization_risk=expansion.table$days_until_close<120 & expansion.table$utilization<.6
+  expansion.table$consumption_risk=expansion.table$days_until_close<120 & expansion.table$consumption<.6
 
   message(".. expansion data enriched /n")
   return(expansion.table)
