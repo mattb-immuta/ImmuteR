@@ -12,7 +12,9 @@ output_gsheet_mbpipeline<-function(op_list,mb_tracker){
   output=op_list$renewals %>%
     select( #basic renewal admin
       opportunity_url,`Opportunity Name`,Region,`Opportunity Owner`,
-      `Customer Success Manager`,`Fiscal Period`,`Close Date`,Amount,`Churn Forecast`,`Priority`,
+      `Customer Success Manager`,`Fiscal Period`,`Close Date`,
+      `Current Contract End Date`,churn_forecast_period,
+      Amount,`Churn Forecast`,`Priority`,
 
       # Comments
       `Next Step`,`RD Comment`,

@@ -31,7 +31,7 @@ enrich_renewals<-function(renewal.table,account.table,phat,fiscal.period,
   value_array=priority_array=phat_expected_array=array("No Risk Estimate",dim=d)
   worst_array=expected_array=best_array=array(NA,dim=d)
   p_sequence=1:d
-  #p_sequence=p_sequence[-which(renewal.table$`Account Risk`=="-")]
+  p_sequence=p_sequence[-which(renewal.table$`Account Risk`=="-")]
 
   small_indecies=which(renewal.table$Amount<150000)
   med_indecies=which(renewal.table$Amount>=150000 & renewal.table$Amount<500000)
@@ -61,5 +61,9 @@ enrich_renewals<-function(renewal.table,account.table,phat,fiscal.period,
   renewal.table$`Churn Forecast`[is.na(renewal.table$`Churn Forecast`)]=0
   renewal.table$expected_churn[is.na(renewal.table$expected_churn)]=0
   renewal.table$company_churn_hazard=renewal.table$expected_churn/sum(renewal.table$expected_churn)
+
+  #generate the churn forecast period by adding 1 day to the contract end date
+  renewal.table$rev_lost_day=as.Date(renewal.table$`Current Contract End Date`)+1
+  renewal.table$churn_forecast_period=date_to_fiscal_quarter(renewal.table$rev_lost_day)
   message(".. renewal data enriched /n")
   return(renewal.table)}

@@ -6,7 +6,7 @@
 #' none
 #' @export
 #'
-date_to_fiscal_quarter <- function(dates, fiscal_start_month = 10) {
+date_to_fiscal_quarter <- function(dates, fiscal_start_month = 2) {
 
   # Ensure the input is a Date object or vector of dates
   if (!inherits(dates, "Date")) {
@@ -21,7 +21,6 @@ date_to_fiscal_quarter <- function(dates, fiscal_start_month = 10) {
   fiscal_year <- ifelse(calendar_month >= fiscal_start_month, calendar_year + 1, calendar_year)
 
   # Calculate the fiscal month number (1-12) for each date
-  # The modulo operator ensures the calculation works correctly across year boundaries
   fiscal_month <- (calendar_month - fiscal_start_month + 12) %% 12 + 1
 
   # Calculate the fiscal quarter number for each date

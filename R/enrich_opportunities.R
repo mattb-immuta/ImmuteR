@@ -10,6 +10,7 @@ enrich_opportunities<-function(sf_opportunity_report="00OVH000005p6A92AI",
                                sf_account_report="00OVH0000069G8Y2AU",
                                sf_provision_report="00OVH000006Zryr2AC",
                                sf_support_case_report="00OVH000006dyX72AI",
+                               sf_contract_report = "00OVH0000070ZRZ2A2",
                                idex=FALSE,
                                fiscal.period,
                                re_tracker="https://docs.google.com/spreadsheets/d/1Rxl25OyKEW1W1ny8Vbv3TDa2QCqR9VSpTN0QVPu6o9w/edit?usp=sharing"){
@@ -22,6 +23,8 @@ enrich_opportunities<-function(sf_opportunity_report="00OVH000005p6A92AI",
   account.table<- sf_run_report(sf_account_report)
   marketplace.table<-sf_run_report(sf_provision_report)
   support.case.table<-sf_run_report(sf_support_case_report)
+  contract.table<-sf_run_report(sf_contract_report) %>%
+    filter(`Order Status`=="Active")
 
 
   opportunity.table$opportunity_url=paste("https://immuta.lightning.force.com/lightning/r/Opportunity/",as.character(opportunity.table$`Opportunity ID`),"/view",sep="")
@@ -58,6 +61,7 @@ enrich_opportunities<-function(sf_opportunity_report="00OVH000005p6A92AI",
 
   # package enriched data tables into a list object
   output_list=list()
+  output_list[["contracts"]]=contract.table
   output_list[["consumption"]]=consumption
   output_list[["renewals"]]=renewals
   output_list[["expansions"]]=expansions

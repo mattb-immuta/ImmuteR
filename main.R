@@ -24,11 +24,12 @@ looker_user_data_path<-"https://docs.google.com/spreadsheets/d/11GQF96cDxwpidj0_
 
 customer_ops_tracker<-"https://docs.google.com/spreadsheets/d/1BS3rBeDZJBflauFZc5cEdw09JTAfBM5Hwbcdh1rk1Bg/edit?usp=sharing"
 customer_expansion_tracker="https://docs.google.com/spreadsheets/d/1gI5N6FHArFMn65y1y_9pc1l9TUJGViHxYkzVXbHNk9Y/edit?gid=0#gid=0"
+BU_staging="https://docs.google.com/spreadsheets/d/1WuHvaVkHrLQkoUB9MiDe7OvM4Qw6JyQW25KWaJbjJpA/edit?gid=493722263#gid=493722263"
 mb_tracker<-"https://docs.google.com/spreadsheets/d/1BLwqFOZpEmDvBkIAH7rCYBzPIJ0ADIUJfndzDRe9WgM/edit?usp=sharing"
 
 #authenticate
-diff_date="2025-08-14"
-fiscal.period=c("Q3-2026","Q4-2026","Q1-2027","Q2-2027")
+diff_date="2025-08-21"
+fiscal.period=c("Q1-2026","Q2-2026","Q3-2026","Q4-2026","Q1-2027","Q2-2027")
 
 sf_auth()
 
@@ -40,6 +41,7 @@ new_op_list=enrich_opportunities(#input paths
   sf_account_report <- "00OVH0000069G8Y2AU",
   sf_provision_report<-"00OVH000006Zryr2AC",
   sf_support_case_report="00OVH000006dyX72AI",
+  sf_contract_report = "00OVH0000070ZRZ2A2",
   fiscal.period<-fiscal.period,
   idex=TRUE)
 
@@ -53,8 +55,9 @@ op_list=enrich_list_object(new_list=new_op_list,
 
 # push updates to my spreadsheet
 output_gsheet_mbpipeline(op_list=op_list,mb_tracker)
-output_customer_ops_tracker(op_list=op_list,customer_ops_tracker,fiscal.period)
-output_expansion_tracker(op_list=op_list,customer_expansion_tracker,fiscal.period)
+output_customer_ops_tracker(op_list=op_list,customer_ops_tracker,fiscal.period=c("Q3-2026","Q4-2026","Q1-2027","Q2-2027"))
+output_gsheet_BU_staging(op_list=op_list,BU_staging,fiscal.period=c("Q3-2026","Q4-2026","Q1-2027","Q2-2027"))
+output_expansion_tracker(op_list=op_list,customer_expansion_tracker,fiscal.period=c("Q3-2026","Q4-2026","Q1-2027","Q2-2027"))
 # produce confluence iframes via Rmarkdown
 
 

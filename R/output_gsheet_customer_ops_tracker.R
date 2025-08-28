@@ -37,7 +37,7 @@ output_gsheet_customer_ops_tracker<-function(op_list,
     select( #basic renewal admin
       company_churn_hazard,`Opportunity Name`,Region,`Opportunity Owner`,
       `Customer Success Manager`,`Close Date`,Amount,`Churn Forecast`,
-      `Fiscal Period`,
+      `Fiscal Period`,churn_forecast_period,
 
       # Comments
       `Next Step`,`RD Comment`,
