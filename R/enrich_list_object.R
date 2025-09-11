@@ -12,9 +12,17 @@ enrich_list_object<-function(new_list,old_list){
   # develop change report for churn forecast
   new_list$renewals$`Churn Forecast`[is.na( new_list$renewals$`Churn Forecast`)]=0
   old_list$renewals$`Churn Forecast`[is.na( old_list$renewals$`Churn Forecast`)]=0
-  renewal_change_df=merge(new_list$renewals,
-                          old_list$renewals[,c('Opportunity ID','Account Risk','Churn Forecast')],
+  new_list_renewals=new_list$renewals %>%
+    select("Opportunity ID","Opportunity Name",churn_forecast_period,"Account Risk","Churn Forecast")
+
+  old_list_renewals=old_list$renewals %>%
+    select("Opportunity ID","Opportunity Name",churn_forecast_period,"Account Risk","Churn Forecast")
+
+  renewal_change_df=merge(new_list_renewals,
+                          old_list_renewals,
                           by='Opportunity ID',all.x=TRUE)
+  renewal_change_df[is.na(renewal_change_df)]=FALSE
+
 
   renewal_changes_risk=renewal_change_df$`Account Risk.x`!=renewal_change_df$`Account Risk.y`
   message(paste("Renewal Changes:",sum(renewal_changes_risk)," changes to Account Risk..."))
@@ -26,7 +34,7 @@ enrich_list_object<-function(new_list,old_list){
   message(paste(sum(renewal_changes)," total changes to renewals..."))
 
   output=data.table(`Opportunity Name`=renewal_change_df$`Opportunity Name`[renewal_changes],
-                    `Fiscal Period`=renewal_change_df$`Fiscal Period`[renewal_changes],
+                    `Fiscal Period`=renewal_change_df$`churn_forecast_period`[renewal_changes],
                     `New Account Risk`=renewal_change_df$`Account Risk.x`[renewal_changes],
                     `Old Account Risk`=renewal_change_df$`Account Risk.y`[renewal_changes],
                     `New Forecast`=renewal_change_df$`Churn Forecast.x`[renewal_changes],
@@ -64,8 +72,7 @@ enrich_list_object<-function(new_list,old_list){
                                                   "Fiscal Period","Region",
                                                   "Account Risk","Stage","max_reg_users","licensed_users","consumption_risk",
                                                   "consumption_url",
-                                                  "Next Step","RD Comment","Date of last EBR","Date of next EBR",
-                                                  "running_estimate_hyperlink")],
+                                                  "Next Step","RD Comment","Date of last EBR","Date of next EBR")],
                              temp.expansions,by="Account ID",all.x=TRUE)
 
   customer_ops_tracker=customer_ops_tracker[,c("account_url","opportunity_url","Amount","Close Date","Fiscal Period","Region",
@@ -75,8 +82,7 @@ enrich_list_object<-function(new_list,old_list){
                                                "consumption_url","active_expansions","total_amount",
 
                                                #account team engagement
-                                               "Next Step","RD Comment","Date of last EBR","Date of next EBR",
-                                               "running_estimate_hyperlink")]
+                                               "Next Step","RD Comment","Date of last EBR","Date of next EBR")]
   new_list[["customer_ops_tracker"]]=customer_ops_tracker
   message("customer_ops_tracker appended to list....")
 

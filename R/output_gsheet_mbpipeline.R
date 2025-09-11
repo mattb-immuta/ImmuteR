@@ -48,23 +48,21 @@ output_gsheet_mbpipeline<-function(op_list,mb_tracker){
 
   output=output %>%
     select( #basic renewal admin
-      `Account ID`,`Account Name`,Region,`Account Owner`,`Customer Success Manager`,
+      `Account Name`,`Contract ARR Rollup`,churn_hazard,Region,`Account Owner`,`Customer Success Manager`,
       Priority,`Account Risk`,
 
 
-      # technical attributes
-      `Is SaaS Customer`,`Customer on Unsupported Version`,Databricks,
-      Snowflake,`Tech Integrations`,
-
-      # Onboarding Risk
-      `Adoption Phase`,`Vitally Days as Customer`,
-
-      # consumption risk
-      consumption_risk, licensed_users,max_reg_users, days_until_renewal,
+      # Onboarding/Adoption Risk
+      consumption_risk,`Adoption Phase`,`Vitally Days as Customer`,
+      licensed_users,max_reg_users, days_until_renewal,
       `Next Use Case Deployment Date`,`Expected User Count` ,
 
       #engagement risk
-      engagement_risk,`Date of last EBR`, `Date of next EBR`) %>%
+      engagement_risk,`Date of last EBR`, `Date of next EBR`,`Cases in last 120d`,
+
+      # performance/stability
+      `Is SaaS Customer`,`Customer on Unsupported Version`,Databricks,
+      Snowflake,`Tech Integrations`,`Cases in last 120d`) %>%
     arrange(`Account Name`)
 
   sheet_write(output,ss=mb_tracker,sheet='account_sheet')

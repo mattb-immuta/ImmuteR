@@ -31,7 +31,9 @@ enrich_renewals<-function(renewal.table,account.table,phat,fiscal.period,
   value_array=priority_array=phat_expected_array=array("No Risk Estimate",dim=d)
   worst_array=expected_array=best_array=array(NA,dim=d)
   p_sequence=1:d
-  p_sequence=p_sequence[-which(renewal.table$`Account Risk`=="-")]
+  tmp=sum(renewal.table$`Account Risk`=="-")
+  if(!(tmp==0)) p_sequence=p_sequence[-which(renewal.table$`Account Risk`=="-")]
+
 
   small_indecies=which(renewal.table$Amount<150000)
   med_indecies=which(renewal.table$Amount>=150000 & renewal.table$Amount<500000)

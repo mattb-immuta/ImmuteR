@@ -13,10 +13,11 @@ enrich_opportunities<-function(sf_opportunity_report="00OVH000005p6A92AI",
                                sf_contract_report = "00OVH0000070ZRZ2A2",
                                idex=FALSE,
                                fiscal.period,
-                               re_tracker="https://docs.google.com/spreadsheets/d/1Rxl25OyKEW1W1ny8Vbv3TDa2QCqR9VSpTN0QVPu6o9w/edit?usp=sharing"){
+                               re_tracker="https://docs.google.com/spreadsheets/d/1Rxl25OyKEW1W1ny8Vbv3TDa2QCqR9VSpTN0QVPu6o9w/edit?gid=0#gid=0"){
 
   message(".. enrich_opportunities initiated /n")
   c=load_constants()
+  c$fiscal.period=fiscal.period
 
   # create necessary hyperlinks
   opportunity.table<-sf_run_report(sf_opportunity_report)
@@ -26,10 +27,11 @@ enrich_opportunities<-function(sf_opportunity_report="00OVH000005p6A92AI",
   contract.table<-sf_run_report(sf_contract_report) %>%
     filter(`Order Status`=="Active")
 
-
+  opportunity.table$`Fiscal Period`<-factor(opportunity.table$`Fiscal Period`,levels=fiscal.period)
   opportunity.table$opportunity_url=paste("https://immuta.lightning.force.com/lightning/r/Opportunity/",as.character(opportunity.table$`Opportunity ID`),"/view",sep="")
   opportunity.table$account_url=paste("https://immuta.lightning.force.com/lightning/r/Account/",opportunity.table$`Account ID`,"/view",sep="")
   opportunity.table$consumption_url=paste("https://immuta.cloud.looker.com/dashboards/1052?Name=",gsub(" ","+",opportunity.table$`Account Name`),"&Account+ID=&Report+Month=6+month&Instance+Name=&Instance+Type=Production",sep="")
+  opportunity.table$retool_url=paste("https://retool-nonprod.ic-ops.net/app/customer-central/customerDetail?customerName=",gsub(" ","%2O",opportunity.table$`Account Name`),sep="")
 
 
 
@@ -39,14 +41,13 @@ enrich_opportunities<-function(sf_opportunity_report="00OVH000005p6A92AI",
 
   message("opportunity data collected...enrich account data")
 
-  consumption=enrich_consumption(idex=TRUE)
+  consumption=enrich_consumption(idex=idex)
 
   account.table<-enrich_account.table(account.table,renewals,consumption.list=consumption)
-
+  account.table$`Contract ARR Rollup`=extract_usd_amount(account.table$`Contract ARR Rollup`)
   re.table=read_sheet(ss=re_tracker)
-  account.table=merge(account.table,re.table[,c('Account Name','running_estimate_url')],all.x=TRUE)
-  account.table$running_estimate_hyperlink=paste("[Running Estimate](",account.table$running_estimate_url,")",sep="")
-
+  account.table=merge(account.table,re.table[,c('Account Name','running_estimate_url',
+                                                'use_case_rollout_url','org_chart_url')],all.x=TRUE)
   renewals=enrich_renewals(renewal.table=renewals,
                            account.table=account.table,
                            phat=c$phat_account,
@@ -56,9 +57,26 @@ enrich_opportunities<-function(sf_opportunity_report="00OVH000005p6A92AI",
                                account.table=account.table,
                                fiscal.period=fiscal.period)
 
+  account.table$churn_hazard=array(0,dim=length(account.table$`Account Name`))
 
+  for(i in 1:length(account.table$`Account ID`)){
+    account.table$churn_hazard[i]=sum(renewals$expected_churn[renewals$`Account ID`==account.table$`Account ID`[i]])
+  }
 
+  df=as.data.frame(ftable(support.case.table$`Account Name`))
 
+  names(df)= c("Account Name","Cases in last 120d")
+
+  df= df[order(df$"Cases in last 120d",decreasing=TRUE),]
+
+  temp=account.table$`Account Name`[!account.table$`Account Name`%in% df$`Account Name`]
+  no_case_df=data.frame(temp,rep(0,length(temp)))
+  names(no_case_df)= c("Account Name","Cases in last 120d")
+  df=rbind(df,no_case_df)
+  account.table=merge(account.table,df,by="Account Name",all.x=TRUE)
+  account.table=account.table[!duplicated(account.table$`Account Name`),]
+
+  health_metrics=merge(op_list$accounts,df,by="Account Name",all.x=TRUE)
   # package enriched data tables into a list object
   output_list=list()
   output_list[["contracts"]]=contract.table

@@ -3,7 +3,7 @@ library(data.table)
 library(salesforcer)
 library(dplyr)
 library(stringr)
-library(DT)
+library(reactable)
 library(htmltools)
 library(roxygen2)
 library(gt)
@@ -28,8 +28,8 @@ BU_staging="https://docs.google.com/spreadsheets/d/1WuHvaVkHrLQkoUB9MiDe7OvM4Qw6
 mb_tracker<-"https://docs.google.com/spreadsheets/d/1BLwqFOZpEmDvBkIAH7rCYBzPIJ0ADIUJfndzDRe9WgM/edit?usp=sharing"
 
 #authenticate
-diff_date="2025-08-21"
-fiscal.period=c("Q1-2026","Q2-2026","Q3-2026","Q4-2026","Q1-2027","Q2-2027")
+diff_date="2025-09-04"
+fiscal.period=c("Q3-2026","Q4-2026","Q1-2027","Q2-2027")
 
 sf_auth()
 
@@ -43,14 +43,14 @@ new_op_list=enrich_opportunities(#input paths
   sf_support_case_report="00OVH000006dyX72AI",
   sf_contract_report = "00OVH0000070ZRZ2A2",
   fiscal.period<-fiscal.period,
-  idex=TRUE)
+  idex=FALSE)
 
 load(paste("data/opportunities_",diff_date,".RData",sep=""))
-#op_list=output_list # hacky until compared object is of same structure
+
 op_list=enrich_list_object(new_list=new_op_list,
                            old_list=op_list)
 
-
+op_list[["constants"]]=load_constants()
 # produce outputs
 
 # push updates to my spreadsheet
