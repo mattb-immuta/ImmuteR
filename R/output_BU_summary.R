@@ -10,8 +10,8 @@
 
 output_BU_summary<-function(op_list){
   df=data.frame(churn_forecast_period=unlist(op_list$constants$churn_plan$fiscal.period))
-  data=op_list$renewals %>%
-    filter(op_list$renewals$churn_forecast_period %in% df$churn_forecast_period)
+  data=op_list$renewals # %>%
+   # filter(op_list$renewals$churn_forecast_period %in% df$churn_forecast_period)
   data$churn_forecast_period=factor(data$churn_forecast_period,levels=df$churn_forecast_period)
   forecast= data %>%
     group_by(churn_forecast_period) %>%

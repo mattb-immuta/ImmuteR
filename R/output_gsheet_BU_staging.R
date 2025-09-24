@@ -22,8 +22,6 @@ output_gsheet_BU_staging<-function(op_list,
                  `Next Step`,`RD Comment`,expected_churn,company_churn_hazard)
 
 
-  #message("..merged names output:")
-  #message(paste(names(output),", ",sep=""))
   output=output %>%
     arrange(Region,desc(company_churn_hazard)) %>%
     select( #basic renewal admin
@@ -34,6 +32,7 @@ output_gsheet_BU_staging<-function(op_list,
     temp=output %>%
       filter(churn_forecast_period==i) %>%
     select(`Account Name`,`Close Date`,`Current Contract End Date`,`Customer Success Manager`,`Opportunity Owner`,`Account Risk`,Amount,`Churn Forecast`,`Next Step`)
+    sheet_delete(ss=BU_staging,sheet=i)
     sheet_write(temp,ss=BU_staging,sheet=i)
   }
 

@@ -28,7 +28,7 @@ BU_staging="https://docs.google.com/spreadsheets/d/1WuHvaVkHrLQkoUB9MiDe7OvM4Qw6
 mb_tracker<-"https://docs.google.com/spreadsheets/d/1BLwqFOZpEmDvBkIAH7rCYBzPIJ0ADIUJfndzDRe9WgM/edit?usp=sharing"
 
 #authenticate
-diff_date="2025-09-04"
+diff_date="2025-09-18"
 fiscal.period=c("Q3-2026","Q4-2026","Q1-2027","Q2-2027")
 
 sf_auth()
@@ -52,6 +52,8 @@ op_list=enrich_list_object(new_list=new_op_list,
 
 op_list[["constants"]]=load_constants()
 # produce outputs
+
+
 
 # push updates to my spreadsheet
 output_gsheet_mbpipeline(op_list=op_list,mb_tracker)

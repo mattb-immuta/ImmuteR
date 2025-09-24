@@ -31,7 +31,6 @@ enrich_opportunities<-function(sf_opportunity_report="00OVH000005p6A92AI",
   opportunity.table$opportunity_url=paste("https://immuta.lightning.force.com/lightning/r/Opportunity/",as.character(opportunity.table$`Opportunity ID`),"/view",sep="")
   opportunity.table$account_url=paste("https://immuta.lightning.force.com/lightning/r/Account/",opportunity.table$`Account ID`,"/view",sep="")
   opportunity.table$consumption_url=paste("https://immuta.cloud.looker.com/dashboards/1052?Name=",gsub(" ","+",opportunity.table$`Account Name`),"&Account+ID=&Report+Month=6+month&Instance+Name=&Instance+Type=Production",sep="")
-  opportunity.table$retool_url=paste("https://retool-nonprod.ic-ops.net/app/customer-central/customerDetail?customerName=",gsub(" ","%2O",opportunity.table$`Account Name`),sep="")
 
 
 
@@ -45,6 +44,8 @@ enrich_opportunities<-function(sf_opportunity_report="00OVH000005p6A92AI",
 
   account.table<-enrich_account.table(account.table,renewals,consumption.list=consumption)
   account.table$`Contract ARR Rollup`=extract_usd_amount(account.table$`Contract ARR Rollup`)
+  account.table$retool_url=paste("https://retool-nonprod.ic-ops.net/app/customer-central/customerDetail?customerName=",gsub(" ","%2O",account.table$`Account Name`),sep="")
+
   re.table=read_sheet(ss=re_tracker)
   account.table=merge(account.table,re.table[,c('Account Name','running_estimate_url',
                                                 'use_case_rollout_url','org_chart_url')],all.x=TRUE)

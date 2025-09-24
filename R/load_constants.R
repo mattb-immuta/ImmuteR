@@ -18,6 +18,6 @@ load_constants<-function(risk.vec=c('3. Low Risk','2. Moderate Risk','1. High Ri
   c$arr_index = c(0,150000,
                   500000)
   c$churn_plan=data.frame(fiscal.period=c("Q2-2026","Q3-2026","Q4-2026","Q1-2027","Q2-2027"),
-                          company_plan=c(350000,907000,1551519,0,0))
+                          company_plan=c(350000,1950000,1611519,814000,0))
   return(c)
 }

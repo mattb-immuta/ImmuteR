@@ -16,7 +16,7 @@ enrich_list_object<-function(new_list,old_list){
     select("Opportunity ID","Opportunity Name",churn_forecast_period,"Account Risk","Churn Forecast")
 
   old_list_renewals=old_list$renewals %>%
-    select("Opportunity ID","Opportunity Name",churn_forecast_period,"Account Risk","Churn Forecast")
+    select("Opportunity ID",churn_forecast_period,"Account Risk","Churn Forecast")
 
   renewal_change_df=merge(new_list_renewals,
                           old_list_renewals,
@@ -68,21 +68,21 @@ enrich_list_object<-function(new_list,old_list){
     group_by(`Account ID`) %>%
     summarise(total_amount = sum(Amount),active_expansions = n())
 
-  customer_ops_tracker=merge(new_list$renewals[,c("Account ID","account_url","opportunity_url","Amount","Close Date",
-                                                  "Fiscal Period","Region",
-                                                  "Account Risk","Stage","max_reg_users","licensed_users","consumption_risk",
-                                                  "consumption_url",
-                                                  "Next Step","RD Comment","Date of last EBR","Date of next EBR")],
+  temp= new_list$renewals %>%
+    select(      `Account ID`,`Opportunity Name`,Region,`Opportunity Owner`,
+                 `Customer Success Manager`,`Fiscal Period`,churn_forecast_period,`Close Date`,Amount,`Churn Forecast`,`Priority`,
+
+                 # Comments
+                 `Next Step`,`RD Comment`,
+                 # Risk
+                 `Account Risk`,`Adoption Phase`,consumption_risk,licensed_users,
+                 max_reg_users,engagement_risk,`Date of last EBR`,`Date of next EBR`,
+                 `days_until_renewal`,expected_churn,company_churn_hazard)
+
+  customer_ops_tracker=merge(temp,
                              temp.expansions,by="Account ID",all.x=TRUE)
 
-  customer_ops_tracker=customer_ops_tracker[,c("account_url","opportunity_url","Amount","Close Date","Fiscal Period","Region",
 
-                                               #account health
-                                               "Account Risk","Stage","max_reg_users","licensed_users","consumption_risk",
-                                               "consumption_url","active_expansions","total_amount",
-
-                                               #account team engagement
-                                               "Next Step","RD Comment","Date of last EBR","Date of next EBR")]
   new_list[["customer_ops_tracker"]]=customer_ops_tracker
   message("customer_ops_tracker appended to list....")
 

@@ -56,6 +56,7 @@ output_expansion_tracker<-function(op_list,
     temp=output %>%
       filter(`Fiscal Period`==i) %>%
       select(-`Fiscal Period`)
+    sheet_delete(ss=customer_expansion_tracker,sheet=i)
     sheet_write(temp,ss=customer_expansion_tracker,sheet=i)
   }
 
