@@ -16,7 +16,7 @@ enrich_renewals<-function(renewal.table,account.table,phat,fiscal.period,
 
 
   risk.values=c('3. Low Risk','2. Moderate Risk','1. High Risk','Planned Lost','Closed Lost','0. Will Lose','0. Will Lose (Formally Notified)','4. Will Win',"Closed Won")
-  renewal.table =renewal.table[renewal.table$`Fiscal Period` %in% fiscal.period,]
+  if(!is.null(fiscal.period)){ renewal.table =renewal.table[renewal.table$`Fiscal Period` %in% fiscal.period,]}
 
 
   renewal.table$Amount=as.numeric(extract_usd_amount(renewal.table$Amount),scientific=FALSE)

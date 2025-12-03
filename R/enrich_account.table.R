@@ -7,7 +7,8 @@
 #' @examples
 #' example_optable("00OVH000005p6A92AI")
 #' @export
-#'
+#' known bugs:
+#'  none
 enrich_account.table<-function(account.table,renewal.table,consumption.list){
 
 

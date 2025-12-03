@@ -52,7 +52,7 @@ enrich_opportunities<-function(sf_opportunity_report="00OVH000005p6A92AI",
   renewals=enrich_renewals(renewal.table=renewals,
                            account.table=account.table,
                            phat=c$phat_account,
-                           fiscal.period=fiscal.period)
+                           fiscal.period=NULL)
 
   expansions=enrich_expansions(expansion.table=expansions,
                                account.table=account.table,
@@ -68,14 +68,8 @@ enrich_opportunities<-function(sf_opportunity_report="00OVH000005p6A92AI",
 
   names(df)= c("Account Name","Cases in last 120d")
 
-  df= df[order(df$"Cases in last 120d",decreasing=TRUE),]
-
-  temp=account.table$`Account Name`[!account.table$`Account Name`%in% df$`Account Name`]
-  no_case_df=data.frame(temp,rep(0,length(temp)))
-  names(no_case_df)= c("Account Name","Cases in last 120d")
-  df=rbind(df,no_case_df)
   account.table=merge(account.table,df,by="Account Name",all.x=TRUE)
-  account.table=account.table[!duplicated(account.table$`Account Name`),]
+  account.table$`Cases in last 120d`[is.na(account.table$`Cases in last 120d`)]=0
 
   health_metrics=merge(op_list$accounts,df,by="Account Name",all.x=TRUE)
   # package enriched data tables into a list object

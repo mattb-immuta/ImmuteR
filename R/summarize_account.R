@@ -8,43 +8,48 @@
 #' example_optable("00OVH000005p6A92AI")
 #' @export
 #'
-summarize_account<-function(account_id,op_list){
- # account_id=op_list$accounts$`Account ID`[35]
-  output=list()
-  a_data=op_list$accounts %>%
-    filter(`Account ID`==account_id)
+#summarize_accounts(op_list){
+        summarize_account<-function(account_name,op_list){
+         # account_name=op_list$accounts$`Account Name`[35]
+          output=list()
+          a_data=op_list$accounts %>%
+            filter(`Account Name`==account_name)
+          output[["account"]]=a_data$`Account Name`
+          output[["metadata"]]=a_data %>%
+            select(Region,`Contract ARR Rollup`,`Account Owner`,`Customer Success Manager`,`Field CTO`,org_chart_url,running_estimate_url) %>%
+            t()
+          output$metadata[2,1]=dollar(as.numeric(output$metadata[2,1]))
 
-  output[["metadata"]]=a_data %>%
-    select(Region,`Contract ARR Rollup`,`Account Owner`,`Customer Success Manager`,`Field CTO`,org_chart_url,running_estimate_url) %>%
-    t()
-  output$metadata[2,1]=dollar(as.numeric(output$metadata[2,1]))
+          output[["renewals"]]= op_list$renewals %>%
+            filter(`Account Name`==account_name) %>%
+            select(`Opportunity Name`,Amount,`Close Date`,`Account Risk`)
+          output$renewals$Amount=dollar(output$renewals$Amount)
 
-  output[["renewals"]]= op_list$renewals %>%
-    filter(`Account ID`==account_id) %>%
-    select(`Opportunity Name`,Amount,`Close Date`,`Account Risk`)
-  output$renewals$Amount=dollar(output$renewals$Amount)
+          output[["expansions"]]= op_list$expansions %>%
+            filter(`Account Name`==account_name) %>%
+            select(`Opportunity Name`,Amount,`Close Date`,Stage)
+          output$expansions$Amount=dollar(output$expansions$Amount)
 
-  output[["expansions"]]= op_list$expansions %>%
-    filter(`Account ID`==account_id) %>%
-    select(`Opportunity Name`,Amount,`Close Date`,Stage)
-  output$expansions$Amount=dollar(output$expansions$Amount)
+          output[["adoption"]]= a_data %>%
+            select(`Adoption Phase`,`Vitally Days as Customer`,licensed_users,max_reg_users,mean_consumption,max_consumption,mean_queries,
+                   global_policies_staged,use_case_rollout_url,consumption_url) %>%
+            t()
 
-  output[["adoption"]]= a_data %>%
-    select(`Adoption Phase`,`Vitally Days as Customer`,licensed_users,max_reg_users,mean_consumption,max_consumption,mean_queries,
-           global_policies_staged,use_case_rollout_url,consumption_url) %>%
-    t()
+          tmp_vec= a_data %>%
+            select(`Customer on Unsupported Version`,`Tech Integrations`,`Is SaaS Customer`,`retool_url`,`Cases in last 120d`) %>%
+            t()
+          p1=sum(op_list$support_cases$Priority==1 & op_list$support_cases$`Account Name`==account_name)
+          tmp_vec=c(tmp_vec,p1)
+          names(tmp_vec)=c("Customer on Unsupported Version","Tech Integrations","Is SaaS Customer","retool_url","Cases in last 120d","P1 Cases")
+          output[["Performance-Stability"]]= as.data.frame(tmp_vec)
 
-  tmp_vec= a_data %>%
-    select(`Customer on Unsupported Version`,`Tech Integrations`,`Is SaaS Customer`,`retool_url`,`Cases in last 120d`) %>%
-    t()
-  p1=sum(op_list$support_cases$Priority==1 & op_list$support_cases$`Account ID`==account_id)
-  tmp_vec=c(tmp_vec,p1)
-  names(tmp_vec)=c("Customer on Unsupported Version","Tech Integrations","Is SaaS Customer","retool_url","Cases in last 120d","P1 Cases")
-  output[["Performance-Stability"]]= as.data.frame(tmp_vec)
-
-  output[["Engagement"]]= a_data %>%
-    select(`Date of last EBR`,`Date of next EBR`,`Cases in last 120d`) %>%
-    t()
+          output[["Engagement"]]= a_data %>%
+            select(`Date of last EBR`,`Date of next EBR`,`Cases in last 120d`) %>%
+            t()
 
 
-  return(output)}
+          return(output)}
+
+
+
+#}

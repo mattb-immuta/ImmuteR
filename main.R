@@ -28,8 +28,8 @@ BU_staging="https://docs.google.com/spreadsheets/d/1WuHvaVkHrLQkoUB9MiDe7OvM4Qw6
 mb_tracker<-"https://docs.google.com/spreadsheets/d/1BLwqFOZpEmDvBkIAH7rCYBzPIJ0ADIUJfndzDRe9WgM/edit?usp=sharing"
 
 #authenticate
-diff_date="2025-09-18"
-fiscal.period=c("Q3-2026","Q4-2026","Q1-2027","Q2-2027")
+diff_date="2025-11-25"
+fiscal.period=c("Q4-2026","Q1-2027","Q2-2027","Q3-2027","Q4-2027")
 
 sf_auth()
 
@@ -64,6 +64,7 @@ output_expansion_tracker(op_list=op_list,customer_expansion_tracker,fiscal.perio
 
 
 
+
 #output_ELT_updates(op_list)
 
 
@@ -74,5 +75,5 @@ op_list[['dates']]=paste("Run Date: ",Sys.Date()," , Comparison Date: ",diff_dat
 message(paste("saving op_list for ",op_list$dates," as: data/opportunities_",Sys.Date(),".RData",sep=""))
 save(op_list,file=paste("data/opportunities_",Sys.Date(),".RData",sep=""))
 
-
+rmarkdown::render("output/BottomsUp.Rmd", output_format = "html_document")
 

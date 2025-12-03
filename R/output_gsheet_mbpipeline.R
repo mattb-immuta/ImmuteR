@@ -23,7 +23,7 @@ output_gsheet_mbpipeline<-function(op_list,mb_tracker){
       max_reg_users,engagement_risk,`Date of last EBR`,`Date of next EBR`,
       `days_until_renewal`,expected_churn,company_churn_hazard) %>%
     arrange(desc(expected_churn))
-
+  sheet_delete(ss=mb_tracker,sheet='renewal_sheet')
   sheet_write(output,ss=mb_tracker,sheet='renewal_sheet')
 
   output=op_list$expansions %>%
@@ -37,15 +37,15 @@ output_gsheet_mbpipeline<-function(op_list,mb_tracker){
       `Account Risk`,`Adoption Phase`,consumption_risk,licensed_users,
       max_reg_users,engagement_risk,`Date of last EBR`,`Date of next EBR`) %>%
     arrange(desc(Amount))
-
+  sheet_delete(ss=mb_tracker,sheet='expansion_sheet')
   sheet_write(output,ss=mb_tracker,sheet='expansion_sheet')
 
 
-  temp=op_list$renewals %>%
-    select(`Account ID`,consumption_risk,days_until_renewal)
+ #temp=op_list$renewals %>%
+ #  select(`Account ID`,consumption_risk,days_until_renewal)
 
-  output=merge(op_list$accounts,temp,all.x=TRUE)
-
+ # output=merge(op_list$accounts,temp,by="Account ID",all.x=TRUE)
+  output=op_list$accounts
   output=output %>%
     select( #basic renewal admin
       `Account Name`,`Contract ARR Rollup`,churn_hazard,Region,`Account Owner`,`Customer Success Manager`,
@@ -53,8 +53,9 @@ output_gsheet_mbpipeline<-function(op_list,mb_tracker){
 
 
       # Onboarding/Adoption Risk
-      consumption_risk,`Adoption Phase`,`Vitally Days as Customer`,
-      licensed_users,max_reg_users, days_until_renewal,
+      #consumption_risk, days_until_renewal,
+      `Adoption Phase`,`Vitally Days as Customer`,
+      licensed_users,max_reg_users,
       `Next Use Case Deployment Date`,`Expected User Count` ,
 
       #engagement risk
@@ -64,11 +65,11 @@ output_gsheet_mbpipeline<-function(op_list,mb_tracker){
       `Is SaaS Customer`,`Customer on Unsupported Version`,Databricks,
       Snowflake,`Tech Integrations`,`Cases in last 120d`) %>%
     arrange(`Account Name`)
-
+  sheet_delete(ss=mb_tracker,sheet='account_sheet')
   sheet_write(output,ss=mb_tracker,sheet='account_sheet')
 
 
-  sheet_write(op_list$renewal_changes,ss=mb_tracker,sheet="renewal_changes")
+  sheet_delete(ss=mb_tracker,sheet="marketplace_updates")
   sheet_write(op_list$marketplace,ss=mb_tracker,sheet="marketplace_updates")
 
   output=op_list$renewals %>%
@@ -90,6 +91,6 @@ output_gsheet_mbpipeline<-function(op_list,mb_tracker){
 
       #engagement risk
       engagement_risk,`Date of last EBR`,`Date of next EBR`)
-
+  sheet_delete(ss=mb_tracker,sheet='critical_churn_risk')
   sheet_write(output,ss=mb_tracker,sheet='critical_churn_risk')
 }
