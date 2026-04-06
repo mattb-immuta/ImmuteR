@@ -28,8 +28,8 @@ BU_staging="https://docs.google.com/spreadsheets/d/1WuHvaVkHrLQkoUB9MiDe7OvM4Qw6
 mb_tracker<-"https://docs.google.com/spreadsheets/d/1BLwqFOZpEmDvBkIAH7rCYBzPIJ0ADIUJfndzDRe9WgM/edit?usp=sharing"
 
 #authenticate
-diff_date="2025-11-25"
-fiscal.period=c("Q4-2026","Q1-2027","Q2-2027","Q3-2027","Q4-2027")
+diff_date="2026-01-12"
+fiscal.period=c("Q1-2027","Q2-2027","Q3-2027","Q4-2027")
 
 sf_auth()
 
@@ -56,10 +56,10 @@ op_list[["constants"]]=load_constants()
 
 
 # push updates to my spreadsheet
-output_gsheet_mbpipeline(op_list=op_list,mb_tracker)
-output_customer_ops_tracker(op_list=op_list,customer_ops_tracker,fiscal.period=c("Q3-2026","Q4-2026","Q1-2027","Q2-2027"))
-output_gsheet_BU_staging(op_list=op_list,BU_staging,fiscal.period=c("Q3-2026","Q4-2026","Q1-2027","Q2-2027"))
-output_expansion_tracker(op_list=op_list,customer_expansion_tracker,fiscal.period=c("Q3-2026","Q4-2026","Q1-2027","Q2-2027"))
+#output_gsheet_mbpipeline(op_list=op_list,mb_tracker)
+output_customer_ops_tracker(op_list=op_list,customer_ops_tracker,fiscal.period=c("Q1-2027","Q2-2027","Q3-2027","Q4-2027"))
+output_gsheet_BU_staging(op_list=op_list,BU_staging,fiscal.period=c("Q1-2027","Q2-2027","Q3-2027","Q4-2027"))
+#output_expansion_tracker(op_list=op_list,customer_expansion_tracker,fiscal.period=c("Q3-2026","Q4-2026","Q1-2027","Q2-2027"))
 # produce confluence iframes via Rmarkdown
 
 

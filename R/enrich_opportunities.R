@@ -22,8 +22,8 @@ enrich_opportunities<-function(sf_opportunity_report="00OVH000005p6A92AI",
   # create necessary hyperlinks
   opportunity.table<-sf_run_report(sf_opportunity_report)
   account.table<- sf_run_report(sf_account_report)
-  marketplace.table<-sf_run_report(sf_provision_report)
-  support.case.table<-sf_run_report(sf_support_case_report)
+  #marketplace.table<-sf_run_report(sf_provision_report)
+  #support.case.table<-sf_run_report(sf_support_case_report)
   contract.table<-sf_run_report(sf_contract_report) %>%
     filter(`Order Status`=="Active")
 
@@ -58,20 +58,20 @@ enrich_opportunities<-function(sf_opportunity_report="00OVH000005p6A92AI",
                                account.table=account.table,
                                fiscal.period=fiscal.period)
 
-  account.table$churn_hazard=array(0,dim=length(account.table$`Account Name`))
+  #account.table$churn_hazard=array(0,dim=length(account.table$`Account Name`))
 
-  for(i in 1:length(account.table$`Account ID`)){
-    account.table$churn_hazard[i]=sum(renewals$expected_churn[renewals$`Account ID`==account.table$`Account ID`[i]])
-  }
+  #for(i in 1:length(account.table$`Account ID`)){
+  #  account.table$churn_hazard[i]=sum(renewals$expected_churn[renewals$`Account ID`==account.table$`Account ID`[i]])
+  #}
 
-  df=as.data.frame(ftable(support.case.table$`Account Name`))
+  #df=as.data.frame(ftable(support.case.table$`Account Name`))
 
-  names(df)= c("Account Name","Cases in last 120d")
+  #names(df)= c("Account Name","Cases in last 120d")
 
-  account.table=merge(account.table,df,by="Account Name",all.x=TRUE)
-  account.table$`Cases in last 120d`[is.na(account.table$`Cases in last 120d`)]=0
+  #account.table=merge(account.table,df,by="Account Name",all.x=TRUE)
+  #account.table$`Cases in last 120d`[is.na(account.table$`Cases in last 120d`)]=0
 
-  health_metrics=merge(op_list$accounts,df,by="Account Name",all.x=TRUE)
+  #health_metrics=merge(op_list$accounts,df,by="Account Name",all.x=TRUE)
   # package enriched data tables into a list object
   output_list=list()
   output_list[["contracts"]]=contract.table
@@ -79,7 +79,7 @@ enrich_opportunities<-function(sf_opportunity_report="00OVH000005p6A92AI",
   output_list[["renewals"]]=renewals
   output_list[["expansions"]]=expansions
   output_list[["accounts"]]=account.table
-  output_list[["marketplace"]]=marketplace.table
-  output_list[["support_cases"]]=support.case.table
+  #output_list[["marketplace"]]=marketplace.table
+  #output_list[["support_cases"]]=support.case.table
   message(".. enrich_opportunities complete /n")
   return(output_list)}

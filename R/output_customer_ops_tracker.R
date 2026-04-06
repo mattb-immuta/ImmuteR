@@ -10,7 +10,7 @@
 
 output_customer_ops_tracker<-function(op_list,
                                              customer_ops_tracker,
-                                             fiscal.period=c("Q2-2026","Q3-2026","Q4-2026","Q1-2027")){
+                                             fiscal.period){
 
 
 
@@ -22,25 +22,24 @@ output_customer_ops_tracker<-function(op_list,
   #message("..merged names output:")
   #message(paste(names(output),", ",sep=""))
   output=output %>%
-    arrange(Region,desc(company_churn_hazard)) %>%
     select( #basic renewal admin
-      company_churn_hazard,`Opportunity Name`,Region,`Opportunity Owner`,
+      `Opportunity Name`,Region,`Opportunity Owner`,
       `Customer Success Manager`,`Close Date`,Amount,`Churn Forecast`,
       `Fiscal Period`,
 
       # Comments
-      `Next Step`,`RD Comment`,
+      `Next Step`,
       #
       `Account Risk`,
       # Onboarding Risk
       onboarding_risk,`Adoption Phase`,`Vitally Days as Customer`,
 
       # consumption risk
-      consumption_risk, licensed_users,max_reg_users, days_until_renewal,
+      licensed_users,max_reg_users,
       `Next Use Case Deployment Date`,`Expected User Count` ,
 
       #engagement risk
-      engagement_risk,`Date of last EBR`, `Date of next EBR`)
+      `Date of last EBR`, `Date of next EBR`)
 
   for(i in fiscal.period){
     temp=output %>%

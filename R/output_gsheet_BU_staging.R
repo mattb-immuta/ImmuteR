@@ -10,27 +10,27 @@
 
 output_gsheet_BU_staging<-function(op_list,
                                              BU_staging,
-                                             fiscal.period=c("Q2-2026","Q3-2026","Q4-2026","Q1-2027")){
+                                             fiscal.period=c("Q4-2026","Q1-2027","Q2-2027","Q3-2027","Q4-2027")){
 
 
   output=op_list$renewals %>%
     select(      `Account ID`,`Account Name`,`Opportunity Name`,Region,`Opportunity Owner`,
                  `Customer Success Manager`,`Close Date`,`Current Contract End Date`,`Account Risk`,
-                 churn_forecast_period, Amount,`Churn Forecast`,
+                 `Churn Quarter`, Amount,`Churn Forecast`,
 
                  # Comments
-                 `Next Step`,`RD Comment`,expected_churn,company_churn_hazard)
+                 `Next Step`)
 
 
   output=output %>%
-    arrange(Region,desc(company_churn_hazard)) %>%
+    arrange(`Account Name`) %>%
     select( #basic renewal admin
       `Account Name`,`Close Date`,`Current Contract End Date`,`Customer Success Manager`,`Opportunity Owner`,`Account Risk`,Amount,`Churn Forecast`,`Next Step`,
-      churn_forecast_period)
+      `Churn Quarter`)
 
   for(i in fiscal.period){
     temp=output %>%
-      filter(churn_forecast_period==i) %>%
+      filter(`Churn Quarter`==i) %>%
     select(`Account Name`,`Close Date`,`Current Contract End Date`,`Customer Success Manager`,`Opportunity Owner`,`Account Risk`,Amount,`Churn Forecast`,`Next Step`)
     sheet_delete(ss=BU_staging,sheet=i)
     sheet_write(temp,ss=BU_staging,sheet=i)

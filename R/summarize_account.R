@@ -36,16 +36,13 @@
             t()
 
           tmp_vec= a_data %>%
-            select(`Customer on Unsupported Version`,`Tech Integrations`,`Is SaaS Customer`,`retool_url`,`Cases in last 120d`) %>%
+            select(`Customer on Unsupported Version`,`Tech Integrations`,`Is SaaS Customer`,`retool_url`) %>%
             t()
-          p1=sum(op_list$support_cases$Priority==1 & op_list$support_cases$`Account Name`==account_name)
-          tmp_vec=c(tmp_vec,p1)
-          names(tmp_vec)=c("Customer on Unsupported Version","Tech Integrations","Is SaaS Customer","retool_url","Cases in last 120d","P1 Cases")
+
+          names(tmp_vec)=c("Customer on Unsupported Version","Tech Integrations","Is SaaS Customer","retool_url")
           output[["Performance-Stability"]]= as.data.frame(tmp_vec)
 
-          output[["Engagement"]]= a_data %>%
-            select(`Date of last EBR`,`Date of next EBR`,`Cases in last 120d`) %>%
-            t()
+
 
 
           return(output)}

@@ -45,22 +45,22 @@ enrich_list_object<-function(new_list,old_list){
 
   # develop change report for marketplace
 
-  change_df=merge(new_list$marketplace,
-                          old_list$marketplace[,c('Account Name','Marketplace Status')],
-                          by='Account Name',all.x=TRUE)
-  change_df$`Marketplace Status.x`[is.na(change_df$`Marketplace Status.x`)]="blank"
-  change_df$`Marketplace Status.y`[is.na(change_df$`Marketplace Status.y`)]="blank"
+  #change_df=merge(new_list$marketplace,
+  #                        old_list$marketplace[,c('Account Name','Marketplace Status')],
+  #                        by='Account Name',all.x=TRUE)
+  #change_df$`Marketplace Status.x`[is.na(change_df$`Marketplace Status.x`)]="blank"
+  #change_df$`Marketplace Status.y`[is.na(change_df$`Marketplace Status.y`)]="blank"
 
-  marketplace_changes=change_df$`Marketplace Status.x`!=change_df$`Marketplace Status.y`
-  message(paste("Marketplace Changes:",sum(marketplace_changes)," accounts with status changes..."))
+  #marketplace_changes=change_df$`Marketplace Status.x`!=change_df$`Marketplace Status.y`
+  #message(paste("Marketplace Changes:",sum(marketplace_changes)," accounts with status changes..."))
 
 
-  output=data.table(`Account Name`=change_df$`Account Name`[marketplace_changes],
-                    `Old Status`=change_df$`Marketplace Status.y`[marketplace_changes],
-                    `New Status`=change_df$`Marketplace Status.x`[marketplace_changes])
+  #output=data.table(`Account Name`=change_df$`Account Name`[marketplace_changes],
+  #                  `Old Status`=change_df$`Marketplace Status.y`[marketplace_changes],
+  #                  `New Status`=change_df$`Marketplace Status.x`[marketplace_changes])
 
-  new_list[['marketplace_changes']]=output
-  message("marketplace changes appended to list....")
+  #new_list[['marketplace_changes']]=output
+  #message("marketplace changes appended to list....")
 
   #generate field customer operations tracker data
   temp.expansions=new_list$expansions[,c("Account ID","Amount")]
@@ -70,14 +70,15 @@ enrich_list_object<-function(new_list,old_list){
 
   temp= new_list$renewals %>%
     select(      `Account ID`,`Opportunity Name`,Region,`Opportunity Owner`,
-                 `Customer Success Manager`,`Fiscal Period`,churn_forecast_period,`Close Date`,Amount,`Churn Forecast`,`Priority`,
+                 `Customer Success Manager`,`Fiscal Period`,churn_forecast_period,`Close Date`,Amount,`Churn Forecast`,#`Priority`,
 
                  # Comments
-                 `Next Step`,`RD Comment`,
+                 `Next Step`,#`RD Comment`,
                  # Risk
-                 `Account Risk`,`Adoption Phase`,consumption_risk,licensed_users,
-                 max_reg_users,engagement_risk,`Date of last EBR`,`Date of next EBR`,
-                 `days_until_renewal`,expected_churn,company_churn_hazard)
+                 `Account Risk`,`Adoption Phase`,
+                 licensed_users,
+                 max_reg_users,engagement_risk,`Date of last EBR`,`Date of next EBR`)#,
+                 #`days_until_renewal`)
 
   customer_ops_tracker=merge(temp,
                              temp.expansions,by="Account ID",all.x=TRUE)

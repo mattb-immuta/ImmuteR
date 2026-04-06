@@ -12,17 +12,17 @@ output_gsheet_mbpipeline<-function(op_list,mb_tracker){
   output=op_list$renewals %>%
     select( #basic renewal admin
       opportunity_url,`Opportunity Name`,Region,`Opportunity Owner`,
-      `Customer Success Manager`,`Fiscal Period`,`Close Date`,
+      `Customer Success Manager`,`Fiscal Period`,`Close Date`,`Churn Quarter`,
       `Current Contract End Date`,churn_forecast_period,
       Amount,`Churn Forecast`,`Priority`,
 
       # Comments
       `Next Step`,`RD Comment`,
       # Risk
-      `Account Risk`,`Adoption Phase`,consumption_risk,licensed_users,
-      max_reg_users,engagement_risk,`Date of last EBR`,`Date of next EBR`,
-      `days_until_renewal`,expected_churn,company_churn_hazard) %>%
-    arrange(desc(expected_churn))
+      `Account Risk`,`Adoption Phase`,licensed_users,
+      max_reg_users,engagement_risk,`Date of last EBR`,`Date of next EBR`)
+
+
   sheet_delete(ss=mb_tracker,sheet='renewal_sheet')
   sheet_write(output,ss=mb_tracker,sheet='renewal_sheet')
 
@@ -34,7 +34,7 @@ output_gsheet_mbpipeline<-function(op_list,mb_tracker){
       # Comments
       `Next Step`,`RD Comment`,
       # Risk
-      `Account Risk`,`Adoption Phase`,consumption_risk,licensed_users,
+      `Account Risk`,`Adoption Phase`,licensed_users,
       max_reg_users,engagement_risk,`Date of last EBR`,`Date of next EBR`) %>%
     arrange(desc(Amount))
   sheet_delete(ss=mb_tracker,sheet='expansion_sheet')
@@ -48,7 +48,8 @@ output_gsheet_mbpipeline<-function(op_list,mb_tracker){
   output=op_list$accounts
   output=output %>%
     select( #basic renewal admin
-      `Account Name`,`Contract ARR Rollup`,churn_hazard,Region,`Account Owner`,`Customer Success Manager`,
+      `Account Name`,`Contract ARR Rollup`,#churn_hazard,
+      Region,`Account Owner`,`Customer Success Manager`,
       Priority,`Account Risk`,
 
 
@@ -56,41 +57,41 @@ output_gsheet_mbpipeline<-function(op_list,mb_tracker){
       #consumption_risk, days_until_renewal,
       `Adoption Phase`,`Vitally Days as Customer`,
       licensed_users,max_reg_users,
-      `Next Use Case Deployment Date`,`Expected User Count` ,
+      #`Next Use Case Deployment Date`,`Expected User Count` ,
 
       #engagement risk
-      engagement_risk,`Date of last EBR`, `Date of next EBR`,`Cases in last 120d`,
+      engagement_risk,`Date of last EBR`, `Date of next EBR`,
 
       # performance/stability
       `Is SaaS Customer`,`Customer on Unsupported Version`,Databricks,
-      Snowflake,`Tech Integrations`,`Cases in last 120d`) %>%
+      Snowflake,`Tech Integrations`) %>% #,`Cases in last 120d`
     arrange(`Account Name`)
   sheet_delete(ss=mb_tracker,sheet='account_sheet')
   sheet_write(output,ss=mb_tracker,sheet='account_sheet')
 
 
-  sheet_delete(ss=mb_tracker,sheet="marketplace_updates")
-  sheet_write(op_list$marketplace,ss=mb_tracker,sheet="marketplace_updates")
+ # sheet_delete(ss=mb_tracker,sheet="marketplace_updates")
+ # sheet_write(op_list$marketplace,ss=mb_tracker,sheet="marketplace_updates")
 
-  output=op_list$renewals %>%
-    arrange(desc(company_churn_hazard)) %>%
-    filter(`Account Risk` != 'Closed Lost') %>%
-    slice_head(n = 25)%>%
-    select( #basic renewal admin
-      `Opportunity Name`,Region,`Opportunity Owner`,
-      `Fiscal Period`,`Close Date`,Amount,
+ # output=op_list$renewals %>%
+    # arrange(desc(company_churn_hazard)) %>%
+#    filter(`Account Risk` != 'Closed Lost') %>%
+#    slice_head(n = 25)%>%
+#    select( #basic renewal admin
+#      `Opportunity Name`,Region,`Opportunity Owner`,
+#      `Fiscal Period`,`Close Date`,Amount,
 
       # Comments
-      `Next Step`,`RD Comment`,
-      # Account Risk
-      `Account Risk`,`Adoption Phase`,`Vitally Days as Customer`,
+#      `Next Step`,`RD Comment`,
+#      # Account Risk
+#      `Account Risk`,`Adoption Phase`,`Vitally Days as Customer`,
 
       #consumption risk
-      consumption_risk,licensed_users,
-      max_reg_users,`Next Use Case Deployment Date`,`Expected User Count`,
+#      licensed_users,
+#      max_reg_users,`Next Use Case Deployment Date`,`Expected User Count`,
 
       #engagement risk
-      engagement_risk,`Date of last EBR`,`Date of next EBR`)
-  sheet_delete(ss=mb_tracker,sheet='critical_churn_risk')
-  sheet_write(output,ss=mb_tracker,sheet='critical_churn_risk')
+#      engagement_risk,`Date of last EBR`,`Date of next EBR`)
+#  sheet_delete(ss=mb_tracker,sheet='critical_churn_risk')
+#  sheet_write(output,ss=mb_tracker,sheet='critical_churn_risk')
 }
