@@ -1,44 +1,72 @@
-#' generate customer operations tracker data from renewals and expansions.
+#' Monte Carlo churn forecast by fiscal quarter.
 #'
-#' @param op_list the updated list enriched list object.
-#' @param old_list the enriched list object to compare and identify changes
-#' @return a customer operations tracker data table with expansion context.
+#' For each quarter in \code{churn.quarters}, simulates \code{n} churn outcomes
+#' by treating "Expected to Churn" and "At Risk Renewal" accounts as Bernoulli
+#' random variables with churn probabilities \code{p[1]} and \code{p[2]}
+#' respectively. "Closed Lost" and "Verbally Confirmed" accounts are treated as
+#' certain churn (static component).
+#'
+#' @param op.table Named list containing a \code{renewals} data frame with at
+#'   least columns \code{Churn Quarter}, \code{Churn Forecast}, \code{Amount},
+#'   and \code{Account Risk}.
+#' @param p Numeric vector of length 2 giving churn probabilities for
+#'   \code{"Expected to Churn"} and \code{"At Risk Renewal"} accounts
+#'   respectively. Defaults to \code{c(0.6, 0.1)}.
+#' @param churn.quarters Character vector of fiscal quarter labels to forecast,
+#'   e.g. \code{c("Q4-2026", "Q1-2027")}.
+#' @param n Integer number of Monte Carlo simulations. Defaults to \code{1000}.
+#'
+#' @return Named list with one element per quarter in \code{churn.quarters}.
+#'   Each element is a numeric vector of length \code{n} containing simulated
+#'   total churn for that quarter.
+#'
 #' @examples
-#' generate_bu_tables(op_list)
-#' Known problems: look at Swedbank.  The Amount Column needs to be the ARR for the renewal.
+#' \dontrun{
+#'   sims <- generate_forecast(op_list, churn.quarters = c("Q4-2026", "Q1-2027"))
+#'   hist(sims[["Q1-2027"]], main = "Q1-2027 Churn Forecast")
+#' }
 #' @export
-generate_forecast<-function(op.table,
-                            p=c(.6,.1),
-                            churn.quarters=c("Q4-2026","Q1-2027"),
-                            n=1000){
-  output.list=list()
- # op.table=op_list
- # i=churn.quarters[1]
-  for(i in churn.quarters){
-    temp.renewals= op.table$renewals %>%
-      filter(`Churn Quarter`==i) %>%
-      select(c(`Account Name`,`Churn Forecast`,`Amount`,`Account Risk`,`Churn Quarter`))
+generate_forecast <- function(op.table,
+                              p = c(0.6, 0.1),
+                              churn.quarters = c("Q4-2026", "Q1-2027"),
+                              n = 1000) {
 
-      static_churn=sum( (as.numeric(temp.renewals$`Account Risk`=="Closed Lost")+
-        as.numeric(temp.renewals$`Account Risk`=="Verbally Confirmed"))*temp.renewals$`Churn Forecast`)
+  output.list <- list()
 
-      expected_churn_vec=as.numeric(temp.renewals$`Account Risk`=="Expected to Churn") * temp.renewals$`Churn Forecast`
-      expected_churn_pos=expected_churn_vec[expected_churn_vec>0]
+  for (i in churn.quarters) {
+    temp.renewals <- op.table$renewals %>%
+      dplyr::filter(`Churn Quarter` == i) %>%
+      dplyr::select(`Account Name`, `Churn Forecast`, Amount, `Account Risk`, `Churn Quarter`)
 
-      m=length(expected_churn_pos)
-      expected_churn_sim=apply(matrix(expected_churn_pos,nrow=n,ncol=m,byrow=TRUE) * matrix(rbinom(n*m,1,p[1]),nrow=n,ncol=m),
-                      1,sum)
+    # Certain churn: Closed Lost or Verbally Confirmed
+    static_churn <- sum(
+      (as.numeric(temp.renewals$`Account Risk` == "Closed Lost") +
+       as.numeric(temp.renewals$`Account Risk` == "Verbally Confirmed")) *
+      temp.renewals$`Churn Forecast`
+    )
 
-      at_risk_vec=as.numeric(temp.renewals$`Account Risk`=="At Risk Renewal") * temp.renewals$`Churn Forecast`
-      at_risk_pos=at_risk_vec[at_risk_vec>0]
+    # Probabilistic churn: "Expected to Churn" accounts
+    expected_churn_pos <- temp.renewals$`Churn Forecast`[
+      temp.renewals$`Account Risk` == "Expected to Churn" & temp.renewals$`Churn Forecast` > 0
+    ]
+    m <- length(expected_churn_pos)
+    expected_churn_sim <- rowSums(
+      matrix(expected_churn_pos, nrow = n, ncol = m, byrow = TRUE) *
+      matrix(stats::rbinom(n * m, 1, p[1]), nrow = n, ncol = m)
+    )
 
-      m=length(at_risk_pos)
-      at_risk_sim=apply(matrix(at_risk_pos,nrow=n,ncol=m,byrow=TRUE) * matrix(rbinom(n*m,1,p[2]),nrow=n,ncol=m),
-                               1,sum)
+    # Probabilistic churn: "At Risk Renewal" accounts
+    at_risk_pos <- temp.renewals$`Churn Forecast`[
+      temp.renewals$`Account Risk` == "At Risk Renewal" & temp.renewals$`Churn Forecast` > 0
+    ]
+    m <- length(at_risk_pos)
+    at_risk_sim <- rowSums(
+      matrix(at_risk_pos, nrow = n, ncol = m, byrow = TRUE) *
+      matrix(stats::rbinom(n * m, 1, p[2]), nrow = n, ncol = m)
+    )
 
-      output.list[[i]] = static_churn + expected_churn_sim + at_risk_sim
-
-
+    output.list[[i]] <- static_churn + expected_churn_sim + at_risk_sim
   }
+
   return(output.list)
 }

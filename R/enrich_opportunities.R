@@ -12,12 +12,11 @@ enrich_opportunities<-function(sf_opportunity_report="00OVH000005p6A92AI",
                                sf_support_case_report="00OVH000006dyX72AI",
                                sf_contract_report = "00OVH0000070ZRZ2A2",
                                idex=FALSE,
+                               idex_path="data/idex/",
                                fiscal.period,
                                re_tracker="https://docs.google.com/spreadsheets/d/1Rxl25OyKEW1W1ny8Vbv3TDa2QCqR9VSpTN0QVPu6o9w/edit?gid=0#gid=0"){
 
-  message(".. enrich_opportunities initiated /n")
-  c=load_constants()
-  c$fiscal.period=fiscal.period
+  message(".. enrich_opportunities initiated")
 
   # create necessary hyperlinks
   opportunity.table<-sf_run_report(sf_opportunity_report)
@@ -40,7 +39,7 @@ enrich_opportunities<-function(sf_opportunity_report="00OVH000005p6A92AI",
 
   message("opportunity data collected...enrich account data")
 
-  consumption=enrich_consumption(idex=idex)
+  consumption=enrich_consumption(idex=idex, idex_path=idex_path)
 
   account.table<-enrich_account.table(account.table,renewals,consumption.list=consumption)
   account.table$`Contract ARR Rollup`=extract_usd_amount(account.table$`Contract ARR Rollup`)
@@ -51,27 +50,12 @@ enrich_opportunities<-function(sf_opportunity_report="00OVH000005p6A92AI",
                                                 'use_case_rollout_url','org_chart_url')],all.x=TRUE)
   renewals=enrich_renewals(renewal.table=renewals,
                            account.table=account.table,
-                           phat=c$phat_account,
                            fiscal.period=NULL)
 
   expansions=enrich_expansions(expansion.table=expansions,
                                account.table=account.table,
                                fiscal.period=fiscal.period)
 
-  #account.table$churn_hazard=array(0,dim=length(account.table$`Account Name`))
-
-  #for(i in 1:length(account.table$`Account ID`)){
-  #  account.table$churn_hazard[i]=sum(renewals$expected_churn[renewals$`Account ID`==account.table$`Account ID`[i]])
-  #}
-
-  #df=as.data.frame(ftable(support.case.table$`Account Name`))
-
-  #names(df)= c("Account Name","Cases in last 120d")
-
-  #account.table=merge(account.table,df,by="Account Name",all.x=TRUE)
-  #account.table$`Cases in last 120d`[is.na(account.table$`Cases in last 120d`)]=0
-
-  #health_metrics=merge(op_list$accounts,df,by="Account Name",all.x=TRUE)
   # package enriched data tables into a list object
   output_list=list()
   output_list[["contracts"]]=contract.table
@@ -81,5 +65,5 @@ enrich_opportunities<-function(sf_opportunity_report="00OVH000005p6A92AI",
   output_list[["accounts"]]=account.table
   #output_list[["marketplace"]]=marketplace.table
   #output_list[["support_cases"]]=support.case.table
-  message(".. enrich_opportunities complete /n")
+  message(".. enrich_opportunities complete")
   return(output_list)}

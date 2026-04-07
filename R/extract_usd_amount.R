@@ -1,14 +1,18 @@
-#' convert salesforce currency strings to numeric.
+#' Strip Salesforce currency formatting and coerce to numeric.
 #'
-#' @param currency_vector a salesforce currency extract from sf_run.
-#' @return a vector translated to numeric.
+#' Removes the \code{"USD "} prefix and any comma separators from a character
+#' vector of currency strings exported by Salesforce, then coerces to numeric.
+#'
+#' @param currency_vector Character vector of Salesforce currency strings,
+#'   e.g. \code{c("USD 1,250,000", "USD 300,000")}.
+#'
+#' @return Numeric vector of the same length as \code{currency_vector}.
+#'
 #' @examples
-#' none
+#' extract_usd_amount(c("USD 1,250,000", "USD 300,000"))
+#' # [1] 1250000  300000
 #' @export
-#'
 extract_usd_amount <- function(currency_vector) {
-  # Remove "USD " from the beginning of the string
-  for(i in 1:length(currency_vector)){currency_vector[i]=sub("^USD\\s*", "", gsub(",", "", currency_vector[i]))}
-  currency_vector=as.numeric(currency_vector)
-  return(currency_vector)
+  currency_vector <- sub("^USD\\s*", "", gsub(",", "", currency_vector))
+  as.numeric(currency_vector)
 }
