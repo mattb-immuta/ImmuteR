@@ -66,9 +66,7 @@ enrich_list_object <- function(new_list, old_list) {
                   `Customer Success Manager`, `Fiscal Period`, churn_forecast_period,
                   `Close Date`, Amount, `Churn Forecast`,
                   `Next Step`,
-                  `Account Risk`, `Adoption Phase`,
-                  licensed_users, max_reg_users,
-                  engagement_risk, `Date of last EBR`, `Date of next EBR`)
+                  `Account Risk`, `Adoption Phase`)
 
   new_list[["customer_ops_tracker"]] <- merge(temp, temp.expansions,
                                               by = "Account ID", all.x = TRUE)

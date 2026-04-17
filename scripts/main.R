@@ -3,7 +3,13 @@
 # Run this interactively from your IDE. Not part of the package namespace.
 # =============================================================================
 
-# During development: loads package functions without installing
+# Load packages used directly in this script
+library(salesforcer)
+library(googlesheets4)
+library(rmarkdown)
+library(dplyr)
+
+# Load ImmuteR package functions (dev mode — no install needed)
 devtools::load_all()
 
 options(scipen = 999)
@@ -39,6 +45,7 @@ mb_tracker                 <- "https://docs.google.com/spreadsheets/d/1BLwqFOZpE
 # -----------------------------------------------------------------------------
 
 sf_auth()
+googlesheets4::gs4_auth(email = "matt.benigni@immuta.com")
 
 # -----------------------------------------------------------------------------
 # Load and enrich data
@@ -67,9 +74,9 @@ op_list[["constants"]] <- load_constants()
 # -----------------------------------------------------------------------------
 
 # output_gsheet_mbpipeline(op_list = op_list, mb_tracker)
-output_customer_ops_tracker(op_list              = op_list,
-                            customer_ops_tracker = customer_ops_tracker,
-                            fiscal.period        = fiscal.period)
+#output_customer_ops_tracker(op_list              = op_list,
+#                            customer_ops_tracker = customer_ops_tracker,
+#                            fiscal.period        = fiscal.period)
 
 output_gsheet_BU_staging(op_list       = op_list,
                          BU_staging    = BU_staging,
@@ -77,6 +84,12 @@ output_gsheet_BU_staging(op_list       = op_list,
 
 # output_expansion_tracker(op_list = op_list, customer_expansion_tracker,
 #                          fiscal.period = c("Q3-2026","Q4-2026","Q1-2027","Q2-2027"))
+
+# -----------------------------------------------------------------------------
+# Generate per-account markdown briefs for Asana
+# -----------------------------------------------------------------------------
+
+output_markdown_accounts(op_list, output_dir = "output/account_briefs/")
 
 # -----------------------------------------------------------------------------
 # Render Rmarkdown report

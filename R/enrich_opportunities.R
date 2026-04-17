@@ -8,47 +8,35 @@
 #' @export
 enrich_opportunities<-function(sf_opportunity_report="00OVH000005p6A92AI",
                                sf_account_report="00OVH0000069G8Y2AU",
-                               sf_provision_report="00OVH000006Zryr2AC",
-                               sf_support_case_report="00OVH000006dyX72AI",
-                               sf_contract_report = "00OVH0000070ZRZ2A2",
+                               sf_active_order_report = "00OVV000006AOnB2AW",
+                               sf_saas_migration_report ="00OVV000006FbWr2AK" ,
+                               sf_csm_summary_report = "00OVV000006FbNB2A0",
                                idex=FALSE,
                                idex_path="data/idex/",
-                               fiscal.period,
-                               re_tracker="https://docs.google.com/spreadsheets/d/1Rxl25OyKEW1W1ny8Vbv3TDa2QCqR9VSpTN0QVPu6o9w/edit?gid=0#gid=0"){
+                               fiscal.period){
 
   message(".. enrich_opportunities initiated")
 
   # create necessary hyperlinks
   opportunity.table<-sf_run_report(sf_opportunity_report)
+    opportunity.table$`Fiscal Period`<-factor(opportunity.table$`Fiscal Period`,levels=fiscal.period)
+    opportunity.table$opportunity_url=paste("https://immuta.lightning.force.com/lightning/r/Opportunity/",as.character(opportunity.table$`Opportunity ID`),"/view",sep="")
+
   account.table<- sf_run_report(sf_account_report)
-  #marketplace.table<-sf_run_report(sf_provision_report)
-  #support.case.table<-sf_run_report(sf_support_case_report)
-  contract.table<-sf_run_report(sf_contract_report) %>%
-    filter(`Order Status`=="Active")
-
-  opportunity.table$`Fiscal Period`<-factor(opportunity.table$`Fiscal Period`,levels=fiscal.period)
-  opportunity.table$opportunity_url=paste("https://immuta.lightning.force.com/lightning/r/Opportunity/",as.character(opportunity.table$`Opportunity ID`),"/view",sep="")
-  opportunity.table$account_url=paste("https://immuta.lightning.force.com/lightning/r/Account/",opportunity.table$`Account ID`,"/view",sep="")
-  opportunity.table$consumption_url=paste("https://immuta.cloud.looker.com/dashboards/1052?Name=",gsub(" ","+",opportunity.table$`Account Name`),"&Account+ID=&Report+Month=6+month&Instance+Name=&Instance+Type=Production",sep="")
-
+    account.table$account_url=paste("https://immuta.lightning.force.com/lightning/r/Account/",account.table$`Account ID`,"/view",sep="")
+    account.table$consumption_url=paste("https://immuta.cloud.looker.com/dashboards/1052?Name=",gsub(" ","+",account.table$`Account Name`),"&Account+ID=&Report+Month=6+month&Instance+Name=&Instance+Type=Production",sep="")
+    account.table$`Contract ARR Rollup`=extract_usd_amount(account.table$`Contract ARR Rollup`)
+    # account.table$retool_url=paste("https://retool-nonprod.ic-ops.net/app/customer-central/customerDetail?customerName=",gsub(" ","%2O",account.table$`Account Name`),sep="")
 
 
   # split into expansions and renewals
   renewals<-opportunity.table[as.logical(opportunity.table$`Opportunity Record Type` =='Renewal'),]
   expansions<-opportunity.table[as.logical(opportunity.table$`Opportunity Record Type` =='Expansion'),]
 
-  message("opportunity data collected...enrich account data")
+  message("opportunity data collected...enrich opportunity data")
 
-  consumption=enrich_consumption(idex=idex, idex_path=idex_path)
 
-  account.table<-enrich_account.table(account.table,renewals,consumption.list=consumption)
-  account.table$`Contract ARR Rollup`=extract_usd_amount(account.table$`Contract ARR Rollup`)
-  account.table$retool_url=paste("https://retool-nonprod.ic-ops.net/app/customer-central/customerDetail?customerName=",gsub(" ","%2O",account.table$`Account Name`),sep="")
-
-  re.table=read_sheet(ss=re_tracker)
-  account.table=merge(account.table,re.table[,c('Account Name','running_estimate_url',
-                                                'use_case_rollout_url','org_chart_url')],all.x=TRUE)
-  renewals=enrich_renewals(renewal.table=renewals,
+   renewals=enrich_renewals(renewal.table=renewals,
                            account.table=account.table,
                            fiscal.period=NULL)
 
@@ -58,12 +46,11 @@ enrich_opportunities<-function(sf_opportunity_report="00OVH000005p6A92AI",
 
   # package enriched data tables into a list object
   output_list=list()
-  output_list[["contracts"]]=contract.table
-  output_list[["consumption"]]=consumption
   output_list[["renewals"]]=renewals
   output_list[["expansions"]]=expansions
   output_list[["accounts"]]=account.table
-  #output_list[["marketplace"]]=marketplace.table
-  #output_list[["support_cases"]]=support.case.table
+  output_list[["active_orders"]]<-sf_run_report(sf_active_order_report)
+  output_list[["csm_table"]]<-sf_run_report(sf_active_order_report)
+  output_list[["saas_pipeline"]]<-sf_run_report(sf_saas_migration_report)
   message(".. enrich_opportunities complete")
   return(output_list)}
