@@ -28,9 +28,13 @@ Imports:
     arrow,
     tidyr,
     purrr,
-    rmarkdown
+    rmarkdown,
+    httr2
 Suggests:
     devtools,
-    testthat (>= 3.0.0)
+    testthat (>= 3.0.0),
+    kableExtra,
+    plotly,
+    knitr
 Config/testthat/edition: 3
 RoxygenNote: 7.3.3

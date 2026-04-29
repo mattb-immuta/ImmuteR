@@ -1,10 +1,21 @@
-#' pull current opportunities from salesforce and enrich them.
+#' Pull and enrich opportunities, accounts, and supplementary tables from Salesforce.
 #'
-#' @param sf_opportunity_report A numeric value. The first number to be added.
-#' @return a list with renewal and expansion data tables with all opportunities and enriched hyperlinks: opportunity_link,account_link,
-#' and consumption_link.
-#' @examples
-#' enrich_optable("00OVH000005p6A92AI")
+#' Fetches opportunity, account, active order, CSM assignment, and SaaS pipeline
+#' reports from Salesforce, enriches renewals and expansions with account context,
+#' and packages everything into a named list for downstream reporting.
+#'
+#' @param sf_opportunity_report Character. Salesforce report ID for the opportunity report.
+#' @param sf_account_report Character. Salesforce report ID for the account report.
+#' @param sf_active_order_report Character. Salesforce report ID for active orders.
+#' @param sf_saas_migration_report Character. Salesforce report ID for the SaaS migration pipeline.
+#' @param sf_csm_summary_report Character. Salesforce report ID for CSM account assignments.
+#' @param idex Logical. Whether to refresh idex parquet exports before reading. Defaults to \code{FALSE}.
+#' @param idex_path Character. Path to idex parquet directory. Defaults to \code{"data/idex/"}.
+#' @param fiscal.period Character vector of fiscal periods to retain in expansions,
+#'   e.g. \code{c("Q1-2027", "Q2-2027")}.
+#'
+#' @return A named list with elements: \code{renewals}, \code{expansions},
+#'   \code{accounts}, \code{active_orders}, \code{csm_table}, and \code{saas_pipeline}.
 #' @export
 enrich_opportunities<-function(sf_opportunity_report="00OVH000005p6A92AI",
                                sf_account_report="00OVH0000069G8Y2AU",
@@ -50,7 +61,7 @@ enrich_opportunities<-function(sf_opportunity_report="00OVH000005p6A92AI",
   output_list[["expansions"]]=expansions
   output_list[["accounts"]]=account.table
   output_list[["active_orders"]]<-sf_run_report(sf_active_order_report)
-  output_list[["csm_table"]]<-sf_run_report(sf_active_order_report)
+  output_list[["csm_table"]]<-sf_run_report(sf_csm_summary_report)
   output_list[["saas_pipeline"]]<-sf_run_report(sf_saas_migration_report)
   message(".. enrich_opportunities complete")
   return(output_list)}

@@ -8,6 +8,7 @@ library(salesforcer)
 library(googlesheets4)
 library(rmarkdown)
 library(dplyr)
+library(httr2)
 
 # Load ImmuteR package functions (dev mode — no install needed)
 devtools::load_all()
@@ -18,19 +19,24 @@ options(scipen = 999)
 # Config — report IDs and sheet URLs
 # -----------------------------------------------------------------------------
 
-diff_date       <- "2026-01-12"
+diff_date       <- "2026-04-29"
 fiscal.period   <- c("Q1-2027", "Q2-2027", "Q3-2027", "Q4-2027")
 
 # idex parquet data directory (relative to project root)
 idex_path <- "data/idex/"
 
+# Asana
+# Generate your token at https://app.asana.com/0/my-apps
+# Then add ASANA_TOKEN=your_token to your .Renviron (usethis::edit_r_environ())
+asana_token       <- Sys.getenv("ASANA_TOKEN")
+asana_project_gid <- "YOUR_PROJECT_GID"  # from your Asana project URL
+
 # Salesforce report IDs
-sf_opportunity_report  <- "00OVH000005p6A92AI"
-sf_account_report      <- "00OVH0000069G8Y2AU"
-sf_provision_report    <- "00OVH000006Zryr2AC"
-sf_support_case_report <- "00OVH000006dyX72AI"
-sf_contract_report     <- "00OVH0000070ZRZ2A2"
-sf_active_order_report <- "00OVV000006AOnB2AW"
+sf_opportunity_report    <- "00OVH000005p6A92AI"
+sf_account_report        <- "00OVH0000069G8Y2AU"
+sf_active_order_report   <- "00OVV000006AOnB2AW"
+sf_saas_migration_report <- "00OVV000006FbWr2AK"
+sf_csm_summary_report    <- "00OVV000006FbNB2A0"
 
 # Google Sheet URLs
 account_doc_tracker        <- "https://docs.google.com/spreadsheets/d/1Rxl25OyKEW1W1ny8Vbv3TDa2QCqR9VSpTN0QVPu6o9w/edit?usp=sharing"
@@ -52,20 +58,20 @@ googlesheets4::gs4_auth(email = "matt.benigni@immuta.com")
 # -----------------------------------------------------------------------------
 
 new_op_list <- enrich_opportunities(
-  sf_opportunity_report  = sf_opportunity_report,
-  sf_account_report      = sf_account_report,
-  sf_provision_report    = sf_provision_report,
-  sf_support_case_report = sf_support_case_report,
-  sf_contract_report     = sf_contract_report,
-  fiscal.period          = fiscal.period,
-  idex                   = FALSE,
-  idex_path              = idex_path
+  sf_opportunity_report    = sf_opportunity_report,
+  sf_account_report        = sf_account_report,
+  sf_active_order_report   = sf_active_order_report,
+  sf_saas_migration_report = sf_saas_migration_report,
+  sf_csm_summary_report    = sf_csm_summary_report,
+  fiscal.period            = fiscal.period,
+  idex                     = FALSE,
+  idex_path                = idex_path
 )
 
 load(paste0("data/opportunities_", diff_date, ".RData"))
 
 op_list <- enrich_list_object(new_list = new_op_list,
-                              old_list = op_list)
+                              diff_date)
 
 op_list[["constants"]] <- load_constants()
 
@@ -73,6 +79,7 @@ op_list[["constants"]] <- load_constants()
 # Produce outputs
 # -----------------------------------------------------------------------------
 
+report_all_accounts_html(op_list)
 # output_gsheet_mbpipeline(op_list = op_list, mb_tracker)
 #output_customer_ops_tracker(op_list              = op_list,
 #                            customer_ops_tracker = customer_ops_tracker,
@@ -82,20 +89,14 @@ output_gsheet_BU_staging(op_list       = op_list,
                          BU_staging    = BU_staging,
                          fiscal.period = fiscal.period)
 
-# output_expansion_tracker(op_list = op_list, customer_expansion_tracker,
-#                          fiscal.period = c("Q3-2026","Q4-2026","Q1-2027","Q2-2027"))
 
-# -----------------------------------------------------------------------------
-# Generate per-account markdown briefs for Asana
-# -----------------------------------------------------------------------------
 
-output_markdown_accounts(op_list, output_dir = "output/account_briefs/")
+sheet_write(
+  data = report_all_accounts(op_list),
+  ss   = "https://docs.google.com/spreadsheets/d/1Rxl25OyKEW1W1ny8Vbv3TDa2QCqR9VSpTN0QVPu6o9w/edit?gid=926810859#gid=926810859",
+  sheet = "AccountList"
+)
 
-# -----------------------------------------------------------------------------
-# Render Rmarkdown report
-# -----------------------------------------------------------------------------
-
-rmarkdown::render("output/BottomsUp.Rmd", output_format = "html_document")
 
 # -----------------------------------------------------------------------------
 # Save list object for next run's diff
