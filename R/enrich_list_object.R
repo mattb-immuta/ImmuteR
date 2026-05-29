@@ -14,13 +14,17 @@
 #' @param data_dir Character. Path to the directory holding saved \code{.RData}
 #'   snapshots. Defaults to \code{"data/"}.
 #'
-#' @return \code{new_list} with three additional elements:
+#' @return \code{new_list} with four additional elements:
 #' \describe{
-#'   \item{changes}{Named list with one entry per op_list component
-#'     (\code{accounts}, \code{renewals}, \code{expansions}, \code{csm_table},
-#'     \code{saas_pipeline}), each containing data frames for additions,
-#'     removals, and field-level changes detected since \code{diff_date}.
-#'     Also includes a top-level \code{diff_date} and \code{summary} table.}
+#'   \item{changes}{Data frame summarising detected changes across all
+#'     op_list components (accounts, renewals, expansions, csm_table,
+#'     saas_pipeline). One row per component with columns
+#'     \code{Component}, \code{Added}, \code{Removed}, \code{Changed},
+#'     and \code{Total_Moves}.}
+#'   \item{changes_detail}{Named list with the full diff for each component,
+#'     each containing data frames for \code{added}, \code{removed}, and
+#'     \code{field_changes} (or \code{reassignments} for csm_table).
+#'     Also contains \code{diff_date}.}
 #'   \item{renewal_changes}{Data frame of renewals where Account Risk or Churn
 #'     Forecast changed (retained for backward compatibility).}
 #'   \item{customer_ops_tracker}{Joined renewal + expansion table for use in
@@ -71,10 +75,10 @@ enrich_list_object <- function(new_list, diff_date, data_dir = "data/") {
   # ── 5. SaaS pipeline ─────────────────────────────────────────────────────────
   changes$saas_pipeline <- .diff_saas(new_list$saas_pipeline, old_list$saas_pipeline)
 
-  # ── 6. Summary table (one row per component) ─────────────────────────────────
-  changes$summary <- .build_change_summary(changes)
-
-  new_list[["changes"]] <- changes
+  # Surface the compact summary as $changes; full diff detail at $changes_detail
+  change_summary               <- .build_change_summary(changes)
+  new_list[["changes"]]        <- change_summary
+  new_list[["changes_detail"]] <- changes
 
   # --- Legacy: renewal_changes (backward compat) --------------------------------
   new_list[["renewal_changes"]] <- .legacy_renewal_changes(

@@ -35,7 +35,7 @@ enrich_opportunities<-function(sf_opportunity_report="00OVH000005p6A92AI",
 
   account.table<- sf_run_report(sf_account_report)
     account.table$account_url=paste("https://immuta.lightning.force.com/lightning/r/Account/",account.table$`Account ID`,"/view",sep="")
-    account.table$consumption_url=paste("https://immuta.cloud.looker.com/dashboards/1052?Name=",gsub(" ","+",account.table$`Account Name`),"&Account+ID=&Report+Month=6+month&Instance+Name=&Instance+Type=Production",sep="")
+    account.table$consumption_url=paste("https://immuta.cloud.looker.com/dashboards/993?Name=",gsub(" ","+",account.table$`Account Name`),"&Account+ID=&Report+Month=6+month&Instance+Name=&Instance+Type=Production",sep="")
     account.table$`Contract ARR Rollup`=extract_usd_amount(account.table$`Contract ARR Rollup`)
     # account.table$retool_url=paste("https://retool-nonprod.ic-ops.net/app/customer-central/customerDetail?customerName=",gsub(" ","%2O",account.table$`Account Name`),sep="")
 

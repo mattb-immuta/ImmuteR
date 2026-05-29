@@ -58,9 +58,13 @@ report_all_accounts_html <- function(op_list,
           r <- acct_ren[j, ]
           list(
             name          = safe_val(r[["Opportunity Name"]]),
+            url           = safe_val(r[["opportunity_url"]]),
             amount        = fmt_usd(r[["Amount"]]),
+            amount_raw    = suppressWarnings(as.numeric(r[["Amount"]])),
             end_date      = fmt_date(r[["Current Contract End Date"]]),
-            churn_quarter = safe_val(r[["Churn Quarter"]])
+            end_date_raw  = tryCatch(format(as.Date(r[["Current Contract End Date"]]), "%Y-%m-%d"), error = function(e) ""),
+            churn_quarter = safe_val(r[["Churn Quarter"]]),
+            risk          = safe_val(r[["Account Risk"]])
           )
         })
       }
@@ -81,10 +85,14 @@ report_all_accounts_html <- function(op_list,
         exp_list <- lapply(seq_len(nrow(acct_exp)), function(j) {
           e <- acct_exp[j, ]
           list(
-            name          = safe_val(e[["Opportunity Name"]]),
-            owner         = safe_val(e[["Opportunity Owner"]]),
-            amount        = fmt_usd(e[["Amount"]]),
-            fiscal_period = safe_val(e[["Fiscal Period"]])
+            name             = safe_val(e[["Opportunity Name"]]),
+            url              = safe_val(e[["opportunity_url"]]),
+            owner            = safe_val(e[["Opportunity Owner"]]),
+            amount           = fmt_usd(e[["Amount"]]),
+            amount_raw       = suppressWarnings(as.numeric(e[["Amount"]])),
+            fiscal_period    = safe_val(e[["Fiscal Period"]]),
+            close_date       = fmt_date(e[["Close Date"]]),
+            close_date_raw   = tryCatch(format(as.Date(e[["Close Date"]]), "%Y-%m-%d"), error = function(e) "")
           )
         })
       }
@@ -130,7 +138,15 @@ report_all_accounts_html <- function(op_list,
       arr_raw       = suppressWarnings(as.numeric(acct$`Contract ARR Rollup`)),
       csm           = safe_val(acct$`Customer Success Manager`),
       account_owner = safe_val(acct$`Account Owner`),
-      field_cto     = safe_val(acct$`Field CTO`),
+      field_cto        = safe_val(acct$`Field CTO`),
+      consumption_link = {
+        curl <- acct$consumption_url
+        if (!is.null(curl) && !is.na(curl) && nchar(as.character(curl)) > 0) {
+          paste0('<a class="consumption-link" href="', html_escape(as.character(curl)),
+                 '" target="_blank" rel="noopener"',
+                 ' onclick="event.stopPropagation()">Current Consumption &#8599;</a>')
+        } else ""
+      },
       is_saas       = is_saas,
       unsupported   = isTRUE(unsupported),
       churn_summary = churn_summary,
@@ -147,8 +163,22 @@ report_all_accounts_html <- function(op_list,
   regions <- sort(unique(accounts$Region))
   regions <- regions[!is.na(regions) & regions != ""]
 
+  # CSMs for filter pills ------------------------------------------------------
+  csms <- sort(unique(accounts$`Customer Success Manager`))
+  csms <- csms[!is.na(csms) & csms != ""]
+
+  # Snapshot dates for the diff-date picker (newest first) --------------------
+  snap_files <- list.files(dirname(output_path),  # look relative to output, fall back to data/
+                            pattern = "^opportunities_\\d{4}-\\d{2}-\\d{2}\\.RData$")
+  if (length(snap_files) == 0)
+    snap_files <- list.files("data/", pattern = "^opportunities_\\d{4}-\\d{2}-\\d{2}\\.RData$")
+  snap_dates <- sort(gsub("opportunities_(.+)\\.RData", "\\1", snap_files), decreasing = TRUE)
+
+  # Changes diff JSON ----------------------------------------------------------
+  changes_json <- .build_changes_json(op_list)
+
   # Build HTML -----------------------------------------------------------------
-  html <- .rah_html(json_data, regions)
+  html <- .rah_html(json_data, regions, csms, snap_dates, changes_json)
 
   writeLines(html, output_path, useBytes = FALSE)
   message(".. wrote account HTML dashboard to ", output_path)
@@ -189,9 +219,110 @@ report_all_accounts_html <- function(op_list,
 }
 
 
+# ---- Internal: convert a data frame to a list of row objects ---------------
+
+.df_to_rows <- function(df, cols = NULL) {
+  if (is.null(df) || !is.data.frame(df) || nrow(df) == 0) return(list())
+  if (!is.null(cols)) df <- df[, intersect(cols, names(df)), drop = FALSE]
+  if (ncol(df) == 0)  return(list())
+  lapply(seq_len(nrow(df)), function(i) {
+    row <- lapply(names(df), function(nm) {
+      v <- df[[nm]][i]
+      if (is.factor(v))        return(as.character(v))
+      if (inherits(v, "Date")) return(format(v, "%Y-%m-%d"))
+      if (is.logical(v))       return(isTRUE(v))
+      if (is.numeric(v))       return(if (is.na(v)) NULL else as.numeric(v))
+      s <- tryCatch(as.character(v), error = function(e) "")
+      if (length(s) == 0 || is.na(s) || s == "NA") return(NULL)
+      s
+    })
+    names(row) <- names(df)
+    row
+  })
+}
+
+
+# ---- Internal: build the changes JSON blob from op_list --------------------
+
+.build_changes_json <- function(op_list) {
+  cd <- op_list[["changes_detail"]]
+  cs <- op_list[["changes"]]          # summary data frame
+
+  if (is.null(cd)) {
+    return(.to_json(list(has_data = FALSE, diff_date = "", summary = list())))
+  }
+
+  diff_date_str <- tryCatch(
+    format(as.Date(cd$diff_date), "%Y-%m-%d"),
+    error = function(e) as.character(cd$diff_date)
+  )
+
+  .to_json(list(
+    has_data      = TRUE,
+    diff_date     = diff_date_str,
+    summary       = .df_to_rows(cs),
+    accounts      = list(
+      added         = .df_to_rows(cd$accounts$added,
+                        c("Account ID", "Account Name", "Region",
+                          "Contract ARR Rollup", "Customer Success Manager")),
+      removed       = .df_to_rows(cd$accounts$removed,
+                        c("Account ID", "Account Name", "Region",
+                          "Contract ARR Rollup", "Customer Success Manager")),
+      field_changes = .df_to_rows(cd$accounts$field_changes,
+                        c("Account Name",
+                          "Contract ARR Rollup.new",      "Contract ARR Rollup.old",
+                          "Customer Success Manager.new", "Customer Success Manager.old",
+                          "Account Owner.new",            "Account Owner.old",
+                          "Field CTO.new",                "Field CTO.old",
+                          "Region.new",                   "Region.old",
+                          "Adoption Phase.new",           "Adoption Phase.old"))
+    ),
+    renewals      = list(
+      added         = .df_to_rows(cd$renewals$added,
+                        c("Opportunity Name", "Account Name", "Amount",
+                          "Close Date", "Account Risk")),
+      removed       = .df_to_rows(cd$renewals$removed,
+                        c("Opportunity Name", "Account Name", "Amount",
+                          "Close Date", "Account Risk")),
+      field_changes = .df_to_rows(cd$renewals$field_changes,
+                        c("Opportunity Name", "Account Name",
+                          "Account Risk.new",    "Account Risk.old",
+                          "Churn Forecast.new",  "Churn Forecast.old",
+                          "Amount.new",          "Amount.old",
+                          "Close Date.new",      "Close Date.old",
+                          "risk_changed", "forecast_changed",
+                          "amount_changed", "date_changed", "forecast_delta"))
+    ),
+    expansions    = list(
+      added         = .df_to_rows(cd$expansions$added,
+                        c("Opportunity Name", "Account Name", "Amount",
+                          "Fiscal Period", "Close Date", "Opportunity Owner")),
+      removed       = .df_to_rows(cd$expansions$removed,
+                        c("Opportunity Name", "Account Name", "Amount",
+                          "Fiscal Period", "Close Date", "Opportunity Owner")),
+      field_changes = .df_to_rows(cd$expansions$field_changes,
+                        c("Opportunity Name", "Account Name",
+                          "Amount.new", "Amount.old",
+                          "Fiscal Period.new", "Fiscal Period.old",
+                          "amount_changed", "period_changed"))
+    ),
+    csm_table     = list(
+      added         = .df_to_rows(cd$csm_table$added),
+      removed       = .df_to_rows(cd$csm_table$removed),
+      reassignments = .df_to_rows(cd$csm_table$reassignments)
+    ),
+    saas_pipeline = list(
+      added         = .df_to_rows(cd$saas_pipeline$added),
+      removed       = .df_to_rows(cd$saas_pipeline$removed),
+      field_changes = .df_to_rows(cd$saas_pipeline$field_changes)
+    )
+  ))
+}
+
+
 # ---- Internal: full HTML page template -------------------------------------
 
-.rah_html <- function(json_data, regions) {
+.rah_html <- function(json_data, regions, csms = character(0), snap_dates = character(0), changes_json = "null") {
 
   region_pills <- paste(
     vapply(regions, function(r) {
@@ -201,249 +332,317 @@ report_all_accounts_html <- function(op_list,
     collapse = "\n    "
   )
 
+  csm_pills <- paste(
+    vapply(csms, function(cm) {
+      ce <- html_escape(cm)
+      paste0('<button class="pill" data-csm="', ce, '">', ce, '</button>')
+    }, character(1)),
+    collapse = "\n    "
+  )
+
   tmpl <- '<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Immuta Accounts</title>
+<title>Immuta | Customer Accounts</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
-    --blue:    #005EB8;
-    --blue-lt: #E8F1FB;
-    --teal:    #00A3A1;
-    --amber:   #F5A623;
-    --red:     #D0021B;
-    --green:   #27AE60;
-    --gray1:   #1A1A2E;
-    --gray2:   #4A4A6A;
-    --gray3:   #8A8AA8;
-    --gray4:   #D0D0E0;
-    --gray5:   #F5F5FA;
-    --white:   #FFFFFF;
-    --radius:  8px;
-    --shadow:  0 2px 8px rgba(0,0,50,.08);
-    --sidebar: 260px;
+    /* ── Immuta brand palette (from immuta.com) ── */
+    --im-black:    #0D0D0D;   /* near-black — topbar / hero bg */
+    --im-lime:     #C8F135;   /* neon chartreuse — THE brand accent */
+    --im-lime-dk:  #A8CC18;   /* darker lime for hover */
+    --im-lime-lt:  #F5FCD8;   /* pale lime tint — soft backgrounds */
+    --im-white:    #FFFFFF;
+
+    /* ── Semantic colors ── */
+    --amber:       #F59E0B;
+    --amber-lt:    #FEF3C7;
+    --red:         #EF4444;
+    --red-lt:      #FEE2E2;
+
+    /* ── Neutrals ── */
+    --text-1:      #111111;   /* primary text */
+    --text-2:      #555555;   /* secondary */
+    --text-3:      #999999;   /* muted / labels */
+    --border:      #E5E5E5;
+    --surface:     #F8F8F6;   /* warm off-white page bg */
+    --surface-2:   #F0F0EE;   /* slightly deeper for hover */
+
+    /* ── Tokens ── */
+    --radius:      10px;
+    --radius-sm:   6px;
+    --shadow:      0 1px 3px rgba(0,0,0,.06), 0 4px 12px rgba(0,0,0,.06);
+    --shadow-lg:   0 8px 28px rgba(0,0,0,.12);
+    --sidebar:     264px;
+    --topbar-h:    60px;
+    --tabs-h:      48px;
+    --font:        "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   }
 
   body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-family: var(--font);
     font-size: 14px;
-    color: var(--gray1);
-    background: var(--gray5);
+    line-height: 1.5;
+    color: var(--text-1);
+    background: var(--surface);
     display: flex;
     flex-direction: column;
     min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
   }
 
-  /* ── Top bar ─────────────────────────────────────────────────────────── */
+  /* ── Top bar ──────────────────────────────────────────────────────────── */
   .topbar {
     position: sticky;
     top: 0;
     z-index: 100;
-    background: var(--blue);
-    color: var(--white);
-    padding: 0 20px;
-    height: 56px;
+    background: var(--im-black);
+    color: var(--im-white);
+    padding: 0 24px;
+    height: var(--topbar-h);
     display: flex;
     align-items: center;
-    gap: 16px;
-    box-shadow: 0 2px 6px rgba(0,0,0,.25);
+    gap: 20px;
   }
+
   .topbar-logo {
-    font-size: 18px;
-    font-weight: 700;
-    letter-spacing: -.3px;
-    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    text-decoration: none;
+    flex-shrink: 0;
   }
-  .topbar-logo span { color: #7EC8E3; }
+  .topbar-logo svg { display: block; flex-shrink: 0; }
+  .topbar-section {
+    font-size: 13px;
+    font-weight: 400;
+    color: rgba(255,255,255,.4);
+    padding-left: 14px;
+    border-left: 1px solid rgba(255,255,255,.15);
+  }
+
   .search-wrap {
     flex: 1;
-    max-width: 400px;
+    max-width: 420px;
     position: relative;
+    margin-left: 4px;
   }
   .search-wrap input {
-    width: 100%%;
-    padding: 8px 12px 8px 36px;
-    border: none;
-    border-radius: 20px;
-    font-size: 14px;
-    background: rgba(255,255,255,.15);
-    color: var(--white);
+    width: 100%;
+    padding: 8px 14px 8px 38px;
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-family: var(--font);
+    background: rgba(255,255,255,.06);
+    color: var(--im-white);
     outline: none;
-    transition: background .2s;
+    transition: background .15s, border-color .15s;
   }
-  .search-wrap input::placeholder { color: rgba(255,255,255,.6); }
-  .search-wrap input:focus { background: rgba(255,255,255,.25); }
+  .search-wrap input::placeholder { color: rgba(255,255,255,.3); }
+  .search-wrap input:focus {
+    background: rgba(255,255,255,.1);
+    border-color: var(--im-lime);
+  }
   .search-icon {
     position: absolute;
-    left: 10px;
-    top: 50%%;
-    transform: translateY(-50%%);
-    opacity: .7;
-    font-size: 15px;
+    left: 11px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: rgba(255,255,255,.3);
+    font-size: 14px;
     pointer-events: none;
   }
   .count-badge {
     font-size: 12px;
-    opacity: .75;
+    color: rgba(255,255,255,.38);
     white-space: nowrap;
+    margin-left: auto;
   }
 
-  /* ── Layout ──────────────────────────────────────────────────────────── */
-  .layout {
-    display: flex;
-    flex: 1;
-    gap: 0;
-  }
+  /* ── Layout ───────────────────────────────────────────────────────────── */
+  .layout { display: flex; flex: 1; }
 
-  /* ── Sidebar ─────────────────────────────────────────────────────────── */
+  /* ── Sidebar ──────────────────────────────────────────────────────────── */
   .sidebar {
     width: var(--sidebar);
     flex-shrink: 0;
-    background: var(--white);
-    border-right: 1px solid var(--gray4);
+    background: var(--im-white);
+    border-right: 1px solid var(--border);
     position: sticky;
-    top: 56px;
-    height: calc(100vh - 56px);
+    top: calc(var(--topbar-h) + var(--tabs-h));
+    height: calc(100vh - var(--topbar-h) - var(--tabs-h));
     overflow-y: auto;
-    padding: 16px 0 32px;
+    padding: 20px 0 40px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
   }
-  .sidebar-section { margin-bottom: 20px; }
+  .sidebar-section { margin-bottom: 28px; }
   .sidebar-label {
     font-size: 10px;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: .8px;
-    color: var(--gray3);
-    padding: 0 16px 8px;
+    letter-spacing: 1.2px;
+    color: var(--text-3);
+    padding: 0 18px 10px;
   }
   .region-filters {
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    padding: 0 8px;
+    gap: 1px;
+    padding: 0 10px;
   }
   .pill {
     text-align: left;
-    padding: 6px 10px;
-    border-radius: 6px;
+    padding: 7px 10px;
+    border-radius: var(--radius-sm);
     border: none;
     background: transparent;
     font-size: 13px;
-    color: var(--gray2);
+    font-family: var(--font);
+    color: var(--text-2);
     cursor: pointer;
-    transition: background .15s, color .15s;
-    font-family: inherit;
+    transition: background .12s, color .12s;
   }
-  .pill:hover { background: var(--blue-lt); color: var(--blue); }
-  .pill.active { background: var(--blue); color: var(--white); font-weight: 600; }
+  .pill:hover { background: var(--im-lime-lt); color: var(--text-1); }
+  .pill.active {
+    background: var(--im-black);
+    color: var(--im-lime);
+    font-weight: 600;
+  }
 
   .alpha-jump {
     display: flex;
     flex-wrap: wrap;
-    gap: 3px;
-    padding: 0 12px;
+    gap: 2px;
+    padding: 0 14px;
   }
   .alpha-jump a {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 24px;
-    height: 24px;
+    width: 25px;
+    height: 25px;
     border-radius: 4px;
-    font-size: 12px;
+    font-size: 11.5px;
     font-weight: 600;
-    color: var(--gray2);
+    color: var(--text-2);
     text-decoration: none;
-    transition: background .15s, color .15s;
+    transition: background .12s, color .12s;
   }
-  .alpha-jump a:hover { background: var(--blue-lt); color: var(--blue); }
-  .alpha-jump a.has-accounts { color: var(--blue); }
-  .alpha-jump a.disabled { color: var(--gray4); pointer-events: none; }
+  .alpha-jump a:hover { background: var(--im-lime); color: var(--im-black); }
+  .alpha-jump a.has-accounts { color: var(--text-1); font-weight: 700; }
+  .alpha-jump a.disabled { color: var(--border); pointer-events: none; }
 
-  /* ── Main content ────────────────────────────────────────────────────── */
+  /* ── Main content ─────────────────────────────────────────────────────── */
   .main {
     flex: 1;
-    padding: 20px 24px 40px;
+    padding: 24px 28px 48px;
     min-width: 0;
   }
-
-  /* letter heading */
-  .letter-group { margin-bottom: 8px; }
+  .letter-group { margin-bottom: 6px; }
   .letter-heading {
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 700;
-    letter-spacing: 1px;
+    letter-spacing: 1.4px;
     text-transform: uppercase;
-    color: var(--gray3);
-    padding: 12px 0 6px;
-    border-bottom: 1px solid var(--gray4);
-    margin-bottom: 10px;
+    color: var(--text-3);
+    padding: 14px 0 8px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 12px;
   }
 
-  /* ── Account card ────────────────────────────────────────────────────── */
+  /* ── Account card ─────────────────────────────────────────────────────── */
   .card {
-    background: var(--white);
+    background: var(--im-white);
     border-radius: var(--radius);
     box-shadow: var(--shadow);
-    margin-bottom: 10px;
+    margin-bottom: 8px;
     overflow: hidden;
-    border: 1px solid var(--gray4);
-    transition: box-shadow .2s;
+    border: 1px solid var(--border);
+    transition: box-shadow .18s, border-color .18s;
   }
-  .card:hover { box-shadow: 0 4px 16px rgba(0,0,50,.12); }
+  .card:hover { box-shadow: var(--shadow-lg); border-color: #BBBBBB; }
+  .card.open  { border-color: var(--im-black); }
 
   .card-header {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 14px 16px;
+    gap: 14px;
+    padding: 14px 18px;
     cursor: pointer;
     user-select: none;
+    transition: background .12s;
   }
-  .card-header:hover { background: var(--gray5); }
+  .card-header:hover { background: var(--surface); }
 
   .card-name {
-    font-size: 15px;
+    font-size: 14.5px;
     font-weight: 600;
-    color: var(--gray1);
+    color: var(--text-1);
     flex: 1;
     min-width: 0;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    letter-spacing: -.15px;
   }
   .card-arr {
     font-size: 14px;
-    font-weight: 600;
-    color: var(--blue);
+    font-weight: 700;
+    color: var(--text-1);
     white-space: nowrap;
+    letter-spacing: -.2px;
   }
+
+  /* Consumption link — lime pill matching "Book a Demo" CTA style */
+  .consumption-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 11.5px;
+    font-weight: 700;
+    font-family: var(--font);
+    color: var(--im-black);
+    text-decoration: none;
+    white-space: nowrap;
+    flex-shrink: 0;
+    padding: 5px 12px;
+    background: var(--im-lime);
+    border-radius: 4px;
+    transition: background .14s;
+  }
+  .consumption-link:hover { background: var(--im-lime-dk); }
+
   .card-meta {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     flex-shrink: 0;
   }
   .tag {
-    font-size: 11px;
+    font-size: 10.5px;
     font-weight: 600;
-    padding: 2px 8px;
-    border-radius: 10px;
+    padding: 3px 9px;
+    border-radius: 4px;
     white-space: nowrap;
+    letter-spacing: .1px;
+    border: 1px solid transparent;
   }
-  .tag-region { background: #EEF3FF; color: #3B5FC0; }
-  .tag-saas   { background: #E8F8F4; color: var(--teal); }
-  .tag-churn  { background: #FFF4E5; color: #B76E00; }
-  .tag-renew  { background: #FDECEA; color: var(--red); }
-  .churn-chip { font-size: 11px; color: var(--amber); font-weight: 600; }
+  .tag-region { background: #F0F0EE; color: var(--text-2); border-color: var(--border); }
+  .tag-saas   { background: var(--im-lime-lt); color: #5A7A00; border-color: #C8E870; }
+  .tag-churn  { background: var(--amber-lt);   color: #92400E; border-color: #FCD34D; }
+  .tag-renew  { background: var(--red-lt);     color: #991B1B; border-color: #FCA5A5; }
 
   .expand-icon {
-    font-size: 12px;
-    color: var(--gray3);
+    font-size: 10px;
+    color: var(--text-3);
     transition: transform .2s;
     flex-shrink: 0;
   }
@@ -451,63 +650,70 @@ report_all_accounts_html <- function(op_list,
 
   .card-body {
     display: none;
-    padding: 0 16px 16px;
-    border-top: 1px solid var(--gray4);
+    padding: 0 18px 18px;
+    border-top: 1px solid var(--border);
   }
   .card.open .card-body { display: block; }
 
-  /* tabs */
+  /* ── Tabs ─────────────────────────────────────────────────────────────── */
   .tabs {
     display: flex;
-    gap: 0;
-    border-bottom: 2px solid var(--gray4);
-    margin-bottom: 14px;
-    margin-top: 12px;
+    border-bottom: 1px solid var(--border);
+    margin: 14px 0;
   }
   .tab-btn {
-    padding: 8px 16px;
+    padding: 9px 16px;
     border: none;
     background: none;
     font-size: 13px;
     font-weight: 500;
-    color: var(--gray3);
+    font-family: var(--font);
+    color: var(--text-3);
     cursor: pointer;
     border-bottom: 2px solid transparent;
-    margin-bottom: -2px;
-    font-family: inherit;
-    transition: color .15s;
+    margin-bottom: -1px;
+    transition: color .12s;
   }
-  .tab-btn:hover { color: var(--blue); }
-  .tab-btn.active { color: var(--blue); border-bottom-color: var(--blue); font-weight: 600; }
+  .tab-btn:hover { color: var(--text-1); }
+  .tab-btn.active {
+    color: var(--text-1);
+    border-bottom-color: var(--im-lime);
+    font-weight: 600;
+  }
   .tab-pane { display: none; }
   .tab-pane.active { display: block; }
 
-  /* overview grid */
+  /* ── Field grid ───────────────────────────────────────────────────────── */
   .field-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: 10px;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 16px;
+    padding: 6px 0;
   }
-  .field-item {}
   .field-label {
     font-size: 10px;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: .6px;
-    color: var(--gray3);
-    margin-bottom: 2px;
+    letter-spacing: 1px;
+    color: var(--text-3);
+    margin-bottom: 3px;
   }
   .field-value {
-    font-size: 13px;
-    color: var(--gray1);
+    font-size: 13.5px;
+    color: var(--text-1);
     font-weight: 500;
   }
-  .field-value.arr-value { color: var(--blue); font-size: 16px; font-weight: 700; }
-  .em-dash { color: var(--gray4); }
+  .field-value.arr-value {
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--text-1);
+    letter-spacing: -.5px;
+  }
+  .em-dash { color: var(--border); }
 
-  /* table */
+  /* ── Data table ───────────────────────────────────────────────────────── */
   .data-table {
-    width: 100%%;
+    width: 100%;
     border-collapse: collapse;
     font-size: 13px;
   }
@@ -516,47 +722,401 @@ report_all_accounts_html <- function(op_list,
     font-size: 10px;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: .6px;
-    color: var(--gray3);
-    padding: 6px 10px;
-    border-bottom: 1px solid var(--gray4);
+    letter-spacing: 1px;
+    color: var(--text-3);
+    padding: 7px 12px;
+    border-bottom: 1.5px solid var(--border);
+    background: var(--surface);
   }
   .data-table td {
-    padding: 8px 10px;
-    border-bottom: 1px solid var(--gray5);
-    color: var(--gray1);
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--surface);
+    color: var(--text-1);
+    vertical-align: top;
   }
   .data-table tr:last-child td { border-bottom: none; }
-  .data-table tr:hover td { background: var(--gray5); }
+  .data-table tr:hover td { background: var(--im-lime-lt); }
   .empty-msg {
-    font-size: 12px;
-    color: var(--gray3);
+    font-size: 13px;
+    color: var(--text-3);
     font-style: italic;
-    padding: 8px 0;
+    padding: 10px 2px;
   }
 
-  /* arch badges */
+  /* ── Architecture badges ──────────────────────────────────────────────── */
   .arch-badge {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 4px 10px;
-    border-radius: 12px;
+    gap: 5px;
+    padding: 5px 12px;
+    border-radius: 4px;
     font-size: 12px;
     font-weight: 600;
     margin: 3px;
   }
-  .arch-yes { background: #E8F8F4; color: var(--teal); }
-  .arch-no  { background: var(--gray5); color: var(--gray3); }
-  .arch-warn { background: #FDECEA; color: var(--red); }
+  .arch-yes  { background: var(--im-lime); color: var(--im-black); }
+  .arch-no   { background: var(--surface); color: var(--text-3); border: 1px solid var(--border); }
+  .arch-warn { background: var(--red-lt);  color: #991B1B; border: 1px solid #FCA5A5; }
 
-  /* no results */
+  /* ── Diff-date picker ────────────────────────────────────────────────────── */
+  .diff-date-wrap {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    flex-shrink: 0;
+  }
+  .diff-date-label {
+    font-size: 11.5px;
+    color: rgba(255,255,255,.4);
+    white-space: nowrap;
+  }
+  .diff-date-outer {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+  }
+  .diff-date-select {
+    appearance: none;
+    -webkit-appearance: none;
+    background: rgba(255,255,255,.08);
+    color: var(--im-white);
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: var(--radius-sm);
+    padding: 6px 28px 6px 10px;
+    font-size: 12.5px;
+    font-family: var(--font);
+    cursor: pointer;
+    outline: none;
+    transition: border-color .15s, background .15s;
+  }
+  .diff-date-select:focus { border-color: var(--im-lime); background: rgba(255,255,255,.12); }
+  .diff-date-select option { background: #1a1a1a; color: var(--im-white); }
+  .diff-date-chevron {
+    position: absolute;
+    right: 8px;
+    pointer-events: none;
+    color: rgba(255,255,255,.35);
+    font-size: 10px;
+    line-height: 1;
+  }
+
+  /* ── Changes tab ─────────────────────────────────────────────────────────── */
+  .changes-header {
+    background: var(--im-white);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 28px;
+    display: flex;
+    align-items: center;
+    gap: 32px;
+    flex-wrap: wrap;
+  }
+  .changes-date-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-3);
+    margin-bottom: 3px;
+  }
+  .changes-date-val {
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--text-1);
+    letter-spacing: -.4px;
+  }
+  .changes-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 28px 48px;
+  }
+  .change-section {
+    background: var(--im-white);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 10px;
+    overflow: hidden;
+  }
+  .change-section-hdr {
+    padding: 13px 18px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    user-select: none;
+    transition: background .12s;
+  }
+  .change-section-hdr:hover { background: var(--surface); }
+  .change-section-title { font-size: 13.5px; font-weight: 600; flex: 1; }
+  .change-section-chevron { font-size: 11px; color: var(--text-3); flex-shrink: 0; }
+  .chg-badge {
+    font-size: 10.5px;
+    font-weight: 700;
+    padding: 2px 9px;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+  .chg-added   { background: var(--im-lime-lt); color: #5A7A00; }
+  .chg-removed { background: var(--red-lt);     color: #991B1B; }
+  .chg-changed { background: var(--amber-lt);   color: #92400E; }
+  .change-section-body { border-top: 1px solid var(--border); }
+  .chg-group {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--surface-2);
+  }
+  .chg-group:last-child { border-bottom: none; }
+  .chg-group-title { margin-bottom: 10px; }
+  .chg-old  { color: var(--text-3); }
+  .chg-new  { font-weight: 600; color: var(--text-1); }
+  .chg-null { color: var(--border); font-style: italic; }
+
+  /* ── Refresh button ──────────────────────────────────────────────────────── */
+  .refresh-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 15px;
+    background: var(--im-lime);
+    color: var(--im-black);
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 12.5px;
+    font-weight: 700;
+    font-family: var(--font);
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: background .14s, opacity .14s;
+  }
+  .refresh-btn:hover:not(:disabled) { background: var(--im-lime-dk); }
+  .refresh-btn:disabled { opacity: .55; cursor: wait; }
+
+  /* ── Modal ────────────────────────────────────────────────────────────────── */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.45);
+    z-index: 999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-box {
+    background: var(--im-white);
+    border-radius: var(--radius);
+    padding: 28px 32px;
+    max-width: 440px;
+    width: 90%;
+    box-shadow: var(--shadow-lg);
+  }
+  .modal-title { font-size: 15px; font-weight: 700; margin-bottom: 10px; color: var(--text-1); }
+  .modal-body  { font-size: 13.5px; color: var(--text-2); line-height: 1.55; margin-bottom: 4px; }
+  .modal-code {
+    display: block;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+    font-family: "Menlo", "Consolas", monospace;
+    font-size: 13px;
+    color: var(--text-1);
+    margin: 10px 0 4px;
+    cursor: pointer;
+    user-select: all;
+    transition: background .12s;
+  }
+  .modal-code:hover { background: var(--im-lime-lt); }
+  .modal-hint  { font-size: 11.5px; color: var(--text-3); margin-bottom: 16px; }
+  .modal-close {
+    padding: 8px 20px;
+    background: var(--im-black);
+    color: var(--im-lime);
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-weight: 600;
+    font-family: var(--font);
+    cursor: pointer;
+  }
+  .modal-close:hover { opacity: .85; }
+
+  /* ── No results ───────────────────────────────────────────────────────── */
   #no-results {
     display: none;
     text-align: center;
-    padding: 60px 20px;
-    color: var(--gray3);
+    padding: 80px 20px;
+    color: var(--text-3);
     font-size: 16px;
+    font-weight: 500;
+  }
+
+  /* ── Page-level tab nav ───────────────────────────────────────────────── */
+  .page-tabs {
+    background: var(--im-white);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: stretch;
+    padding: 0 24px;
+    position: sticky;
+    top: var(--topbar-h);
+    height: var(--tabs-h);
+    z-index: 90;
+    box-shadow: 0 1px 0 var(--border);
+  }
+  .page-tab {
+    padding: 0 20px;
+    border: none;
+    background: none;
+    font-size: 13.5px;
+    font-weight: 500;
+    font-family: var(--font);
+    color: var(--text-3);
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: color .12s;
+    white-space: nowrap;
+  }
+  .page-tab:hover { color: var(--text-1); }
+  .page-tab.active {
+    color: var(--text-1);
+    border-bottom-color: var(--im-lime);
+    font-weight: 600;
+  }
+  .page-tab-count {
+    font-size: 11px;
+    font-weight: 700;
+    background: var(--surface-2);
+    color: var(--text-3);
+    padding: 1px 7px;
+    border-radius: 10px;
+    min-width: 24px;
+    text-align: center;
+  }
+  .page-tab.active .page-tab-count {
+    background: var(--im-lime);
+    color: var(--im-black);
+  }
+
+  /* ── Page panels ──────────────────────────────────────────────────────── */
+  .page { display: none; flex: 1; }
+  .page.active { display: flex; }
+  #page-accounts.active { flex-direction: row; }
+  #page-renewals.active,
+  #page-expansions.active,
+  #page-changes.active { flex-direction: column; }
+
+  /* ── Flat table pages (Renewals / Expansions) ─────────────────────────── */
+  .flat-page { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  .flat-filters {
+    background: var(--im-white);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 24px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .flat-pill {
+    padding: 5px 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: transparent;
+    font-size: 12.5px;
+    font-family: var(--font);
+    color: var(--text-2);
+    cursor: pointer;
+    transition: background .12s, color .12s, border-color .12s;
+    white-space: nowrap;
+  }
+  .flat-pill:hover { background: var(--im-lime-lt); border-color: #C8E870; color: var(--text-1); }
+  .flat-pill.active { background: var(--im-black); color: var(--im-lime); border-color: var(--im-black); font-weight: 600; }
+
+  .flat-filters-csm {
+    padding-top: 6px;
+    border-top: 1px solid var(--surface-2);
+  }
+
+  .flat-stats {
+    padding: 14px 24px;
+    display: flex;
+    gap: 32px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    flex-wrap: wrap;
+  }
+  .stat-item { display: flex; flex-direction: column; gap: 2px; }
+  .stat-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-3);
+  }
+  .stat-value {
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--text-1);
+    letter-spacing: -.5px;
+  }
+
+  .flat-table-wrap { flex: 1; overflow-y: auto; padding: 0 24px 40px; }
+  .flat-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin-top: 16px;
+  }
+  .flat-table th {
+    text-align: left;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-3);
+    padding: 9px 12px;
+    border-bottom: 1.5px solid var(--border);
+    background: var(--im-white);
+    position: sticky;
+    top: 0;
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+    transition: color .12s;
+  }
+  .flat-table th:hover { color: var(--text-1); }
+  .flat-table th.sort-asc::after  { content: " \2191"; color: var(--im-lime-dk); }
+  .flat-table th.sort-desc::after { content: " \2193"; color: var(--im-lime-dk); }
+  .flat-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--surface);
+    color: var(--text-1);
+    vertical-align: middle;
+  }
+  .flat-table tr:hover td { background: var(--im-lime-lt); }
+  .flat-table tr:last-child td { border-bottom: none; }
+  .flat-table .acct-link {
+    font-weight: 600;
+    color: var(--text-1);
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .flat-table .acct-link:hover { text-decoration: underline; text-decoration-color: var(--im-lime); }
+  .opp-link { color: var(--text-1); text-decoration: none; font-weight: 500; }
+  .opp-link:hover { text-decoration: underline; text-decoration-color: var(--im-lime); color: var(--im-black); }
+  .risk-high     { color: #991B1B; font-weight: 600; }
+  .risk-moderate { color: #92400E; font-weight: 600; }
+  .risk-low      { color: #166534; font-weight: 600; }
+  .churn-q {
+    display: inline-block;
+    background: var(--amber-lt);
+    color: #92400E;
+    border: 1px solid #FCD34D;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 7px;
   }
 </style>
 </head>
@@ -564,45 +1124,147 @@ report_all_accounts_html <- function(op_list,
 
 <!-- TOP BAR -->
 <div class="topbar">
-  <div class="topbar-logo">Immuta <span>Accounts</span></div>
+  <a class="topbar-logo" href="https://www.immuta.com" target="_blank" rel="noopener">
+    <svg width="114" height="20" viewBox="0 0 142 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M95.968 3.99802H99.8179V11.656C99.8179 16.8192 96.57 20.0561 92.1339 20.0561C87.6978 20.0561 84.5925 16.8192 84.5925 11.656V3.99802H88.4424V11.656C88.4424 14.7508 89.7733 16.5192 92.1339 16.5192C94.4946 16.5192 95.9838 14.7508 95.9838 11.656V3.99802H95.968ZM40.675 15.635L35.0507 3.99802H30.7571V19.7561H34.6071V11.7981L38.457 19.8982H42.7505L46.6004 11.7981V19.7561H50.4503V3.99802H46.1568L40.6909 15.635H40.675ZM77.4789 3.99802H73.1854L67.7195 15.4929L62.0951 3.99802H57.8016V19.7561H61.6515V11.7981L65.5014 19.8982H69.7949L73.6448 11.7981V19.7561H77.4947V3.99802H77.4789ZM120.509 3.99802H105.426V7.53491H111.051V19.7561H114.901V7.53491H120.525V3.99802H120.509ZM141.2 19.8982H137.065L136.036 17.3877H128.352L127.322 19.8982H123.329L130.126 4.14013H134.42L141.216 19.8982H141.2ZM134.689 14.3087L132.17 8.41913L129.651 14.3087H134.673H134.689ZM24.1188 0.161133V23.7351H0.464844V0.161133H24.1188ZM19.0965 3.99802H15.2466V19.7561H19.0965V3.99802Z" fill="white"/>
+    </svg>
+    <span class="topbar-section">Customer Accounts</span>
+  </a>
   <div class="search-wrap">
     <span class="search-icon">&#128269;</span>
     <input type="text" id="search" placeholder="Search accounts..." autocomplete="off">
   </div>
   <div class="count-badge" id="count-badge"></div>
+  <div class="diff-date-wrap">
+    <span class="diff-date-label">Compare to</span>
+    <div class="diff-date-outer">
+      <select id="diff-date" class="diff-date-select"></select>
+      <span class="diff-date-chevron">&#9660;</span>
+    </div>
+  </div>
+  <button class="refresh-btn" id="refresh-btn" onclick="triggerRefresh()">&#8635; Refresh</button>
 </div>
 
-<div class="layout">
+<!-- REFRESH MODAL -->
+<div id="refresh-modal" class="modal-overlay" style="display:none" onclick="closeRefreshModal()">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-title">Start the refresh server first</div>
+    <p class="modal-body">In a separate R session, run this from your project root:</p>
+    <code class="modal-code" onclick="copyModalCmd(this)">source("scripts/serve.R")</code>
+    <p class="modal-hint">Click the code to copy &bull; Leave that R session running while you use the dashboard</p>
+    <p class="modal-body">Then click <strong>Refresh</strong> again.</p>
+    <br>
+    <button class="modal-close" onclick="closeRefreshModal()">Got it</button>
+  </div>
+</div>
 
-  <!-- SIDEBAR -->
-  <aside class="sidebar">
-    <div class="sidebar-section">
-      <div class="sidebar-label">Filter by Region</div>
-      <div class="region-filters">
-        <button class="pill active" data-region="all">All Regions</button>
-        {{REGION_PILLS}}
+<!-- PAGE TABS -->
+<div class="page-tabs">
+  <button class="page-tab active" data-page="accounts" onclick="switchPage(\'accounts\')">
+    Accounts <span class="page-tab-count" id="tab-count-accounts">0</span>
+  </button>
+  <button class="page-tab" data-page="renewals" onclick="switchPage(\'renewals\')">
+    Renewals <span class="page-tab-count" id="tab-count-renewals">0</span>
+  </button>
+  <button class="page-tab" data-page="expansions" onclick="switchPage(\'expansions\')">
+    Expansions <span class="page-tab-count" id="tab-count-expansions">0</span>
+  </button>
+  <button class="page-tab" data-page="changes" onclick="switchPage(\'changes\')">
+    Changes <span class="page-tab-count" id="tab-count-changes">0</span>
+  </button>
+</div>
+
+<!-- ACCOUNTS PAGE -->
+<div id="page-accounts" class="page active">
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-label">Filter by Region</div>
+        <div class="region-filters">
+          <button class="pill active" data-region="all">All Regions</button>
+          {{REGION_PILLS}}
+        </div>
       </div>
-    </div>
-    <div class="sidebar-section">
-      <div class="sidebar-label">Jump to Letter</div>
-      <div class="alpha-jump" id="alpha-jump"></div>
-    </div>
-  </aside>
+      <div class="sidebar-section">
+        <div class="sidebar-label">Filter by CSM</div>
+        <div class="region-filters" id="csm-filters">
+          <button class="pill active" data-csm="all">All CSMs</button>
+          {{CSM_PILLS}}
+        </div>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-label">Jump to Letter</div>
+        <div class="alpha-jump" id="alpha-jump"></div>
+      </div>
+    </aside>
+    <main class="main" id="main-content">
+      <div id="account-list"></div>
+      <div id="no-results">No accounts match your search.</div>
+    </main>
+  </div>
+</div>
 
-  <!-- MAIN -->
-  <main class="main" id="main-content">
-    <div id="account-list"></div>
-    <div id="no-results">No accounts match your search.</div>
-  </main>
+<!-- RENEWALS PAGE -->
+<div id="page-renewals" class="page">
+  <div class="flat-page">
+    <div class="flat-filters" id="renewal-filters"></div>
+    <div class="flat-filters flat-filters-csm" id="renewal-csm-filters"></div>
+    <div class="flat-stats" id="renewal-stats"></div>
+    <div class="flat-table-wrap" id="renewal-table"></div>
+  </div>
+</div>
 
+<!-- EXPANSIONS PAGE -->
+<div id="page-expansions" class="page">
+  <div class="flat-page">
+    <div class="flat-filters" id="expansion-filters"></div>
+    <div class="flat-filters flat-filters-csm" id="expansion-csm-filters"></div>
+    <div class="flat-stats" id="expansion-stats"></div>
+    <div class="flat-table-wrap" id="expansion-table"></div>
+  </div>
+</div>
+
+<!-- CHANGES PAGE -->
+<div id="page-changes" class="page">
+  <div class="flat-page">
+    <div class="changes-header" id="changes-header"></div>
+    <div class="changes-body"   id="changes-content"></div>
+  </div>
 </div>
 
 <script>
-const ACCOUNTS = {{JSON_DATA}};
+const ACCOUNTS      = {{JSON_DATA}};
+const SNAP_DATES    = {{SNAP_DATES}};
+const CHANGES_DATA  = {{CHANGES}};
 
 // ── State ──────────────────────────────────────────────────────────────────
-let activeRegion = "all";
-let searchTerm   = "";
+let activeRegion    = "all";
+let activeCSM       = "all";
+let searchTerm      = "";
+let activePage      = "accounts";
+let renewalSort     = { col: "end_date_raw", dir: 1 };
+let expansionSort   = { col: "close_date_raw", dir: 1 };
+
+// ── Flat data derived from ACCOUNTS ────────────────────────────────────────
+const ALL_RENEWALS   = [];
+const ALL_EXPANSIONS = [];
+ACCOUNTS.forEach(a => {
+  a.renewals.forEach(r => ALL_RENEWALS.push(
+    Object.assign({}, r, { account: a.name, region: a.region, csm: a.csm })
+  ));
+  a.expansions.forEach(e => ALL_EXPANSIONS.push(
+    Object.assign({}, e, { account: a.name, region: a.region, csm: a.csm })
+  ));
+});
+
+// Update global tab counts once
+document.getElementById("tab-count-accounts").textContent   = ACCOUNTS.length;
+document.getElementById("tab-count-renewals").textContent    = ALL_RENEWALS.length;
+document.getElementById("tab-count-expansions").textContent  = ALL_EXPANSIONS.length;
+document.getElementById("tab-count-changes").textContent     =
+  (CHANGES_DATA && CHANGES_DATA.has_data && CHANGES_DATA.summary)
+    ? CHANGES_DATA.summary.reduce((s, r) => s + (r.Total_Moves || 0), 0)
+    : 0;
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 function esc(s) {
@@ -637,7 +1299,7 @@ function buildCard(a) {
   if (hasRenewals) {
     renewRows = a.renewals.map(r => `
       <tr>
-        <td>${esc(r.name)}</td>
+        <td>${r.url ? \'<a class="opp-link" href="\' + esc(r.url) + \'" target="_blank" rel="noopener">\' + esc(r.name) + \'</a>\' : esc(r.name)}</td>
         <td>${esc(r.amount)}</td>
         <td>${esc(r.end_date)}</td>
         <td><strong>${esc(r.churn_quarter)}</strong></td>
@@ -649,7 +1311,7 @@ function buildCard(a) {
   if (hasExpansions) {
     expRows = a.expansions.map(e => `
       <tr>
-        <td>${esc(e.name)}</td>
+        <td>${e.url ? \'<a class="opp-link" href="\' + esc(e.url) + \'" target="_blank" rel="noopener">\' + esc(e.name) + \'</a>\' : esc(e.name)}</td>
         <td>${esc(e.owner)}</td>
         <td>${esc(e.amount)}</td>
         <td>${esc(e.fiscal_period)}</td>
@@ -676,6 +1338,7 @@ function buildCard(a) {
   <div class="card-header" onclick="toggleCard(this)">
     <div class="card-name">${esc(a.name)}</div>
     <div class="card-arr">${esc(a.arr)}</div>
+    ${a.consumption_link}
     <div class="card-meta">
       ${regionTag}${saasTag}${churnTag}
     </div>
@@ -734,80 +1397,275 @@ function buildCard(a) {
 </div>`;
 }
 
-// ── Render ─────────────────────────────────────────────────────────────────
+// ── Page switching ─────────────────────────────────────────────────────────
+function switchPage(name) {
+  activePage = name;
+  document.querySelectorAll(".page").forEach(p => p.classList.toggle("active", p.id === "page-" + name));
+  document.querySelectorAll(".page-tab").forEach(b => b.classList.toggle("active", b.dataset.page === name));
+  document.getElementById("search").placeholder =
+    name === "accounts" ? "Search accounts..." : "Filter by account name...";
+  render();
+}
+
+// ── Render dispatcher ──────────────────────────────────────────────────────
 function render() {
-  const q       = searchTerm.toLowerCase();
-  const region  = activeRegion;
+  if      (activePage === "accounts")   renderAccounts();
+  else if (activePage === "renewals")   renderRenewals();
+  else if (activePage === "expansions") renderExpansions();
+  else if (activePage === "changes")    renderChanges();
+}
 
-  const visible = ACCOUNTS.filter(a => {
-    const matchRegion = region === "all" || a.region === region;
-    const matchSearch = !q || a.name.toLowerCase().includes(q);
-    return matchRegion && matchSearch;
-  });
-
-  // Group by first letter
+// ── Accounts render ────────────────────────────────────────────────────────
+function renderAccounts() {
+  const q      = searchTerm.toLowerCase();
+  const region = activeRegion;
+  const visible = ACCOUNTS.filter(a =>
+    (region === "all" || a.region === region) &&
+    (activeCSM === "all" || a.csm === activeCSM) &&
+    (!q || a.name.toLowerCase().includes(q))
+  );
   const groups = {};
   visible.forEach(a => {
     const letter = (a.name[0] || "#").toUpperCase();
     if (!groups[letter]) groups[letter] = [];
     groups[letter].push(a);
   });
-
   const letters = Object.keys(groups).sort();
   let html = "";
   letters.forEach(letter => {
-    html += `<div class="letter-group" id="letter-${letter}">
-      <div class="letter-heading">${letter}</div>`;
+    html += `<div class="letter-group" id="letter-${letter}"><div class="letter-heading">${letter}</div>`;
     groups[letter].forEach(a => { html += buildCard(a); });
     html += "</div>";
   });
-
   document.getElementById("account-list").innerHTML = html;
   document.getElementById("no-results").style.display = visible.length === 0 ? "block" : "none";
-  document.getElementById("count-badge").textContent =
-    visible.length + " account" + (visible.length !== 1 ? "s" : "");
-
+  document.getElementById("count-badge").textContent = visible.length + " account" + (visible.length !== 1 ? "s" : "");
+  document.getElementById("tab-count-accounts").textContent = visible.length;
   buildAlphaJump(letters);
+}
+
+// ── Renewals render ────────────────────────────────────────────────────────
+function renderRenewals() {
+  const q = searchTerm.toLowerCase();
+  const region = activeRegion;
+
+  let rows = ALL_RENEWALS.filter(r =>
+    (region === "all" || r.region === region) &&
+    (activeCSM === "all" || r.csm === activeCSM) &&
+    (!q || r.account.toLowerCase().includes(q))
+  );
+
+  // Sort
+  rows = rows.slice().sort((a, b) => {
+    let av = a[renewalSort.col] || "", bv = b[renewalSort.col] || "";
+    if (renewalSort.col === "amount_raw") { av = +av || 0; bv = +bv || 0; }
+    return renewalSort.dir * (av < bv ? -1 : av > bv ? 1 : 0);
+  });
+
+  // Stats
+  const totalArr = rows.reduce((s, r) => s + (+r.amount_raw || 0), 0);
+  const acctSet  = new Set(rows.map(r => r.account));
+  document.getElementById("renewal-stats").innerHTML = `
+    <div class="stat-item"><div class="stat-label">Open Renewals</div><div class="stat-value">${rows.length}</div></div>
+    <div class="stat-item"><div class="stat-label">Total ARR</div><div class="stat-value">${fmtUsd(totalArr)}</div></div>
+    <div class="stat-item"><div class="stat-label">Accounts</div><div class="stat-value">${acctSet.size}</div></div>`;
+  document.getElementById("tab-count-renewals").textContent = rows.length;
+  document.getElementById("count-badge").textContent = rows.length + " renewal" + (rows.length !== 1 ? "s" : "");
+
+  // Region + CSM pills
+  buildFlatPills("renewal-filters", "renewal");
+  buildFlatCSMPills("renewal-csm-filters");
+
+  // Table
+  const cols = [
+    { key: "account",       label: "Account" },
+    { key: "name",          label: "Opportunity" },
+    { key: "amount_raw",    label: "Amount" },
+    { key: "end_date_raw",  label: "End Date" },
+    { key: "churn_quarter", label: "Churn Quarter" },
+    { key: "risk",          label: "Risk" },
+    { key: "csm",           label: "CSM" },
+    { key: "region",        label: "Region" }
+  ];
+  const headers = cols.map(c => {
+    const cls = renewalSort.col === c.key ? (renewalSort.dir === 1 ? "sort-asc" : "sort-desc") : "";
+    return `<th class="${cls}" onclick="sortRenewals(\'${c.key}\')">${c.label}</th>`;
+  }).join("");
+
+  const bodyRows = rows.map(r => {
+    const riskCls = r.risk.toLowerCase() === "high" ? "risk-high" :
+                    r.risk.toLowerCase() === "moderate" ? "risk-moderate" :
+                    r.risk.toLowerCase() === "low" ? "risk-low" : "";
+    const cq = r.churn_quarter && r.churn_quarter !== "—"
+      ? `<span class="churn-q">${esc(r.churn_quarter)}</span>` : esc(r.churn_quarter);
+    return `<tr>
+      <td><span class="acct-link" onclick="goToAccount(\'${esc(r.account)}\')">${esc(r.account)}</span></td>
+      <td>${r.url ? \'<a class="opp-link" href="\' + esc(r.url) + \'" target="_blank" rel="noopener">\' + esc(r.name) + \'</a>\' : esc(r.name)}</td>
+      <td>${esc(r.amount)}</td>
+      <td>${esc(r.end_date)}</td>
+      <td>${cq}</td>
+      <td class="${riskCls}">${esc(r.risk)}</td>
+      <td>${esc(r.csm)}</td>
+      <td>${esc(r.region)}</td>
+    </tr>`;
+  }).join("");
+
+  document.getElementById("renewal-table").innerHTML = rows.length === 0
+    ? \'<p class="empty-msg" style="padding:24px">No renewals match the current filter.</p>\'
+    : `<table class="flat-table"><thead><tr>${headers}</tr></thead><tbody>${bodyRows}</tbody></table>`;
+}
+
+// ── Expansions render ──────────────────────────────────────────────────────
+function renderExpansions() {
+  const q = searchTerm.toLowerCase();
+  const region = activeRegion;
+
+  let rows = ALL_EXPANSIONS.filter(e =>
+    (region === "all" || e.region === region) &&
+    (activeCSM === "all" || e.csm === activeCSM) &&
+    (!q || e.account.toLowerCase().includes(q))
+  );
+
+  rows = rows.slice().sort((a, b) => {
+    let av = a[expansionSort.col] || "", bv = b[expansionSort.col] || "";
+    if (expansionSort.col === "amount_raw") { av = +av || 0; bv = +bv || 0; }
+    return expansionSort.dir * (av < bv ? -1 : av > bv ? 1 : 0);
+  });
+
+  const totalArr = rows.reduce((s, e) => s + (+e.amount_raw || 0), 0);
+  const acctSet  = new Set(rows.map(e => e.account));
+  document.getElementById("expansion-stats").innerHTML = `
+    <div class="stat-item"><div class="stat-label">Open Expansions</div><div class="stat-value">${rows.length}</div></div>
+    <div class="stat-item"><div class="stat-label">Pipeline Value</div><div class="stat-value">${fmtUsd(totalArr)}</div></div>
+    <div class="stat-item"><div class="stat-label">Accounts</div><div class="stat-value">${acctSet.size}</div></div>`;
+  document.getElementById("tab-count-expansions").textContent = rows.length;
+  document.getElementById("count-badge").textContent = rows.length + " expansion" + (rows.length !== 1 ? "s" : "");
+
+  buildFlatPills("expansion-filters", "expansion");
+  buildFlatCSMPills("expansion-csm-filters");
+
+  const cols = [
+    { key: "account",        label: "Account" },
+    { key: "name",           label: "Opportunity" },
+    { key: "owner",          label: "Owner" },
+    { key: "amount_raw",     label: "Amount" },
+    { key: "fiscal_period",  label: "Fiscal Period" },
+    { key: "close_date_raw", label: "Close Date" },
+    { key: "region",         label: "Region" }
+  ];
+  const headers = cols.map(c => {
+    const cls = expansionSort.col === c.key ? (expansionSort.dir === 1 ? "sort-asc" : "sort-desc") : "";
+    return `<th class="${cls}" onclick="sortExpansions(\'${c.key}\')">${c.label}</th>`;
+  }).join("");
+
+  const bodyRows = rows.map(e => `<tr>
+    <td><span class="acct-link" onclick="goToAccount(\'${esc(e.account)}\')">${esc(e.account)}</span></td>
+    <td>${e.url ? \'<a class="opp-link" href="\' + esc(e.url) + \'" target="_blank" rel="noopener">\' + esc(e.name) + \'</a>\' : esc(e.name)}</td>
+    <td>${esc(e.owner)}</td>
+    <td>${esc(e.amount)}</td>
+    <td>${esc(e.fiscal_period)}</td>
+    <td>${esc(e.close_date)}</td>
+    <td>${esc(e.region)}</td>
+  </tr>`).join("");
+
+  document.getElementById("expansion-table").innerHTML = rows.length === 0
+    ? \'<p class="empty-msg" style="padding:24px">No expansions match the current filter.</p>\'
+    : `<table class="flat-table"><thead><tr>${headers}</tr></thead><tbody>${bodyRows}</tbody></table>`;
+}
+
+// ── Sort handlers ──────────────────────────────────────────────────────────
+function sortRenewals(col) {
+  renewalSort.dir = renewalSort.col === col ? -renewalSort.dir : 1;
+  renewalSort.col = col;
+  renderRenewals();
+}
+function sortExpansions(col) {
+  expansionSort.dir = expansionSort.col === col ? -expansionSort.dir : 1;
+  expansionSort.col = col;
+  renderExpansions();
+}
+
+// ── Navigate from table row to account card ────────────────────────────────
+function goToAccount(name) {
+  switchPage("accounts");
+  searchTerm = name;
+  document.getElementById("search").value = name;
+  render();
+  setTimeout(() => {
+    const cards = document.querySelectorAll(".card");
+    if (cards.length === 1) { cards[0].classList.add("open"); cards[0].scrollIntoView({ behavior: "smooth", block: "center" }); }
+  }, 50);
+}
+
+// ── Region pills for flat pages ────────────────────────────────────────────
+function buildFlatPills(containerId, pageKey) {
+  const allRegions = [...new Set(ACCOUNTS.map(a => a.region).filter(Boolean))].sort();
+  const container  = document.getElementById(containerId);
+  if (!container) return;
+  container.innerHTML = [
+    `<button class="flat-pill${activeRegion === "all" ? " active" : ""}" onclick="setRegion(\'all\')">All Regions</button>`
+  ].concat(allRegions.map(r =>
+    `<button class="flat-pill${activeRegion === r ? " active" : ""}" onclick="setRegion(\'${esc(r)}\')">${esc(r)}</button>`
+  )).join("");
+}
+
+function buildFlatCSMPills(containerId) {
+  const allCSMs = [...new Set(ACCOUNTS.map(a => a.csm).filter(Boolean))].sort();
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.innerHTML = [
+    `<button class="flat-pill${activeCSM === "all" ? " active" : ""}" onclick="setCSM(\'all\')">All CSMs</button>`
+  ].concat(allCSMs.map(c =>
+    `<button class="flat-pill${activeCSM === c ? " active" : ""}" onclick="setCSM(\'${esc(c)}\')">${esc(c)}</button>`
+  )).join("");
+}
+
+function setRegion(r) {
+  activeRegion = r;
+  document.querySelectorAll("[data-region]").forEach(b => b.classList.toggle("active", b.dataset.region === r));
+  render();
+}
+
+function setCSM(c) {
+  activeCSM = c;
+  document.querySelectorAll("[data-csm]").forEach(b => b.classList.toggle("active", b.dataset.csm === c));
+  render();
 }
 
 // ── Alpha jump bar ─────────────────────────────────────────────────────────
 function buildAlphaJump(visibleLetters) {
   const container = document.getElementById("alpha-jump");
   const all = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
-  container.innerHTML = all.map(l => {
-    if (visibleLetters.includes(l)) {
-      return `<a href="#letter-${l}" class="has-accounts">${l}</a>`;
-    }
-    return `<a class="disabled">${l}</a>`;
-  }).join("");
+  container.innerHTML = all.map(l =>
+    visibleLetters.includes(l)
+      ? `<a href="#letter-${l}" class="has-accounts">${l}</a>`
+      : `<a class="disabled">${l}</a>`
+  ).join("");
 }
 
 // ── Card toggle ────────────────────────────────────────────────────────────
-function toggleCard(header) {
-  const card = header.parentElement;
-  card.classList.toggle("open");
-}
+function toggleCard(header) { header.parentElement.classList.toggle("open"); }
 
-// ── Tab switch ─────────────────────────────────────────────────────────────
+// ── Card tab switch ────────────────────────────────────────────────────────
 function switchTab(btn, paneId) {
-  const tabs = btn.closest(".tabs");
-  const body = tabs.nextElementSibling;
-  tabs.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+  btn.closest(".tabs").querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
   btn.classList.add("active");
-  // find all tab panes in parent card-body
-  const cardBody = btn.closest(".card-body");
-  cardBody.querySelectorAll(".tab-pane").forEach(p => p.classList.remove("active"));
+  btn.closest(".card-body").querySelectorAll(".tab-pane").forEach(p => p.classList.remove("active"));
   document.getElementById(paneId).classList.add("active");
 }
 
-// ── Filters ────────────────────────────────────────────────────────────────
-document.querySelectorAll(".pill").forEach(btn => {
-  btn.addEventListener("click", () => {
-    document.querySelectorAll(".pill").forEach(b => b.classList.remove("active"));
-    btn.classList.add("active");
-    activeRegion = btn.dataset.region;
-    render();
-  });
+// ── USD formatter ──────────────────────────────────────────────────────────
+function fmtUsd(n) {
+  if (!n || isNaN(n)) return "—";
+  return "$" + Number(n).toLocaleString("en-US", { maximumFractionDigits: 0 });
+}
+
+// ── Sidebar pill listeners ─────────────────────────────────────────────────
+document.querySelectorAll("[data-region]").forEach(btn => {
+  btn.addEventListener("click", () => { setRegion(btn.dataset.region); });
+});
+document.querySelectorAll("[data-csm]").forEach(btn => {
+  btn.addEventListener("click", () => { setCSM(btn.dataset.csm); });
 });
 
 document.getElementById("search").addEventListener("input", e => {
@@ -815,13 +1673,368 @@ document.getElementById("search").addEventListener("input", e => {
   render();
 });
 
+// ── Changes rendering ──────────────────────────────────────────────────────
+
+function renderChanges() {
+  const hdr  = document.getElementById("changes-header");
+  const body = document.getElementById("changes-content");
+
+  if (!CHANGES_DATA || !CHANGES_DATA.has_data) {
+    hdr.innerHTML  = "";
+    body.innerHTML = `<p class="empty-msg" style="padding:40px">No changes data — run enrich_list_object() to generate a diff.</p>`;
+    return;
+  }
+
+  const sum = CHANGES_DATA.summary || [];
+  hdr.innerHTML = `
+    <div>
+      <div class="changes-date-label">Comparing to</div>
+      <div class="changes-date-val">${esc(CHANGES_DATA.diff_date)}</div>
+    </div>
+    <div style="width:1px;height:36px;background:var(--border);flex-shrink:0"></div>
+    ${sum.map(r => `
+      <div class="stat-item">
+        <div class="stat-label">${esc(r.Component || "")}</div>
+        <div class="stat-value" style="font-size:16px">${r.Total_Moves || 0}</div>
+      </div>`).join("")}`;
+
+  body.innerHTML = [
+    buildChangeSection("accounts",      "Accounts",        CHANGES_DATA.accounts,      renderAccountChanges),
+    buildChangeSection("renewals",      "Renewals",        CHANGES_DATA.renewals,      renderRenewalChanges),
+    buildChangeSection("expansions",    "Expansions",      CHANGES_DATA.expansions,    renderExpansionChanges),
+    buildChangeSection("csm_table",     "CSM Assignments", CHANGES_DATA.csm_table,     renderCSMChanges),
+    buildChangeSection("saas_pipeline", "SaaS Pipeline",   CHANGES_DATA.saas_pipeline, renderSaaSChanges)
+  ].join("");
+}
+
+function buildChangeSection(key, label, data, tableFn) {
+  if (!data) return "";
+  const nAdded   = (data.added   || []).length;
+  const nRemoved = (data.removed || []).length;
+  const nChanged = (data.field_changes || data.reassignments || []).length;
+  const total    = nAdded + nRemoved + nChanged;
+
+  const badges = [
+    nAdded   > 0 ? `<span class="chg-badge chg-added">+${nAdded}</span>`       : "",
+    nRemoved > 0 ? `<span class="chg-badge chg-removed">&#8722;${nRemoved}</span>` : "",
+    nChanged > 0 ? `<span class="chg-badge chg-changed">&#126;${nChanged}</span>`  : ""
+  ].join(" ");
+
+  const bodyContent = total === 0
+    ? `<p class="empty-msg" style="padding:14px 18px">No changes detected.</p>`
+    : tableFn(data);
+
+  return `
+    <div class="change-section">
+      <div class="change-section-hdr" onclick="toggleChgSection(\'${key}\')">
+        <span class="change-section-title">${esc(label)}</span>
+        ${badges}
+        <span class="change-section-chevron" id="chsec-chev-${key}">&#9660;</span>
+      </div>
+      <div class="change-section-body" id="chsec-body-${key}">${bodyContent}</div>
+    </div>`;
+}
+
+function toggleChgSection(key) {
+  const body = document.getElementById("chsec-body-" + key);
+  const chev = document.getElementById("chsec-chev-" + key);
+  const isOpen = body.style.display !== "none";
+  body.style.display = isOpen ? "none" : "";
+  chev.innerHTML     = isOpen ? "&#9654;" : "&#9660;";
+}
+
+// chgArrow: renders old → new or just the value if unchanged
+function chgArrow(oldVal, newVal) {
+  const o = oldVal == null ? "" : String(oldVal);
+  const n = newVal == null ? "" : String(newVal);
+  if (!o && !n) return `<span class="chg-null">—</span>`;
+  if (o === n)  return esc(o);
+  return `<span class="chg-old">${esc(o) || "<em>empty</em>"}</span> &#8594; <span class="chg-new">${esc(n) || "<em>empty</em>"}</span>`;
+}
+
+// Generic simple table for added / removed rows
+function buildSimpleTable(groupLabel, rows, cols, badgeCls) {
+  if (!rows || rows.length === 0) return "";
+  const hdrs = cols.map(c => `<th>${c.label}</th>`).join("");
+  const body = rows.map(r =>
+    `<tr>${cols.map(c => `<td>${esc(String(r[c.key] || ""))}</td>`).join("")}</tr>`
+  ).join("");
+  return `
+    <div class="chg-group">
+      <div class="chg-group-title"><span class="chg-badge ${badgeCls}">${groupLabel} (${rows.length})</span></div>
+      <table class="flat-table"><thead><tr>${hdrs}</tr></thead><tbody>${body}</tbody></table>
+    </div>`;
+}
+
+function renderAccountChanges(data) {
+  const cols = [
+    { key: "Account Name",             label: "Account" },
+    { key: "Region",                   label: "Region" },
+    { key: "Contract ARR Rollup",      label: "ARR" },
+    { key: "Customer Success Manager", label: "CSM" }
+  ];
+  let html = "";
+  html += buildSimpleTable("+ Added",         data.added,   cols, "chg-added");
+  html += buildSimpleTable("&#8722; Removed", data.removed, cols, "chg-removed");
+
+  const fc = data.field_changes || [];
+  if (fc.length > 0) {
+    const watchedPairs = [
+      ["Contract ARR Rollup",      "ARR"],
+      ["Customer Success Manager", "CSM"],
+      ["Account Owner",            "Owner"],
+      ["Field CTO",                "Field CTO"],
+      ["Region",                   "Region"],
+      ["Adoption Phase",           "Adoption"]
+    ].filter(([f]) => fc.some(r => {
+      const n = r[f + ".new"], o = r[f + ".old"];
+      return (n || o) && n !== o;
+    }));
+
+    const hdrs = `<th>Account</th>${watchedPairs.map(([, l]) => `<th>${l}</th>`).join("")}`;
+    const rows = fc.map(r => {
+      const nm = r["Account Name"] || "";
+      const cells = watchedPairs.map(([f]) =>
+        `<td>${chgArrow(r[f + ".old"], r[f + ".new"])}</td>`
+      ).join("");
+      return `<tr>
+        <td><span class="acct-link" onclick="goToAccount(\'${esc(nm)}\')">${esc(nm)}</span></td>
+        ${cells}
+      </tr>`;
+    }).join("");
+    html += `
+      <div class="chg-group">
+        <div class="chg-group-title"><span class="chg-badge chg-changed">&#126; Changed (${fc.length})</span></div>
+        <table class="flat-table"><thead><tr>${hdrs}</tr></thead><tbody>${rows}</tbody></table>
+      </div>`;
+  }
+  return html;
+}
+
+function renderRenewalChanges(data) {
+  const addCols = [
+    { key: "Opportunity Name", label: "Opportunity" },
+    { key: "Account Name",     label: "Account" },
+    { key: "Amount",           label: "Amount" },
+    { key: "Close Date",       label: "Close Date" },
+    { key: "Account Risk",     label: "Risk" }
+  ];
+  let html = "";
+  html += buildSimpleTable("+ Added",         data.added,   addCols, "chg-added");
+  html += buildSimpleTable("&#8722; Removed", data.removed, addCols, "chg-removed");
+
+  const fc = data.field_changes || [];
+  if (fc.length > 0) {
+    const na = `<td class="chg-null">—</td>`;
+    const rows = fc.map(r => {
+      const acct = r["Account Name"] || "";
+      return `<tr>
+        <td>${esc(r["Opportunity Name"] || "")}</td>
+        <td><span class="acct-link" onclick="goToAccount(\'${esc(acct)}\')">${esc(acct)}</span></td>
+        ${r.risk_changed     ? `<td>${chgArrow(r["Account Risk.old"],   r["Account Risk.new"])}</td>`   : na}
+        ${r.forecast_changed ? `<td>${chgArrow(r["Churn Forecast.old"], r["Churn Forecast.new"])}</td>` : na}
+        ${r.amount_changed   ? `<td>${chgArrow(r["Amount.old"],         r["Amount.new"])}</td>`         : na}
+        ${r.date_changed     ? `<td>${chgArrow(r["Close Date.old"],     r["Close Date.new"])}</td>`     : na}
+      </tr>`;
+    }).join("");
+    html += `
+      <div class="chg-group">
+        <div class="chg-group-title"><span class="chg-badge chg-changed">&#126; Changed (${fc.length})</span></div>
+        <table class="flat-table">
+          <thead><tr><th>Opportunity</th><th>Account</th><th>Risk</th><th>Forecast</th><th>Amount</th><th>Date</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+  }
+  return html;
+}
+
+function renderExpansionChanges(data) {
+  const addCols = [
+    { key: "Opportunity Name",  label: "Opportunity" },
+    { key: "Account Name",      label: "Account" },
+    { key: "Amount",            label: "Amount" },
+    { key: "Fiscal Period",     label: "Period" },
+    { key: "Opportunity Owner", label: "Owner" }
+  ];
+  let html = "";
+  html += buildSimpleTable("+ Added",         data.added,   addCols, "chg-added");
+  html += buildSimpleTable("&#8722; Removed", data.removed, addCols, "chg-removed");
+
+  const fc = data.field_changes || [];
+  if (fc.length > 0) {
+    const na = `<td class="chg-null">—</td>`;
+    const rows = fc.map(r => {
+      const acct = r["Account Name"] || "";
+      return `<tr>
+        <td>${esc(r["Opportunity Name"] || "")}</td>
+        <td><span class="acct-link" onclick="goToAccount(\'${esc(acct)}\')">${esc(acct)}</span></td>
+        ${r.amount_changed ? `<td>${chgArrow(r["Amount.old"],        r["Amount.new"])}</td>`        : na}
+        ${r.period_changed ? `<td>${chgArrow(r["Fiscal Period.old"], r["Fiscal Period.new"])}</td>` : na}
+      </tr>`;
+    }).join("");
+    html += `
+      <div class="chg-group">
+        <div class="chg-group-title"><span class="chg-badge chg-changed">&#126; Changed (${fc.length})</span></div>
+        <table class="flat-table">
+          <thead><tr><th>Opportunity</th><th>Account</th><th>Amount</th><th>Fiscal Period</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+  }
+  return html;
+}
+
+function renderCSMChanges(data) {
+  let html = "";
+
+  function dynTable(label, rows, badgeCls) {
+    if (!rows || rows.length === 0) return "";
+    const keys = Object.keys(rows[0] || {});
+    if (!keys.length) return "";
+    const hdrs = keys.map(k => `<th>${esc(k)}</th>`).join("");
+    const body = rows.map(r =>
+      `<tr>${keys.map(k => `<td>${esc(String(r[k] || ""))}</td>`).join("")}</tr>`
+    ).join("");
+    return `<div class="chg-group"><div class="chg-group-title"><span class="chg-badge ${badgeCls}">${label} (${rows.length})</span></div><table class="flat-table"><thead><tr>${hdrs}</tr></thead><tbody>${body}</tbody></table></div>`;
+  }
+
+  html += dynTable("+ Added",         data.added,   "chg-added");
+  html += dynTable("&#8722; Removed", data.removed, "chg-removed");
+
+  const rs = data.reassignments || [];
+  if (rs.length > 0) {
+    const keys   = Object.keys(rs[0] || {});
+    const keyCol = keys[0] || "";
+    const newCol = keys.find(k => k.endsWith(".new")) || "";
+    const oldCol = keys.find(k => k.endsWith(".old")) || "";
+    const fieldLabel = newCol.replace(".new", "") || "CSM";
+    const rows = rs.map(r =>
+      `<tr><td>${esc(r[keyCol] || "")}</td><td>${chgArrow(r[oldCol], r[newCol])}</td></tr>`
+    ).join("");
+    html += `
+      <div class="chg-group">
+        <div class="chg-group-title"><span class="chg-badge chg-changed">&#126; Reassignments (${rs.length})</span></div>
+        <table class="flat-table">
+          <thead><tr><th>${esc(keyCol)}</th><th>${esc(fieldLabel)}</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+  }
+  return html;
+}
+
+function renderSaaSChanges(data) {
+  let html = "";
+
+  function dynTable(label, rows, badgeCls) {
+    if (!rows || rows.length === 0) return "";
+    const keys = Object.keys(rows[0] || {});
+    if (!keys.length) return "";
+    const hdrs = keys.map(k => `<th>${esc(k)}</th>`).join("");
+    const body = rows.map(r =>
+      `<tr>${keys.map(k => `<td>${esc(String(r[k] || ""))}</td>`).join("")}</tr>`
+    ).join("");
+    return `<div class="chg-group"><div class="chg-group-title"><span class="chg-badge ${badgeCls}">${label} (${rows.length})</span></div><table class="flat-table"><thead><tr>${hdrs}</tr></thead><tbody>${body}</tbody></table></div>`;
+  }
+
+  html += dynTable("+ Added",         data.added,   "chg-added");
+  html += dynTable("&#8722; Removed", data.removed, "chg-removed");
+
+  const fc = data.field_changes || [];
+  if (fc.length > 0) {
+    const keys   = Object.keys(fc[0] || {});
+    const newCol = keys.find(k => k.endsWith(".new")) || "";
+    const oldCol = keys.find(k => k.endsWith(".old")) || "";
+    const keyCol = keys.find(k => !k.endsWith(".new") && !k.endsWith(".old")) || keys[0] || "";
+    if (newCol && oldCol) {
+      const fieldLabel = newCol.replace(".new", "");
+      const rows = fc.map(r =>
+        `<tr><td>${esc(r[keyCol] || "")}</td><td>${chgArrow(r[oldCol], r[newCol])}</td></tr>`
+      ).join("");
+      html += `
+        <div class="chg-group">
+          <div class="chg-group-title"><span class="chg-badge chg-changed">&#126; Stage Changes (${fc.length})</span></div>
+          <table class="flat-table">
+            <thead><tr><th>${esc(keyCol)}</th><th>${esc(fieldLabel)}</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>`;
+    } else {
+      html += dynTable("&#126; Changed", fc, "chg-changed");
+    }
+  }
+  return html;
+}
+
+// ── Diff-date picker ───────────────────────────────────────────────────────
+function populateSnapshots(dates) {
+  const sel = document.getElementById("diff-date");
+  if (!dates || dates.length === 0) {
+    sel.innerHTML = \'<option value="">No snapshots found</option>\';
+    return;
+  }
+  sel.innerHTML = dates.map((d, i) =>
+    `<option value="${d}"${i === 0 ? " selected" : ""}>${d}</option>`
+  ).join("");
+}
+
+async function initSnapshots() {
+  try {
+    const res = await fetch("http://localhost:8765/snapshots", { signal: AbortSignal.timeout(2000) });
+    const data = await res.json();
+    if (data.dates && data.dates.length > 0) populateSnapshots(data.dates);
+    else populateSnapshots(SNAP_DATES);
+  } catch(e) {
+    populateSnapshots(SNAP_DATES);   // server not running — use dates baked into the HTML
+  }
+}
+initSnapshots();
+
+// ── Refresh ────────────────────────────────────────────────────────────────
+async function triggerRefresh() {
+  const btn      = document.getElementById("refresh-btn");
+  const diffDate = document.getElementById("diff-date").value;
+  const orig     = btn.innerHTML;
+  btn.innerHTML  = "Refreshing…";
+  btn.disabled   = true;
+  try {
+    await fetch("http://localhost:8765/status", { signal: AbortSignal.timeout(3000) });
+    const url = "http://localhost:8765/refresh" + (diffDate ? "?diff_date=" + encodeURIComponent(diffDate) : "");
+    const res  = await fetch(url, { signal: AbortSignal.timeout(300000) });
+    const data = await res.json();
+    if (data.status === "error") throw new Error(data.message);
+    btn.innerHTML = "✓ Done — reloading…";
+    setTimeout(() => location.reload(), 1800);
+  } catch(e) {
+    btn.disabled  = false;
+    btn.innerHTML = orig;
+    document.getElementById("refresh-modal").style.display = "flex";
+  }
+}
+
+function closeRefreshModal() {
+  document.getElementById("refresh-modal").style.display = "none";
+}
+
+function copyModalCmd(el) {
+  navigator.clipboard.writeText(el.textContent.trim()).then(() => {
+    const orig = el.textContent;
+    el.textContent = "Copied!";
+    setTimeout(() => { el.textContent = orig; }, 1500);
+  });
+}
+
 // ── Init ───────────────────────────────────────────────────────────────────
 render();
 </script>
 </body>
 </html>'
 
-  tmpl <- gsub("{{REGION_PILLS}}", region_pills, tmpl, fixed = TRUE)
-  tmpl <- gsub("{{JSON_DATA}}",    json_data,    tmpl, fixed = TRUE)
+  tmpl <- gsub("{{REGION_PILLS}}", region_pills,          tmpl, fixed = TRUE)
+  tmpl <- gsub("{{CSM_PILLS}}",   csm_pills,             tmpl, fixed = TRUE)
+  tmpl <- gsub("{{SNAP_DATES}}",  .to_json(snap_dates),  tmpl, fixed = TRUE)
+  tmpl <- gsub("{{CHANGES}}",     changes_json,          tmpl, fixed = TRUE)
+  tmpl <- gsub("{{JSON_DATA}}",   json_data,             tmpl, fixed = TRUE)
   tmpl
 }
