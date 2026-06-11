@@ -133,6 +133,11 @@ report_all_accounts_html <- function(op_list,
     list(
       id            = gsub("[^A-Za-z0-9]", "_", aname),
       name          = aname,
+      account_id    = acct_id,
+      customer_central_url = {
+        cc <- acct$customer_central_url
+        if (!is.null(cc) && !is.na(cc) && nchar(as.character(cc)) > 0) as.character(cc) else ""
+      },
       region        = safe_val(acct$Region),
       arr           = fmt_usd(acct$`Contract ARR Rollup`),
       arr_raw       = suppressWarnings(as.numeric(acct$`Contract ARR Rollup`)),
@@ -175,10 +180,11 @@ report_all_accounts_html <- function(op_list,
   snap_dates <- sort(gsub("opportunities_(.+)\\.RData", "\\1", snap_files), decreasing = TRUE)
 
   # Changes diff JSON ----------------------------------------------------------
-  changes_json <- .build_changes_json(op_list)
+  changes_json     <- .build_changes_json(op_list)
+  consumption_json <- .build_consumption_json(op_list)
 
   # Build HTML -----------------------------------------------------------------
-  html <- .rah_html(json_data, regions, csms, snap_dates, changes_json)
+  html <- .rah_html(json_data, regions, csms, snap_dates, changes_json, consumption_json)
 
   writeLines(html, output_path, useBytes = FALSE)
   message(".. wrote account HTML dashboard to ", output_path)
@@ -189,22 +195,48 @@ report_all_accounts_html <- function(op_list,
 # ---- Internal: minimal JSON serialiser (no jsonlite dependency) -------------
 
 .to_json <- function(x) {
-  if (is.null(x))      return("null")
-  if (is.logical(x))   return(if (isTRUE(x)) "true" else "false")
-  if (is.numeric(x))   return(if (is.nan(x) || is.infinite(x) || is.na(x)) "null"
-                              else as.character(x))
-  if (is.character(x)) {
-    if (length(x) == 1) {
-      if (is.na(x)) return("null")
-      x <- gsub("\\\\", "\\\\\\\\", x)
-      x <- gsub('"',  '\\\\"',  x)
-      x <- gsub('\n', '\\\\n', x)
-      x <- gsub('\r', '\\\\r', x)
-      x <- gsub('\t', '\\\\t', x)
-      return(paste0('"', x, '"'))
-    }
+  if (is.null(x)) return("null")
+
+  # ── logical ──────────────────────────────────────────────────────────────────
+  if (is.logical(x) && length(x) == 1)
+    return(if (is.na(x)) "null" else if (isTRUE(x)) "true" else "false")
+  if (is.logical(x))
     return(paste0("[", paste(vapply(x, .to_json, character(1)), collapse = ","), "]"))
+
+  # ── numeric — use | not || so vectors don't error ────────────────────────────
+  if (is.numeric(x) && length(x) == 1)
+    return(if (is.na(x) | is.nan(x) | is.infinite(x)) "null" else as.character(x))
+  if (is.numeric(x))
+    return(paste0("[", paste(vapply(x, .to_json, character(1)), collapse = ","), "]"))
+
+  # ── character ─────────────────────────────────────────────────────────────────
+  if (is.character(x) && length(x) == 1) {
+    if (is.na(x)) return("null")
+    x <- gsub("\\\\", "\\\\\\\\", x)
+    x <- gsub('"',  '\\\\"',  x)
+    x <- gsub('\n', '\\\\n', x)
+    x <- gsub('\r', '\\\\r', x)
+    x <- gsub('\t', '\\\\t', x)
+    return(paste0('"', x, '"'))
   }
+  if (is.character(x))
+    return(paste0("[", paste(vapply(x, .to_json, character(1)), collapse = ","), "]"))
+
+  # ── data.frame — serialize as array of row objects ───────────────────────────
+  # Must come before is.list() since data frames are also lists.
+  if (is.data.frame(x)) {
+    rows <- lapply(seq_len(nrow(x)), function(i) {
+      row <- as.list(x[i, , drop = FALSE])
+      # as.list on a 1-row data frame gives 1-element lists per column; unwrap them
+      row <- lapply(row, function(v) if (is.list(v)) v[[1L]] else v)
+      pairs <- mapply(function(k, v) paste0('"', k, '":', .to_json(v)),
+                      names(row), row, SIMPLIFY = TRUE)
+      paste0("{", paste(pairs, collapse = ","), "}")
+    })
+    return(paste0("[", paste(rows, collapse = ","), "]"))
+  }
+
+  # ── list ──────────────────────────────────────────────────────────────────────
   if (is.list(x)) {
     nms <- names(x)
     if (!is.null(nms)) {
@@ -215,6 +247,7 @@ report_all_accounts_html <- function(op_list,
       return(paste0("[", paste(vapply(x, .to_json, character(1)), collapse = ","), "]"))
     }
   }
+
   '"?"'
 }
 
@@ -320,9 +353,15 @@ report_all_accounts_html <- function(op_list,
 }
 
 
+.build_consumption_json <- function(op_list) {
+  con <- op_list$consumption
+  if (is.null(con) || is.null(con$low_consumption)) return("null")
+  .to_json(con$low_consumption)
+}
+
 # ---- Internal: full HTML page template -------------------------------------
 
-.rah_html <- function(json_data, regions, csms = character(0), snap_dates = character(0), changes_json = "null") {
+.rah_html <- function(json_data, regions, csms = character(0), snap_dates = character(0), changes_json = "null", consumption_json = "null") {
 
   region_pills <- paste(
     vapply(regions, function(r) {
@@ -619,6 +658,26 @@ report_all_accounts_html <- function(op_list,
     transition: background .14s;
   }
   .consumption-link:hover { background: var(--im-lime-dk); }
+
+  /* Customer Central link — dark outline style to distinguish from lime CTA */
+  .cc-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 11.5px;
+    font-weight: 700;
+    font-family: var(--font);
+    color: var(--im-black);
+    text-decoration: none;
+    white-space: nowrap;
+    flex-shrink: 0;
+    padding: 5px 12px;
+    background: var(--im-white);
+    border: 1.5px solid var(--im-black);
+    border-radius: 4px;
+    transition: background .14s, color .14s;
+  }
+  .cc-link:hover { background: var(--im-black); color: var(--im-lime); }
 
   .card-meta {
     display: flex;
@@ -1005,7 +1064,41 @@ report_all_accounts_html <- function(op_list,
   #page-accounts.active { flex-direction: row; }
   #page-renewals.active,
   #page-expansions.active,
-  #page-changes.active { flex-direction: column; }
+  #page-changes.active,
+  #page-consumption.active { flex-direction: column; }
+
+  /* ── Consumption page ─────────────────────────────────────────────────── */
+  .consumption-page { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  .consumption-sub-tabs {
+    background: var(--im-white); border-bottom: 1px solid var(--border);
+    padding: 0 24px; display: flex; flex-shrink: 0;
+  }
+  .csub-btn {
+    padding: 10px 18px; border: none; background: none; font-size: 13px;
+    font-weight: 500; font-family: var(--font); color: var(--text-3);
+    cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px;
+    transition: color .12s; white-space: nowrap;
+    display: flex; align-items: center; gap: 7px;
+  }
+  .csub-btn:hover { color: var(--text-1); }
+  .csub-btn.active { color: var(--text-1); border-bottom-color: var(--im-lime); font-weight: 600; }
+  .csub-count {
+    font-size: 10.5px; font-weight: 700; background: var(--surface-2);
+    color: var(--text-3); padding: 1px 6px; border-radius: 9px;
+  }
+  .csub-btn.active .csub-count { background: var(--im-lime); color: var(--im-black); }
+  .consumption-panel { display: none; flex: 1; flex-direction: column; min-height: 0; }
+  .consumption-panel.active { display: flex; }
+  .con-stats {
+    padding: 14px 24px; display: flex; gap: 32px; border-bottom: 1px solid var(--border);
+    background: var(--surface); flex-wrap: wrap; flex-shrink: 0;
+  }
+  .pct-high { color: #166534; font-weight: 700; }
+  .pct-med  { color: #92400E; font-weight: 700; }
+  .pct-low  { color: #991B1B; font-weight: 700; }
+  .pct-none { color: var(--text-3); }
+  .flat-table tr.low-con td { background: #FEF3C7; }
+  .flat-table tr.low-con:hover td { background: #FDE68A; }
 
   /* ── Flat table pages (Renewals / Expansions) ─────────────────────────── */
   .flat-page { flex: 1; display: flex; flex-direction: column; min-height: 0; }
@@ -1142,6 +1235,7 @@ report_all_accounts_html <- function(op_list,
       <span class="diff-date-chevron">&#9660;</span>
     </div>
   </div>
+  <a class="refresh-btn" href="https://drive.google.com/uc?export=download&id=1idalBhIkf05dLQHJ3Z_i8pbcVroVJODy" target="_blank" rel="noopener" style="text-decoration:none">&#11123; Download Update</a>
   <button class="refresh-btn" id="refresh-btn" onclick="triggerRefresh()">&#8635; Refresh</button>
 </div>
 
@@ -1171,6 +1265,9 @@ report_all_accounts_html <- function(op_list,
   </button>
   <button class="page-tab" data-page="changes" onclick="switchPage(\'changes\')">
     Changes <span class="page-tab-count" id="tab-count-changes">0</span>
+  </button>
+  <button class="page-tab" data-page="consumption" onclick="switchPage(\'consumption\')">
+    Consumption <span class="page-tab-count" id="tab-count-consumption">—</span>
   </button>
 </div>
 
@@ -1232,18 +1329,28 @@ report_all_accounts_html <- function(op_list,
   </div>
 </div>
 
+<!-- CONSUMPTION PAGE -->
+<div id="page-consumption" class="page">
+  <div class="consumption-page">
+    <div class="con-stats" id="con-stats"></div>
+    <div class="flat-table-wrap" id="con-table"></div>
+  </div>
+</div>
+
 <script>
-const ACCOUNTS      = {{JSON_DATA}};
-const SNAP_DATES    = {{SNAP_DATES}};
-const CHANGES_DATA  = {{CHANGES}};
+const ACCOUNTS          = {{JSON_DATA}};
+const SNAP_DATES        = {{SNAP_DATES}};
+const CHANGES_DATA      = {{CHANGES}};
+const CONSUMPTION_DATA  = {{CONSUMPTION}};
 
 // ── State ──────────────────────────────────────────────────────────────────
 let activeRegion    = "all";
 let activeCSM       = "all";
 let searchTerm      = "";
 let activePage      = "accounts";
-let renewalSort     = { col: "end_date_raw", dir: 1 };
-let expansionSort   = { col: "close_date_raw", dir: 1 };
+let renewalSort         = { col: "end_date_raw", dir: 1 };
+let expansionSort       = { col: "close_date_raw", dir: 1 };
+let conSort             = { col: null, dir: 1 };
 
 // ── Flat data derived from ACCOUNTS ────────────────────────────────────────
 const ALL_RENEWALS   = [];
@@ -1339,6 +1446,7 @@ function buildCard(a) {
     <div class="card-name">${esc(a.name)}</div>
     <div class="card-arr">${esc(a.arr)}</div>
     ${a.consumption_link}
+    ${a.customer_central_url ? `<a class="cc-link" href="${esc(a.customer_central_url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Customer Central &#8599;</a>` : \'\'}
     <div class="card-meta">
       ${regionTag}${saasTag}${churnTag}
     </div>
@@ -1409,10 +1517,77 @@ function switchPage(name) {
 
 // ── Render dispatcher ──────────────────────────────────────────────────────
 function render() {
-  if      (activePage === "accounts")   renderAccounts();
-  else if (activePage === "renewals")   renderRenewals();
-  else if (activePage === "expansions") renderExpansions();
-  else if (activePage === "changes")    renderChanges();
+  if      (activePage === "accounts")    renderAccounts();
+  else if (activePage === "renewals")    renderRenewals();
+  else if (activePage === "expansions")  renderExpansions();
+  else if (activePage === "changes")     renderChanges();
+  else if (activePage === "consumption") renderConsumption();
+}
+
+// ── Consumption ────────────────────────────────────────────────────────────
+function sortCon(col) {
+  conSort.dir = conSort.col === col ? -conSort.dir : 1;
+  conSort.col = col;
+  renderConsumption();
+}
+
+function renderConsumption() {
+  const noData = \'<p class="empty-msg" style="padding:40px">No consumption data — run op_list_consumption() and regenerate the report.</p>\';
+  const statsEl = document.getElementById("con-stats");
+  const tableEl = document.getElementById("con-table");
+
+  if (!CONSUMPTION_DATA || !Array.isArray(CONSUMPTION_DATA) || !CONSUMPTION_DATA.length) {
+    if (statsEl) statsEl.innerHTML = "";
+    if (tableEl) tableEl.innerHTML = noData;
+    document.getElementById("tab-count-consumption").textContent = "0";
+    return;
+  }
+
+  const rows = CONSUMPTION_DATA;
+  document.getElementById("tab-count-consumption").textContent = rows.length;
+
+  // Stats strip
+  if (statsEl) {
+    const arrCol  = "Contract ARR Rollup";
+    const totalArr = rows.reduce((s, r) => s + (parseFloat(r[arrCol]) || 0), 0);
+    const saasCount = rows.filter(r => r["Is SaaS Customer"] === true || r["Is SaaS Customer"] === "TRUE").length;
+    statsEl.innerHTML =
+      \'<div class="stat-item"><div class="stat-label">Customers</div><div class="stat-value">\' + rows.length + \'</div></div>\' +
+      \'<div class="stat-item"><div class="stat-label">Total ARR</div><div class="stat-value">$\' + Math.round(totalArr / 1e6 * 10) / 10 + \'M</div></div>\' +
+      \'<div class="stat-item"><div class="stat-label">SaaS</div><div class="stat-value">\' + saasCount + \'</div></div>\';
+  }
+
+  // Dynamic table — columns come directly from the data keys
+  const cols = Object.keys(rows[0]);
+
+  // Sort
+  const sorted = conSort.col ? rows.slice().sort((a, b) => {
+    const av = parseFloat(a[conSort.col]), bv = parseFloat(b[conSort.col]);
+    if (!isNaN(av) && !isNaN(bv)) return (av - bv) * conSort.dir;
+    return String(a[conSort.col] || "").localeCompare(String(b[conSort.col] || "")) * conSort.dir;
+  }) : rows;
+
+  const hdrs = cols.map(c => {
+    const arrow = conSort.col === c ? (conSort.dir === 1 ? " ↑" : " ↓") : "";
+    return \'<th onclick="sortCon(\\\'\' + c + \'\\\')" style="cursor:pointer">\' + esc(c) + arrow + \'</th>\';
+  }).join("");
+
+  const brs = sorted.map(r =>
+    \'<tr>\' + cols.map(c => {
+      const v = r[c];
+      if (v === null || v === undefined || v === "NA") return \'<td><span class="em-dash">—</span></td>\';
+      if (c === "Is SaaS Customer")
+        return \'<td>\'+(v===true||v==="TRUE"?\'<span class="tag tag-saas">SaaS</span>\':\'<span class="tag tag-region">Self-Mgd</span>\')+\'</td>\';
+      if (c === "Customer on Unsupported Version")
+        return \'<td>\'+(v===true||v==="TRUE"?\'<span class="tag tag-churn">Yes</span>\':\'\')+\'</td>\';
+      const n = parseFloat(v);
+      if (!isNaN(n) && typeof v !== "boolean" && String(v).trim() !== "")
+        return \'<td style="text-align:right">\' + n.toLocaleString("en-US", {maximumFractionDigits: 2}) + \'</td>\';
+      return \'<td>\' + esc(String(v)) + \'</td>\';
+    }).join("") + \'</tr>\'
+  ).join("");
+
+  tableEl.innerHTML = \'<table class="flat-table"><thead><tr>\' + hdrs + \'</tr></thead><tbody>\' + brs + \'</tbody></table>\';
 }
 
 // ── Accounts render ────────────────────────────────────────────────────────
@@ -2034,7 +2209,8 @@ render();
   tmpl <- gsub("{{REGION_PILLS}}", region_pills,          tmpl, fixed = TRUE)
   tmpl <- gsub("{{CSM_PILLS}}",   csm_pills,             tmpl, fixed = TRUE)
   tmpl <- gsub("{{SNAP_DATES}}",  .to_json(snap_dates),  tmpl, fixed = TRUE)
-  tmpl <- gsub("{{CHANGES}}",     changes_json,          tmpl, fixed = TRUE)
-  tmpl <- gsub("{{JSON_DATA}}",   json_data,             tmpl, fixed = TRUE)
+  tmpl <- gsub("{{CHANGES}}",      changes_json,          tmpl, fixed = TRUE)
+  tmpl <- gsub("{{CONSUMPTION}}",  consumption_json,      tmpl, fixed = TRUE)
+  tmpl <- gsub("{{JSON_DATA}}",    json_data,             tmpl, fixed = TRUE)
   tmpl
 }

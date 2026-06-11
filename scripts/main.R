@@ -52,12 +52,14 @@ idex_path <- "data/idex/"
 asana_token       <- Sys.getenv("ASANA_TOKEN")
 asana_project_gid <- "YOUR_PROJECT_GID"  # from your Asana project URL
 
+
 # Salesforce report IDs
 sf_opportunity_report    <- "00OVH000005p6A92AI"
 sf_account_report        <- "00OVH0000069G8Y2AU"
 sf_active_order_report   <- "00OVV000006AOnB2AW"
 sf_saas_migration_report <- "00OVV000006FbWr2AK"
 sf_csm_summary_report    <- "00OVV000006FbNB2A0"
+sf_orders_report         <- "00OVV000005RTxV2AW"
 
 # Google Sheet URLs
 account_doc_tracker        <- "https://docs.google.com/spreadsheets/d/1Rxl25OyKEW1W1ny8Vbv3TDa2QCqR9VSpTN0QVPu6o9w/edit?usp=sharing"
@@ -84,8 +86,10 @@ new_op_list <- enrich_opportunities(
   sf_active_order_report   = sf_active_order_report,
   sf_saas_migration_report = sf_saas_migration_report,
   sf_csm_summary_report    = sf_csm_summary_report,
+  sf_orders_report         = sf_orders_report,
   fiscal.period            = fiscal.period,
   idex                     = FALSE,
+  looker                   = TRUE,
   idex_path                = idex_path
 )
 
@@ -116,6 +120,12 @@ sheet_write(
   data = report_all_accounts(op_list),
   ss   = "https://docs.google.com/spreadsheets/d/1Rxl25OyKEW1W1ny8Vbv3TDa2QCqR9VSpTN0QVPu6o9w/edit?gid=926810859#gid=926810859",
   sheet = "AccountList"
+)
+
+sheet_write(
+  data  = op_list$orders,
+  ss    = "https://docs.google.com/spreadsheets/d/145woTlgjWeRx3eFQP8uXgb4cCy-lNpC1ZfI36rXFHbE/edit?usp=sharing",
+  sheet = "sfdc_order_data"
 )
 
 
