@@ -1,0 +1,199 @@
+---
+title: "Immuta Bottoms Up Churn Report"
+author: "Customer Success"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+#library(googlesheets4)
+#library(data.table)
+#library(salesforcer)
+library(dplyr)
+#library(stringr)
+library(reactable)
+#library(htmltools)
+
+#library(gt)
+library(scales)
+library(kableExtra)
+library(tidyverse)
+
+options(scipen = 999)
+devtools::load_all("/Users/matt.benigni/Documents/projects/ImmuteR/")
+
+# Load most recent opportunities RData (falls back to latest if today's isn't present)
+data_dir  <- "/Users/matt.benigni/Documents/projects/ImmuteR/data/"
+rdata_today <- paste0(data_dir, "opportunities_", Sys.Date(), ".RData")
+if (file.exists(rdata_today)) {
+  load(rdata_today)
+} else {
+  rdata_files <- list.files(data_dir, pattern = "^opportunities_.*\\.RData$", full.names = TRUE)
+  if (length(rdata_files) == 0) stop("No opportunities RData files found in ", data_dir)
+  load(rdata_files[which.max(file.mtime(rdata_files))])
+  message("Note: loaded most recent RData (not today's): ",
+          basename(rdata_files[which.max(file.mtime(rdata_files))]))
+}
+
+```
+
+
+
+## Renewal Forecast
+
+The report was generated directly from Immuta SFDC \``r op_list$dates`` 
+
+```{r renewal_summary, echo=FALSE, message=TRUE, warning=TRUE}
+
+library(plotly)
+
+f=generate_forecast(op_list,churn.quarters=c("Q4-2026","Q1-2027","Q2-2027","Q3-2027","Q4-2027"))
+
+
+
+company_plan=c(2178130,814469,476564,836946,1820292)
+p=c( sum(company_plan[1]>=f$`Q4-2026`),
+    sum(company_plan[2]>=f$`Q1-2027`),
+    sum(company_plan[3]>=f$`Q2-2027`),
+    sum(company_plan[4]>=f$`Q3-2027`))/1000
+
+
+
+
+
+fig <- plot_ly(y =f$`Q4-2026`, type = "box", quartilemethod="exclusive",name="FY26Q4",
+               showlegend = FALSE) %>%
+  add_trace(y=f$`Q1-2027`,name="FY27Q1") %>%
+  add_trace(y=f$`Q2-2027`,name="FY27Q2") %>%
+  add_trace(y=f$`Q3-2027`,name="FY27Q3") %>%
+  
+  add_trace(
+    x = "FY26Q4",
+    y = company_plan[1],
+    type = "scatter",
+    mode = "markers+text",
+    text= p[1],
+    textposition= "right",
+    
+   marker = list(
+     size = 12,
+     color = "black",
+     symbol = "diamond"),
+   name = "Company Plan") %>%
+  
+  add_trace(
+    x = "FY27Q1",
+    y = company_plan[2],
+    type = "scatter",
+    mode = "markers+text",
+    text= p[2],
+    textposition= "right",
+    
+    marker = list(
+      size = 12,
+      color = "black",
+      symbol = "diamond"),
+    name = "Company Plan",
+    showlegend = FALSE) %>%
+  
+  add_trace(
+    x = "FY27Q2",
+    y = company_plan[3],
+    type = "scatter",
+    mode = "markers+text",
+    text= p[3],
+    textposition= "right",
+    
+    marker = list(
+      size = 12,
+      color = "black",
+      symbol = "diamond"),
+    name = "Company Plan",
+    showlegend = FALSE) %>%
+  
+  add_trace(
+    x = "FY27Q3",
+    y = company_plan[4],
+    type = "scatter",
+    mode = "markers+text",
+    text= p[4],
+    textposition= "right",
+    
+    marker = list(
+      size = 12,
+      color = "black",
+      symbol = "diamond"),
+    name = "Company Plan",
+    showlegend = FALSE) %>%
+  
+  layout(title = paste0("FY26Q4-FY27Q3 Forecast as of ",Sys.Date()),
+         yaxis=list(tickformat="$,.2s"))
+
+fig 
+
+
+
+
+```
+Spreadsheet depictions available for: \n
+
+ - [Bottoms Up Staging](https://docs.google.com/spreadsheets/d/1WuHvaVkHrLQkoUB9MiDe7OvM4Qw6JyQW25KWaJbjJpA/edit?gid=969363861#gid=969363861)
+
+ - [RD Renewal Tracker](https://docs.google.com/spreadsheets/d/1BS3rBeDZJBflauFZc5cEdw09JTAfBM5Hwbcdh1rk1Bg/edit?usp=sharing)
+ - [RD Expansion Tracker](https://docs.google.com/spreadsheets/d/1gI5N6FHArFMn65y1y_9pc1l9TUJGViHxYkzVXbHNk9Y/edit?gid=0#gid=0) 
+
+```{r bu_summary_table, echo=FALSE, message=TRUE, warning=TRUE}
+data=output_BU_summary(op_list) %>%
+  filter(churn_forecast_period %in% c("Q3-2026","Q4-2026","Q1-2027"))
+
+  kable(data, "html", booktabs = TRUE) %>%
+    kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+
+
+```
+## Bottoms Up Renewals {.tabset}
+#### Changes since last update
+
+Changes to risk and churn forecast between the run date and comparison date are as follows:
+
+```{r renewal_changes, echo=FALSE, message=TRUE, warning=TRUE}
+
+  kable(op_list$renewal_changes, "html", booktabs = TRUE) %>%
+    kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+
+
+```
+
+### Q3-2026
+
+```{r q3-renewals, echo=FALSE, message=TRUE, warning=TRUE}
+
+
+p<-output_renewals_rmd(op_list,churn.period="Q3-2026")
+
+p$plot
+```
+
+### Q4-2026
+
+```{r q4-renewals, echo=FALSE, message=TRUE, warning=TRUE}
+
+
+p<-output_renewals_rmd(op_list,churn.period="Q4-2026")
+
+p$plot
+
+```
+
+### Q1-2027
+
+```{r q1-renewals, echo=FALSE, message=TRUE, warning=TRUE}
+
+
+p<-output_renewals_rmd(op_list,churn.period="Q1-2027")
+
+p$plot
+```
+

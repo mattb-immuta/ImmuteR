@@ -14,16 +14,15 @@ output_customer_ops_tracker<-function(op_list,
 
 
 
-  temp.accounts=op_list$accounts %>%
-    select(`Account ID`,`max_consumption`,`Vitally Days as Customer`,onboarding_risk,
-           `Next Use Case Deployment Date`,`Expected User Count`)
+  temp.accounts=op_list$accounts
+  # removed select statement with deprecated fields.  Need to clean up later
 
   output=merge(op_list$customer_ops_tracker,temp.accounts,by="Account ID", all.x=TRUE)
   #message("..merged names output:")
   #message(paste(names(output),", ",sep=""))
   output=output %>%
     select( #basic renewal admin
-      `Opportunity Name`,Region,`Opportunity Owner`,
+      `Opportunity Name`,`Opportunity Owner`,
       `Customer Success Manager`,`Close Date`,Amount,`Churn Forecast`,
       `Fiscal Period`,
 
@@ -32,11 +31,11 @@ output_customer_ops_tracker<-function(op_list,
       #
       `Account Risk`,
       # Onboarding Risk
-      onboarding_risk,`Adoption Phase`,`Vitally Days as Customer`,
+      onboarding_risk,`Adoption Phase`,#`Vitally Days as Customer`,
 
       # consumption risk
-      licensed_users,max_reg_users,
-      `Next Use Case Deployment Date`,`Expected User Count` ,
+      #licensed_users,max_reg_users,
+      #`Next Use Case Deployment Date`,`Expected User Count` ,
 
       #engagement risk
       `Date of last EBR`, `Date of next EBR`)

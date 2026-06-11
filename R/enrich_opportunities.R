@@ -1,85 +1,101 @@
-#' pull current opportunities from salesforce and enrich them.
+#' Pull and enrich opportunities, accounts, and supplementary tables from Salesforce.
 #'
-#' @param sf_opportunity_report A numeric value. The first number to be added.
-#' @return a list with renewal and expansion data tables with all opportunities and enriched hyperlinks: opportunity_link,account_link,
-#' and consumption_link.
-#' @examples
-#' enrich_optable("00OVH000005p6A92AI")
+#' Fetches opportunity, account, active order, CSM assignment, and SaaS pipeline
+#' reports from Salesforce, enriches renewals and expansions with account context,
+#' and packages everything into a named list for downstream reporting.
+#' Also builds \code{op_list$consumption} from the orders report and — optionally
+#' — live Looker data.
+#'
+#' @param sf_opportunity_report Character. Salesforce report ID for the opportunity report.
+#' @param sf_account_report Character. Salesforce report ID for the account report.
+#' @param sf_active_order_report Character. Salesforce report ID for active orders.
+#' @param sf_saas_migration_report Character. Salesforce report ID for the SaaS migration pipeline.
+#' @param sf_csm_summary_report Character. Salesforce report ID for CSM account assignments.
+#' @param sf_orders_report Character. Salesforce report ID for the orders report.
+#' @param idex Logical. Whether to refresh idex parquet exports before reading. Defaults to \code{FALSE}.
+#' @param idex_path Character. Path to idex parquet directory. Defaults to \code{"data/idex/"}.
+#' @param looker Logical. If \code{TRUE}, pulls the six Looker looks that back the
+#'   CPO consumption spreadsheet and joins live metrics (users, data sources, queries,
+#'   policies, support cases) onto \code{op_list$consumption$renewals}. Requires
+#'   \code{LOOKER_CLIENT_ID} and \code{LOOKER_CLIENT_SECRET} environment variables.
+#'   Defaults to \code{FALSE} — SFDC-only stats are always computed.
+#' @param looker_cache_path Character or NULL. Directory for Looker parquet caches.
+#'   Defaults to \code{"data/looker/"}. Pass \code{NULL} to disable caching.
+#' @param low_consumption_threshold Numeric. Fraction below which a customer is
+#'   flagged as low consumption in \code{op_list$consumption$low_consumption}.
+#'   Defaults to \code{0.20} (20\%).
+#' @param fiscal.period Character vector of fiscal periods to retain in expansions,
+#'   e.g. \code{c("Q1-2027", "Q2-2027")}.
+#'
+#' @return A named list with elements: \code{renewals}, \code{expansions},
+#'   \code{accounts}, \code{active_orders}, \code{csm_table}, \code{saas_pipeline},
+#'   \code{orders}, and \code{consumption}.
 #' @export
-enrich_opportunities<-function(sf_opportunity_report="00OVH000005p6A92AI",
-                               sf_account_report="00OVH0000069G8Y2AU",
-                               sf_provision_report="00OVH000006Zryr2AC",
-                               sf_support_case_report="00OVH000006dyX72AI",
-                               sf_contract_report = "00OVH0000070ZRZ2A2",
-                               idex=FALSE,
-                               fiscal.period,
-                               re_tracker="https://docs.google.com/spreadsheets/d/1Rxl25OyKEW1W1ny8Vbv3TDa2QCqR9VSpTN0QVPu6o9w/edit?gid=0#gid=0"){
+enrich_opportunities <- function(sf_opportunity_report    = "00OVH000005p6A92AI",
+                                 sf_account_report        = "00OVH0000069G8Y2AU",
+                                 sf_active_order_report   = "00OVV000006AOnB2AW",
+                                 sf_saas_migration_report = "00OVV000006FbWr2AK",
+                                 sf_csm_summary_report    = "00OVV000006FbNB2A0",
+                                 sf_orders_report         = "00OVV000005RTxV2AW",
+                                 idex                     = FALSE,
+                                 idex_path                = "data/idex/",
+                                 looker                   = FALSE,
+                                 looker_cache_path        = "data/looker/",
+                                 low_consumption_threshold = 0.20,
+                                 fiscal.period) {
 
-  message(".. enrich_opportunities initiated /n")
-  c=load_constants()
-  c$fiscal.period=fiscal.period
+  message(".. enrich_opportunities initiated")
 
   # create necessary hyperlinks
   opportunity.table<-sf_run_report(sf_opportunity_report)
+    opportunity.table$`Fiscal Period`<-factor(opportunity.table$`Fiscal Period`,levels=fiscal.period)
+    opportunity.table$opportunity_url=paste("https://immuta.lightning.force.com/lightning/r/Opportunity/",as.character(opportunity.table$`Opportunity ID`),"/view",sep="")
+
   account.table<- sf_run_report(sf_account_report)
-  #marketplace.table<-sf_run_report(sf_provision_report)
-  #support.case.table<-sf_run_report(sf_support_case_report)
-  contract.table<-sf_run_report(sf_contract_report) %>%
-    filter(`Order Status`=="Active")
-
-  opportunity.table$`Fiscal Period`<-factor(opportunity.table$`Fiscal Period`,levels=fiscal.period)
-  opportunity.table$opportunity_url=paste("https://immuta.lightning.force.com/lightning/r/Opportunity/",as.character(opportunity.table$`Opportunity ID`),"/view",sep="")
-  opportunity.table$account_url=paste("https://immuta.lightning.force.com/lightning/r/Account/",opportunity.table$`Account ID`,"/view",sep="")
-  opportunity.table$consumption_url=paste("https://immuta.cloud.looker.com/dashboards/1052?Name=",gsub(" ","+",opportunity.table$`Account Name`),"&Account+ID=&Report+Month=6+month&Instance+Name=&Instance+Type=Production",sep="")
-
+    account.table$account_url=paste("https://immuta.lightning.force.com/lightning/r/Account/",account.table$`Account ID`,"/view",sep="")
+    account.table$consumption_url=paste("https://immuta.cloud.looker.com/dashboards/993?Name=",gsub(" ","+",account.table$`Account Name`),"&Account+ID=&Report+Month=6+month&Instance+Name=&Instance+Type=Production",sep="")
+    account.table$customer_central_url=paste("https://customer-central.immuta.support/customers/",account.table$`Account ID 18`,sep="")
+    account.table$`Contract ARR Rollup`=extract_usd_amount(account.table$`Contract ARR Rollup`)
+    # account.table$retool_url=paste("https://retool-nonprod.ic-ops.net/app/customer-central/customerDetail?customerName=",gsub(" ","%2O",account.table$`Account Name`),sep="")
 
 
   # split into expansions and renewals
   renewals<-opportunity.table[as.logical(opportunity.table$`Opportunity Record Type` =='Renewal'),]
   expansions<-opportunity.table[as.logical(opportunity.table$`Opportunity Record Type` =='Expansion'),]
 
-  message("opportunity data collected...enrich account data")
+  message("opportunity data collected...enrich opportunity data")
 
-  consumption=enrich_consumption(idex=idex)
 
-  account.table<-enrich_account.table(account.table,renewals,consumption.list=consumption)
-  account.table$`Contract ARR Rollup`=extract_usd_amount(account.table$`Contract ARR Rollup`)
-  account.table$retool_url=paste("https://retool-nonprod.ic-ops.net/app/customer-central/customerDetail?customerName=",gsub(" ","%2O",account.table$`Account Name`),sep="")
-
-  re.table=read_sheet(ss=re_tracker)
-  account.table=merge(account.table,re.table[,c('Account Name','running_estimate_url',
-                                                'use_case_rollout_url','org_chart_url')],all.x=TRUE)
-  renewals=enrich_renewals(renewal.table=renewals,
+   renewals=enrich_renewals(renewal.table=renewals,
                            account.table=account.table,
-                           phat=c$phat_account,
                            fiscal.period=NULL)
 
   expansions=enrich_expansions(expansion.table=expansions,
                                account.table=account.table,
                                fiscal.period=fiscal.period)
 
-  #account.table$churn_hazard=array(0,dim=length(account.table$`Account Name`))
-
-  #for(i in 1:length(account.table$`Account ID`)){
-  #  account.table$churn_hazard[i]=sum(renewals$expected_churn[renewals$`Account ID`==account.table$`Account ID`[i]])
-  #}
-
-  #df=as.data.frame(ftable(support.case.table$`Account Name`))
-
-  #names(df)= c("Account Name","Cases in last 120d")
-
-  #account.table=merge(account.table,df,by="Account Name",all.x=TRUE)
-  #account.table$`Cases in last 120d`[is.na(account.table$`Cases in last 120d`)]=0
-
-  #health_metrics=merge(op_list$accounts,df,by="Account Name",all.x=TRUE)
   # package enriched data tables into a list object
   output_list=list()
-  output_list[["contracts"]]=contract.table
-  output_list[["consumption"]]=consumption
   output_list[["renewals"]]=renewals
   output_list[["expansions"]]=expansions
   output_list[["accounts"]]=account.table
-  #output_list[["marketplace"]]=marketplace.table
-  #output_list[["support_cases"]]=support.case.table
-  message(".. enrich_opportunities complete /n")
-  return(output_list)}
+  output_list[["active_orders"]]<-sf_run_report(sf_active_order_report)
+  output_list[["csm_table"]]<-sf_run_report(sf_csm_summary_report)
+  output_list[["saas_pipeline"]]<-sf_run_report(sf_saas_migration_report)
+  output_list[["orders"]] <- sf_run_report(sf_orders_report)
+
+  # ── consumption child list ──────────────────────────────────────────────────
+  message(".. building op_list$consumption")
+  raw <- if (looker) {
+    load_op_list_raw(cache_path = looker_cache_path)
+  } else {
+    NULL
+  }
+  output_list[["consumption"]] <- op_list_consumption(
+    op_list = output_list,
+    raw     = raw
+  )
+
+  message(".. enrich_opportunities complete")
+  return(output_list)
+}

@@ -1,15 +1,41 @@
 Package: ImmuteR
 Type: Package
-Title: Fuse Looker, Salesforce, and Shared Google Docks to Kick Ass
+Title: Fuse Looker, Salesforce, and Google Sheets for Customer Success Analytics
 Version: 0.1.0
 Authors@R: c(
     person(
       "Matt", "Benigni",
       email = "matt.benigni@immuta.com",
-      role = c("equal opportunity ass kicker", "data nerd")
+      role = c("aut", "cre")
     )
   )
-Description: Generates risk analysis and reports for hacky situational awareness. Generally lets Matt B do hacky things before asking for them from Jenny.
-License: No License Required
+Description: Pulls and enriches opportunity, renewal, expansion, and consumption
+    data from Salesforce and Looker (via idex). Generates risk signals and pushes
+    outputs to Google Sheets and Rmarkdown reports for customer success workflows.
+License: MIT
 Encoding: UTF-8
 LazyData: true
+Imports:
+    googlesheets4,
+    data.table,
+    salesforcer,
+    dplyr,
+    stringr,
+    reactable,
+    htmltools,
+    gt,
+    scales,
+    arrow,
+    tidyr,
+    purrr,
+    rmarkdown,
+    httr2
+Suggests:
+    devtools,
+    testthat (>= 3.0.0),
+    kableExtra,
+    plotly,
+    knitr,
+    plumber
+Config/testthat/edition: 3
+RoxygenNote: 7.3.3

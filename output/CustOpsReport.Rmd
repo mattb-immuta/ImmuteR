@@ -1,0 +1,128 @@
+---
+title: "Immuta Success Tracker"
+author: "Customer Operations"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+#library(googlesheets4)
+#library(data.table)
+#library(salesforcer)
+library(dplyr)
+#library(stringr)
+library(reactable)
+#library(htmltools)
+
+#library(gt)
+library(scales)
+library(kableExtra)
+library(tidyverse)
+
+options(scipen = 999)
+devtools::load_all("/Users/matt.benigni/Documents/projects/ImmuteR/R/")
+load(paste("/Users/matt.benigni/Documents/projects/ImmuteR/data/opportunities_",Sys.Date(),".RData",sep=""))
+
+```
+
+
+
+## 1. Account Summary
+
+## 2. Adoption / Onboarding {.tabset}
+
+
+### Adoption Risk
+```{r adoption_risk , echo=FALSE, results='asis', message=FALSE}
+
+
+
+
+
+library(ggplot2)
+library(dplyr)
+library(plotly)
+
+my_colors <- c("0. Will Lose" = "black", "1. High Risk" = "red", "2. Moderate Risk" = "orange","3. Low Risk"= "green")
+
+data=op_list$renewals %>%
+  select("mean_consumption","days_until_renewal","Account Name","Amount","Account Risk","Close Date")
+
+data$dAmount=dollar(data$Amount)                                         
+
+p <- ggplot(data, aes(x = `days_until_renewal`, y = `mean_consumption`, 
+                      text = paste("Account:", `Account Name`,
+                                   "\n Close Date: ",`Close Date`,
+                                   "\n Amount: ",`dAmount`,
+                                   "\n Consumption: " ,`mean_consumption`))) +
+  geom_point(aes(size= Amount, alpha=.3,color=`Account Risk`)) +
+  scale_color_manual(values = my_colors) +
+  coord_cartesian(ylim = c(0, 1)) +
+  labs(
+    title = "Adoption Risk",
+    x = "Days until renewalr",
+    y = "License Consumption"
+  ) +
+  theme_minimal()
+
+
+# Convert the ggplot object to a plotly interactive plot
+interactive_plot <- ggplotly(p, tooltip = "text")
+
+# Display the interactive plot
+interactive_plot
+  
+```
+
+
+### Onboarding Risk
+```{r onboarding_risk , echo=FALSE, results='asis', message=FALSE}
+
+
+
+
+
+library(ggplot2)
+library(dplyr)
+library(plotly)
+
+my_colors <- c("0. Will Lose" = "black", "1. High Risk" = "red", "2. Moderate Risk" = "orange","3. Low Risk"= "green")
+
+data=op_list$renewals %>%
+  select("Adoption Phase","Vitally Days as Customer","Account Name","Amount","Account Risk")
+
+data$`Adoption Index`=as.numeric(factor(data$`Adoption Phase`,levels=c("-" ,"Planning","Installed",
+                                       "Configured","MVP Complete","Use Case Pipelining",
+                                       "90% Adoption"))  )    
+data$dAmount=dollar(data$Amount)                                         
+data= data %>%
+  filter(`Adoption Phase` %in% c("-" ,"Planning","Installed","Configured","MVP Complete"))
+# Create the ggplot2 scatter plot
+# Map 'car' and 'cyl' to aesthetics to include them in the hover-over
+p <- ggplot(data, aes(x = `Vitally Days as Customer`, y = `Adoption Index`, 
+                      text = paste("Account:", `Account Name`,
+                                   "\n Adoption Phase: ",`Adoption Phase`,
+                                   "\n Amount: ",`dAmount`))) +
+  geom_point(aes(size= Amount, alpha=.3,color=`Account Risk`)) +
+  scale_color_manual(values = my_colors) +
+  labs(y = NULL) +
+  scale_y_continuous(
+    breaks = 1:5,
+    labels=c("unlabelled", "planning", "Installed","configured","MVP Complete")) +
+  labs(
+    title = "Onboarding Risk",
+    x = "Days as Immuta Customer",
+    y = "Onboarding Phase"
+  ) +
+  theme_minimal()
+
+
+# Convert the ggplot object to a plotly interactive plot
+interactive_plot <- ggplotly(p, tooltip = "text")
+
+# Display the interactive plot
+interactive_plot
+  
+```

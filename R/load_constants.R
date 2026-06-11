@@ -1,23 +1,23 @@
-
-#' Load prioritization and forecast constants.
+#' Load forecast and prioritization constants.
 #'
-#' This function takes two numeric inputs and returns their sum.
+#' Returns a list of constants used across enrichment and reporting functions,
+#' including ARR tier breakpoints and the company churn plan by fiscal period.
 #'
-#' @return A list with a probability matrix, phat, a risk index vector, and arr index.
+#' @return A named list with:
+#'   \describe{
+#'     \item{arr_index}{Numeric vector of ARR tier breakpoints (0, 150k, 500k).}
+#'     \item{churn_plan}{Data frame of planned churn by fiscal period.}
+#'   }
 #' @export
-#'
-load_constants<-function(risk.vec=c('3. Low Risk','2. Moderate Risk','1. High Risk','Planned Lost','Closed Lost','0. Will Lose','0. Will Lose (Formally Notified)','4. Will Win',"Closed Won")){
-  c=list()
-  c$phat_account <- data.table(worst_case = c(.9,.75,.5,0,0,0,0,1,1),
-                                expected = c(.95,.85,.675,0,0,0,0,1,1),
-                                best_case = c(1,.9,.75,0,0,0,0,1,1),
-                                risk.vec)
+load_constants <- function() {
+  c <- list()
 
+  c$arr_index <- c(0, 150000, 500000)
 
-  c$risk_index = risk.vec
-  c$arr_index = c(0,150000,
-                  500000)
-  c$churn_plan=data.frame(fiscal.period=c("Q2-2026","Q3-2026","Q4-2026","Q1-2027","Q2-2027"),
-                          company_plan=c(350000,1950000,1611519,814000,0))
+  c$churn_plan <- data.frame(
+    fiscal.period = c("Q2-2026", "Q3-2026", "Q4-2026", "Q1-2027", "Q2-2027"),
+    company_plan  = c(350000, 1950000, 1611519, 814000, 0)
+  )
+
   return(c)
 }
