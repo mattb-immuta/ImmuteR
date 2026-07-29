@@ -29,12 +29,18 @@ Imports:
     tidyr,
     purrr,
     rmarkdown,
-    httr2
+    httr2,
+    ggplot2,
+    svglite,
+    rsvg,
+    jsonlite,
+    tibble
 Suggests:
     devtools,
     testthat (>= 3.0.0),
     kableExtra,
     plotly,
+    htmlwidgets,
     knitr,
     plumber
 Config/testthat/edition: 3

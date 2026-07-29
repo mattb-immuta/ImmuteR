@@ -14,3 +14,4 @@
 ---
 
 ## Notes
+260618 - Task: we need to escalate RTX and start biweekly.
