@@ -24,12 +24,19 @@
 #' @param low_consumption_threshold Numeric. Fraction below which a customer is
 #'   flagged as low consumption in \code{op_list$consumption$low_consumption}.
 #'   Defaults to \code{0.20} (20\%).
+#' @param productboard Logical. If \code{TRUE}, pulls Productboard notes and
+#'   features and builds \code{op_list$product_board} (feedback + feature
+#'   requests summarized per account). Requires a \code{PRODUCTBOARD_API_TOKEN}
+#'   environment variable (see \code{?productboard}). This step makes one API
+#'   call per note, so it's noticeably slower than the other enrich_*() steps
+#'   — hence opt-in. Defaults to \code{FALSE}.
 #' @param fiscal.period Character vector of fiscal periods to retain in expansions,
 #'   e.g. \code{c("Q1-2027", "Q2-2027")}.
 #'
 #' @return A named list with elements: \code{renewals}, \code{expansions},
 #'   \code{accounts}, \code{active_orders}, \code{csm_table}, \code{saas_pipeline},
-#'   \code{orders}, and \code{consumption}.
+#'   \code{orders}, \code{consumption}, and (if \code{productboard = TRUE})
+#'   \code{product_board}.
 #' @export
 enrich_opportunities <- function(sf_opportunity_report    = "00OVH000005p6A92AI",
                                  sf_account_report        = "00OVH0000069G8Y2AU",
@@ -42,6 +49,7 @@ enrich_opportunities <- function(sf_opportunity_report    = "00OVH000005p6A92AI"
                                  looker                   = FALSE,
                                  looker_cache_path        = "data/looker/",
                                  low_consumption_threshold = 0.20,
+                                 productboard             = FALSE,
                                  fiscal.period) {
 
   message(".. enrich_opportunities initiated")
@@ -95,6 +103,14 @@ enrich_opportunities <- function(sf_opportunity_report    = "00OVH000005p6A92AI"
     op_list = output_list,
     raw     = raw
   )
+
+  # ── product_board child list ────────────────────────────────────────────────
+  if (productboard) {
+    message(".. building op_list$product_board")
+    output_list[["product_board"]] <- op_list_product_board(
+      accounts = output_list[["accounts"]]
+    )
+  }
 
   message(".. enrich_opportunities complete")
   return(output_list)

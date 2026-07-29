@@ -7,8 +7,9 @@
 generate_forecast(
   op.table,
   p = c(0.6, 0.1),
-  churn.quarters = c("Q4-2026", "Q1-2027"),
-  n = 1000
+  churn.quarters = c("Q1-2028", "Q2-2028"),
+  n = 1000,
+  interactive_plot = FALSE
 )
 }
 \arguments{
@@ -24,11 +25,20 @@ respectively. Defaults to \code{c(0.6, 0.1)}.}
 e.g. \code{c("Q4-2026", "Q1-2027")}.}
 
 \item{n}{Integer number of Monte Carlo simulations. Defaults to \code{1000}.}
+
+\item{interactive_plot}{Logical. If \code{TRUE}, also builds an interactive
+\pkg{plotly} plot of the empirical CDF of simulated churn for each quarter
+in \code{churn.quarters}. Clicking a point on the plot drops an annotation
+showing the exact churn value and percentile at that point. Requires the
+\pkg{plotly} and \pkg{htmlwidgets} packages. Defaults to \code{FALSE}.}
 }
 \value{
-Named list with one element per quarter in \code{churn.quarters}.
-  Each element is a numeric vector of length \code{n} containing simulated
-  total churn for that quarter.
+If \code{interactive_plot = FALSE} (the default), a named list with
+  one element per quarter in \code{churn.quarters}, where each element is a
+  numeric vector of length \code{n} containing simulated total churn for
+  that quarter. If \code{interactive_plot = TRUE}, a named list with two
+  elements: \code{simulations} (the list described above) and \code{plot}
+  (a \code{plotly} htmlwidget showing the empirical CDF per quarter).
 }
 \description{
 For each quarter in \code{churn.quarters}, simulates \code{n} churn outcomes
@@ -41,5 +51,13 @@ certain churn (static component).
 \dontrun{
   sims <- generate_forecast(op_list, churn.quarters = c("Q4-2026", "Q1-2027"))
   hist(sims[["Q1-2027"]], main = "Q1-2027 Churn Forecast")
+
+  # Interactive empirical CDF, click a point to see its percentile
+  result <- generate_forecast(
+    op_list,
+    churn.quarters = c("Q4-2026", "Q1-2027"),
+    interactive_plot = TRUE
+  )
+  result$plot
 }
 }

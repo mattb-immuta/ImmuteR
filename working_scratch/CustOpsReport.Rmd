@@ -1,0 +1,132 @@
+---
+title: "Immuta Success Tracker"
+author: "Customer Operations"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+#library(googlesheets4)
+#library(data.table)
+#library(salesforcer)
+library(dplyr)
+#library(stringr)
+library(reactable)
+#library(htmltools)
+
+#library(gt)
+library(scales)
+library(kableExtra)
+library(tidyverse)
+
+options(scipen = 999)
+devtools::load_all("/Users/matt.benigni/Documents/projects/ImmuteR/R/")
+load(paste("/Users/matt.benigni/Documents/projects/ImmuteR/data/opportunities_","2025-09-04",".RData",sep=""))
+
+```
+
+
+
+## Renewal Forecast
+
+The report was generated directly from Immuta SFDC \``r op_list$dates`` 
+
+## Bottoms Up Renewals {.tabset}
+
+```{r q3-renewals, echo=FALSE, message=TRUE, warning=TRUE}
+
+
+p<-output_adoption_risk_rmd(op_list)
+
+p$plot
+```
+### Low Consumption Risk
+
+## Bottoms Up Renewals {.tabset}
+#### Changes since last update
+
+Changes to risk and churn forecast between the run date and comparison date are as follows:
+
+
+
+#### Changes since last update
+
+Changes to risk and churn forecast between the run date and comparison date are as follows:
+
+```{r renewal_changes, echo=FALSE, message=TRUE, warning=TRUE}
+
+  kable(op_list$renewal_changes, "html", booktabs = TRUE) %>%
+    kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+
+
+```
+
+### Q3-2026
+
+```{r q3-renewals, echo=FALSE, message=TRUE, warning=TRUE}
+
+
+p<-output_renewals_rmd(op_list,churn.period="Q3-2026")
+
+p$plot
+```
+
+### Q4-2026
+
+```{r q4-renewals, echo=FALSE, message=TRUE, warning=TRUE}
+
+
+p<-output_renewals_rmd(op_list,churn.period="Q4-2026")
+
+p$plot
+
+```
+
+### Q1-2027
+
+```{r q1-renewals, echo=FALSE, message=TRUE, warning=TRUE}
+
+
+p<-output_renewals_rmd(op_list,churn.period="Q1-2027")
+
+p$plot
+```
+## Customer Engagement
+
+```{r completed_qbrs, echo=FALSE, results='asis'}
+  align_table <- c('l', 'r')
+  
+  recent_qbrs=op_list$accounts %>%
+    arrange(`Date of last EBR`) %>%
+    select(`Account Name`,`Date of last EBR`) %>%
+    filter(as.Date(`Date of last EBR`)>=(Sys.Date()-14))
+  
+  cat("### QBRs Delivered in the past 14 days\n\n")
+  print(kable(recent_qbrs, align=align_table))
+  cat("\n---\n") # Separator for clarity
+  
+```
+
+```{r upcoming_qbrs, echo=FALSE, results='asis'}
+  align_table <- c('l', 'r')
+  
+  upcoming_qbrs=op_list$accounts %>%
+    arrange(`Date of next EBR`) %>%
+    select(`Account Name`,`Date of next EBR`) %>%
+    filter(as.Date(`Date of next EBR`)<=(Sys.Date()+14))
+
+  cat("### Upcoming QBRs in the next 14 days\n\n")
+  print(kable(upcoming_qbrs, align=align_table))
+  cat("\n---\n") # Separator for clarity
+  
+```
+
+
+## 2. Adoption
+
+```{r provision, echo=FALSE, results='asis'}
+
+  
+```

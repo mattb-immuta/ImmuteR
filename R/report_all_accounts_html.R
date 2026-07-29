@@ -29,6 +29,26 @@
 report_all_accounts_html <- function(op_list,
                                      output_path = "output/account_briefs/immuta_accounts.html") {
 
+  # Return the first candidate column present on `row` (a one-row data frame
+  # slice), or NULL if none of the candidates exist. Lets us tolerate slightly
+  # different Salesforce field labels (e.g. "Next Step" vs "Next Steps")
+  # without erroring when a report hasn't been refreshed with the new field yet.
+  .first_col <- function(row, candidates) {
+    for (cn in candidates) {
+      if (cn %in% names(row)) return(row[[cn]])
+    }
+    NULL
+  }
+
+  # Salesforce reports emit a literal "-" for an unset field rather than a
+  # true blank/NA. Treat that as missing so it renders as an em-dash instead
+  # of a stray hyphen.
+  .blank_dash <- function(x) {
+    if (is.null(x) || length(x) == 0) return(NA)
+    if (!is.na(x) && trimws(as.character(x)) == "-") return(NA)
+    x
+  }
+
   # Ensure output directory exists
   out_dir <- dirname(output_path)
   if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
@@ -64,7 +84,8 @@ report_all_accounts_html <- function(op_list,
             end_date      = fmt_date(r[["Current Contract End Date"]]),
             end_date_raw  = tryCatch(format(as.Date(r[["Current Contract End Date"]]), "%Y-%m-%d"), error = function(e) ""),
             churn_quarter = safe_val(r[["Churn Quarter"]]),
-            risk          = safe_val(r[["Account Risk"]])
+            risk          = safe_val(r[["Account Risk"]]),
+            next_steps    = safe_val(.first_col(r, c("Next Step", "Next Steps")))
           )
         })
       }
@@ -92,7 +113,8 @@ report_all_accounts_html <- function(op_list,
             amount_raw       = suppressWarnings(as.numeric(e[["Amount"]])),
             fiscal_period    = safe_val(e[["Fiscal Period"]]),
             close_date       = fmt_date(e[["Close Date"]]),
-            close_date_raw   = tryCatch(format(as.Date(e[["Close Date"]]), "%Y-%m-%d"), error = function(e) "")
+            close_date_raw   = tryCatch(format(as.Date(e[["Close Date"]]), "%Y-%m-%d"), error = function(e) ""),
+            next_steps       = safe_val(.first_col(e, c("Next Step", "Next Steps")))
           )
         })
       }
@@ -155,6 +177,11 @@ report_all_accounts_html <- function(op_list,
       is_saas       = is_saas,
       unsupported   = isTRUE(unsupported),
       churn_summary = churn_summary,
+      lifecycle_stage = safe_val(.blank_dash(.first_col(acct, c("Lifecycle Stage")))),
+      pbac_adoption   = safe_val(.blank_dash(.first_col(acct, c("PBAC Adoption")))),
+      comply_adoption = safe_val(.blank_dash(.first_col(acct, c("Comply Adoption")))),
+      request_adoption = safe_val(.blank_dash(.first_col(acct, c("Request Adoption")))),
+      agentic_governance_adoption = safe_val(.blank_dash(.first_col(acct, c("Agentic Governance Adoption")))),
       renewals      = ren_list,
       expansions    = exp_list,
       products      = prod_list
@@ -813,6 +840,27 @@ report_all_accounts_html <- function(op_list,
     font-weight: 600;
     margin: 3px;
   }
+
+  /* ── Adoption stoplights ─────────────────────────────────────────────── */
+  .stoplight-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .stoplight-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+    border: 1px solid rgba(0,0,0,.15);
+  }
+  .stoplight-green  { background: #22C55E; }
+  .stoplight-yellow { background: #F59E0B; }
+  .stoplight-red    { background: #EF4444; }
+  .stoplight-black  { background: #111111; }
   .arch-yes  { background: var(--im-lime); color: var(--im-black); }
   .arch-no   { background: var(--surface); color: var(--text-3); border: 1px solid var(--border); }
   .arch-warn { background: var(--red-lt);  color: #991B1B; border: 1px solid #FCA5A5; }
@@ -1396,6 +1444,25 @@ function fieldHtml(label, value, extraClass) {
   </div>`;
 }
 
+function fieldHtmlRaw(label, innerHtml) {
+  return `<div class="field-item">
+    <div class="field-label">${label}</div>
+    <div class="field-value">${innerHtml}</div>
+  </div>`;
+}
+
+function fmtStoplight(v) {
+  const raw = (v === null || v === undefined) ? "" : String(v).trim();
+  if (!raw || raw === "-" || raw === "\\u2014") return \'<span class="em-dash">—</span>\';
+  // The Salesforce picklist value is a full sentence, e.g. "Green (any 2): ..."
+  // — pull the leading color word and keep the rest as a hover tooltip.
+  const m = raw.match(/^(green|yellow|red|black)\\b/i);
+  const labels = { green: "Green", yellow: "Yellow", red: "Red", black: "Black" };
+  if (!m) return `<span class="em-dash" title="${esc(raw)}">—</span>`;
+  const color = m[1].toLowerCase();
+  return `<span class="stoplight-badge" title="${esc(raw)}"><span class="stoplight-dot stoplight-${color}"></span>${labels[color]}</span>`;
+}
+
 // ── Build cards ────────────────────────────────────────────────────────────
 function buildCard(a) {
   const hasRenewals   = a.renewals.length > 0;
@@ -1410,6 +1477,7 @@ function buildCard(a) {
         <td>${esc(r.amount)}</td>
         <td>${esc(r.end_date)}</td>
         <td><strong>${esc(r.churn_quarter)}</strong></td>
+        <td>${esc(r.next_steps)}</td>
       </tr>`).join("");
   }
 
@@ -1422,6 +1490,7 @@ function buildCard(a) {
         <td>${esc(e.owner)}</td>
         <td>${esc(e.amount)}</td>
         <td>${esc(e.fiscal_period)}</td>
+        <td>${esc(e.next_steps)}</td>
       </tr>`).join("");
   }
 
@@ -1468,6 +1537,11 @@ function buildCard(a) {
         ${fieldHtml("Customer Success Manager", a.csm)}
         ${fieldHtml("Account Owner", a.account_owner)}
         ${fieldHtml("Field CTO", a.field_cto)}
+        ${fieldHtml("Lifecycle Stage", a.lifecycle_stage)}
+        ${fieldHtmlRaw("PBAC Adoption", fmtStoplight(a.pbac_adoption))}
+        ${fieldHtmlRaw("Comply Adoption", fmtStoplight(a.comply_adoption))}
+        ${fieldHtmlRaw("Request Adoption", fmtStoplight(a.request_adoption))}
+        ${fieldHtmlRaw("Agentic Governance Adoption", fmtStoplight(a.agentic_governance_adoption))}
       </div>
     </div>
 
@@ -1488,7 +1562,7 @@ function buildCard(a) {
     <div class="tab-pane" id="renew-${esc(a.id)}">
       ${hasRenewals ? `
       <table class="data-table">
-        <thead><tr><th>Opportunity</th><th>Amount</th><th>End Date</th><th>Churn Quarter</th></tr></thead>
+        <thead><tr><th>Opportunity</th><th>Amount</th><th>End Date</th><th>Churn Quarter</th><th>Next Steps</th></tr></thead>
         <tbody>${renewRows}</tbody>
       </table>` : \'<p class="empty-msg">No open renewals.</p>\'}
     </div>
@@ -1497,7 +1571,7 @@ function buildCard(a) {
     <div class="tab-pane" id="expand-${esc(a.id)}">
       ${hasExpansions ? `
       <table class="data-table">
-        <thead><tr><th>Opportunity</th><th>Owner</th><th>Amount</th><th>Fiscal Period</th></tr></thead>
+        <thead><tr><th>Opportunity</th><th>Owner</th><th>Amount</th><th>Fiscal Period</th><th>Next Steps</th></tr></thead>
         <tbody>${expRows}</tbody>
       </table>` : \'<p class="empty-msg">No open expansion opportunities.</p>\'}
     </div>
@@ -1659,6 +1733,7 @@ function renderRenewals() {
     { key: "end_date_raw",  label: "End Date" },
     { key: "churn_quarter", label: "Churn Quarter" },
     { key: "risk",          label: "Risk" },
+    { key: "next_steps",    label: "Next Steps" },
     { key: "csm",           label: "CSM" },
     { key: "region",        label: "Region" }
   ];
@@ -1680,6 +1755,7 @@ function renderRenewals() {
       <td>${esc(r.end_date)}</td>
       <td>${cq}</td>
       <td class="${riskCls}">${esc(r.risk)}</td>
+      <td>${esc(r.next_steps)}</td>
       <td>${esc(r.csm)}</td>
       <td>${esc(r.region)}</td>
     </tr>`;
@@ -1726,6 +1802,7 @@ function renderExpansions() {
     { key: "amount_raw",     label: "Amount" },
     { key: "fiscal_period",  label: "Fiscal Period" },
     { key: "close_date_raw", label: "Close Date" },
+    { key: "next_steps",     label: "Next Steps" },
     { key: "region",         label: "Region" }
   ];
   const headers = cols.map(c => {
@@ -1740,6 +1817,7 @@ function renderExpansions() {
     <td>${esc(e.amount)}</td>
     <td>${esc(e.fiscal_period)}</td>
     <td>${esc(e.close_date)}</td>
+    <td>${esc(e.next_steps)}</td>
     <td>${esc(e.region)}</td>
   </tr>`).join("");
 
