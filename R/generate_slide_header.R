@@ -24,7 +24,7 @@
 #'   to contain \code{accounts} and \code{renewals} elements.
 #' @param output_dir Character. Directory to write the PNG into. Created
 #'   recursively if it does not exist. Defaults to
-#'   \code{"output/slide_headers"}.
+#'   \code{"output/slide_content/headers"}.
 #' @param dpi Integer. Output resolution in dots per inch. Defaults to
 #'   \code{600} (6000 × 600 px for a 10 × 1 inch image).
 #'
@@ -38,7 +38,7 @@
 #' @export
 generate_slide_header <- function(account_name,
                                    op_list,
-                                   output_dir = "output/slide_headers",
+                                   output_dir = "output/slide_content/headers",
                                    dpi        = 600) {
 
   # ── 0. Check dependencies ──────────────────────────────────────────────────
@@ -204,9 +204,10 @@ generate_slide_header <- function(account_name,
   # ── 5. Write file ──────────────────────────────────────────────────────────
   if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
 
-  safe_name <- gsub("[^A-Za-z0-9_-]", "_", account_name)
-  svg_path  <- file.path(tempdir(), paste0(safe_name, "_slide_header.svg"))
-  png_path  <- file.path(output_dir, paste0(safe_name, "_slide_header.png"))
+  # Filename pattern: "<Salesforce account ID>_slide_header.png"
+  stem     <- .account_file_id(a_data, account_name)
+  svg_path <- file.path(tempdir(),  paste0(stem, "_slide_header.svg"))
+  png_path <- file.path(output_dir, paste0(stem, "_slide_header.png"))
 
   # Step 1: render to SVG (vector — fonts stay as paths)
   ggplot2::ggsave(
@@ -238,7 +239,7 @@ generate_slide_header <- function(account_name,
 #'
 #' @param op_list Named list returned by \code{enrich_opportunities()}.
 #' @param output_dir Character. Output directory. Defaults to
-#'   \code{"output/slide_headers"}.
+#'   \code{"output/slide_content/headers"}.
 #' @param dpi Integer. Output resolution. Defaults to \code{600}.
 #'
 #' @return Invisibly returns a named character vector of written file paths
@@ -251,7 +252,7 @@ generate_slide_header <- function(account_name,
 #' }
 #' @export
 generate_all_slide_headers <- function(op_list,
-                                        output_dir = "output/slide_headers",
+                                        output_dir = "output/slide_content/headers",
                                         dpi        = 600) {
 
   accounts <- unique(op_list$accounts[["Account Name"]])
@@ -283,4 +284,31 @@ generate_all_slide_headers <- function(op_list,
 
 .coalesce_chr <- function(x, fallback = "—") {
   if (length(x) == 0 || is.na(x) || !nzchar(trimws(as.character(x)))) fallback else as.character(x)
+}
+
+# Filename stem for an account's generated assets.
+#
+# Uses the 18-character Salesforce account ID rather than the account name.
+# Names get renamed in Salesforce, contain punctuation that has to be mangled
+# ("Becton, Dickinson and Co." -> "Becton__Dickinson_and_Co_"), and two
+# different accounts can mangle to the same string. The ID is stable, unique,
+# and already filename-safe, and it's the same key the roster sheet and the
+# Customer Central URLs use — so a PNG can be matched back to a row without
+# string cleaning.
+#
+# Falls back to the mangled name only if the account has no ID at all.
+.account_file_id <- function(a_data, account_name) {
+  id <- NULL
+  for (col in c("Account ID 18", "Account ID")) {
+    if (col %in% names(a_data)) {
+      v <- trimws(as.character(a_data[[col]][1]))
+      if (!is.na(v) && nzchar(v)) { id <- v; break }
+    }
+  }
+  if (is.null(id)) {
+    warning("No Account ID for '", account_name, "' — falling back to the name.",
+            call. = FALSE)
+    return(gsub("[^A-Za-z0-9_-]", "_", account_name))
+  }
+  gsub("[^A-Za-z0-9_-]", "_", id)
 }

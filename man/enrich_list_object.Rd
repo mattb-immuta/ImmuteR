@@ -2,28 +2,55 @@
 % Please edit documentation in R/enrich_list_object.R
 \name{enrich_list_object}
 \alias{enrich_list_object}
-\title{Diff two op_list snapshots and append change reports and tracker data.}
+\title{Diff an op_list snapshot against a prior save and append change summaries.}
 \usage{
-enrich_list_object(new_list, old_list)
+enrich_list_object(new_list, diff_date, data_dir = "data/")
 }
 \arguments{
 \item{new_list}{Named list returned by the current run of
 \code{enrich_opportunities()}.}
 
-\item{old_list}{Named list from a previous run, loaded from a saved
-\code{.RData} snapshot, used as the comparison baseline.}
+\item{diff_date}{A \code{Date} or character string (e.g. \code{"2026-04-01"})
+identifying the prior snapshot to compare against. The file
+\code{<data_dir>/opportunities_<diff_date>.RData} must exist and contain
+an object named \code{op_list}.}
+
+\item{data_dir}{Character. Path to the directory holding saved \code{.RData}
+snapshots. Defaults to \code{"data/"}.}
 }
 \value{
-\code{new_list} with two additional elements:
-  \describe{
-    \item{renewal_changes}{A \code{data.table} of renewals where Account Risk
-      or Churn Forecast changed since the last run.}
-    \item{customer_ops_tracker}{A data frame joining renewal and expansion
-      data for use in \code{output_customer_ops_tracker()}.}
-  }
+\code{new_list} with four additional elements:
+\describe{
+  \item{changes}{Data frame summarising detected changes across all
+    op_list components (accounts, renewals, expansions, csm_table,
+    saas_pipeline, consumption). One row per component with columns
+    \code{Component}, \code{Added}, \code{Removed}, \code{Changed},
+    and \code{Total_Moves}.}
+  \item{changes_detail}{Named list with the full diff for each component,
+    each containing data frames for \code{added}, \code{removed}, and
+    \code{field_changes} (or \code{reassignments} for csm_table).
+    Also contains \code{diff_date}. The \code{consumption} component has
+    \code{field_changes} (accounts, keyed by Account ID, present in both
+    snapshots where Registered Users dropped more than 10\%, or Data
+    Sources Count or Active Policies (Total) decreased at all) and
+    \code{all_deltas} (Changes in Data Sources Count / Changes in Active
+    Policies for every account present in both snapshots, not just the
+    flagged ones) — see \code{op_list_consumption()} for how those columns
+    are derived.}
+  \item{renewal_changes}{Data frame of renewals where Account Risk or Churn
+    Forecast changed (retained for backward compatibility).}
+  \item{customer_ops_tracker}{Joined renewal + expansion table for use in
+    \code{output_customer_ops_tracker()} (retained for backward compatibility).}
+}
 }
 \description{
-Compares renewal risk and churn forecast between a freshly-enriched list and
-a saved prior-run list, appending a \code{renewal_changes} diff table and a
-\code{customer_ops_tracker} summary to the new list.
+Loads the saved \code{.RData} snapshot for \code{diff_date}, compares every
+component of \code{new_list} against the prior snapshot, and appends a
+comprehensive \code{changes} summary as well as the legacy
+\code{renewal_changes} and \code{customer_ops_tracker} elements.
+}
+\examples{
+\dontrun{
+  op_list <- enrich_list_object(op_list, diff_date = "2026-04-01")
+}
 }

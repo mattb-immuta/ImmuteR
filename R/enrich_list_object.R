@@ -18,13 +18,20 @@
 #' \describe{
 #'   \item{changes}{Data frame summarising detected changes across all
 #'     op_list components (accounts, renewals, expansions, csm_table,
-#'     saas_pipeline). One row per component with columns
+#'     saas_pipeline, consumption). One row per component with columns
 #'     \code{Component}, \code{Added}, \code{Removed}, \code{Changed},
 #'     and \code{Total_Moves}.}
 #'   \item{changes_detail}{Named list with the full diff for each component,
 #'     each containing data frames for \code{added}, \code{removed}, and
 #'     \code{field_changes} (or \code{reassignments} for csm_table).
-#'     Also contains \code{diff_date}.}
+#'     Also contains \code{diff_date}. The \code{consumption} component has
+#'     \code{field_changes} (accounts, keyed by Account ID, present in both
+#'     snapshots where Registered Users dropped more than 10\%, or Data
+#'     Sources Count or Active Policies (Total) decreased at all) and
+#'     \code{all_deltas} (Changes in Data Sources Count / Changes in Active
+#'     Policies for every account present in both snapshots, not just the
+#'     flagged ones) — see \code{op_list_consumption()} for how those columns
+#'     are derived.}
 #'   \item{renewal_changes}{Data frame of renewals where Account Risk or Churn
 #'     Forecast changed (retained for backward compatibility).}
 #'   \item{customer_ops_tracker}{Joined renewal + expansion table for use in
@@ -74,6 +81,10 @@ enrich_list_object <- function(new_list, diff_date, data_dir = "data/") {
 
   # ── 5. SaaS pipeline ─────────────────────────────────────────────────────────
   changes$saas_pipeline <- .diff_saas(new_list$saas_pipeline, old_list$saas_pipeline)
+
+  # ── 6. Consumption ───────────────────────────────────────────────────────────
+  changes$consumption <- .diff_consumption(new_list$consumption$low_consumption,
+                                           old_list$consumption$low_consumption)
 
   # Surface the compact summary as $changes; full diff detail at $changes_detail
   change_summary               <- .build_change_summary(changes)
@@ -321,10 +332,87 @@ enrich_list_object <- function(new_list, diff_date, data_dir = "data/") {
 }
 
 
+.diff_consumption <- function(new_df, old_df, user_drop_threshold = 0.10) {
+  if (is.null(new_df) || is.null(old_df)) return(list())
+
+  key <- if ("Account ID" %in% names(new_df) && "Account ID" %in% names(old_df)) {
+    "Account ID"
+  } else if ("Account Name" %in% names(new_df) && "Account Name" %in% names(old_df)) {
+    "Account Name"
+  } else {
+    return(list())
+  }
+
+  watch_new <- intersect(c(key, "Account Name", "Registered Users",
+                            "Data Sources Count", "Active Policies (Total)"),
+                          names(new_df))
+  watch_old <- intersect(c(key, "Registered Users",
+                            "Data Sources Count", "Active Policies (Total)"),
+                          names(old_df))
+
+  # Need the metric columns on both sides to compare anything
+  if (!all(c("Registered Users", "Data Sources Count", "Active Policies (Total)") %in% watch_new) ||
+      !all(c("Registered Users", "Data Sources Count", "Active Policies (Total)") %in% watch_old)) {
+    return(list())
+  }
+
+  both <- merge(new_df[, watch_new], old_df[, watch_old],
+                by = key, suffixes = c(".new", ".old"))
+
+  num <- function(x) suppressWarnings(as.numeric(x))
+
+  # If an account had a value at diff_date but has none now (e.g. it lost its
+  # Production instance entirely — see op_list_consumption()'s "no Production
+  # instance" rule), treat the current value as 0 rather than "unmeasurable":
+  # going to nothing is the biggest possible drop, not a data gap to ignore.
+  zero_if_lost <- function(new_val, old_val) ifelse(is.na(new_val) & !is.na(old_val), 0, new_val)
+
+  users_new <- zero_if_lost(num(both$`Registered Users.new`), num(both$`Registered Users.old`))
+  users_old <- num(both$`Registered Users.old`)
+  user_drop_pct <- ifelse(!is.na(users_old) & users_old > 0,
+                          (users_old - users_new) / users_old, NA_real_)
+  user_drop <- !is.na(user_drop_pct) & user_drop_pct > user_drop_threshold
+
+  ds_new <- zero_if_lost(num(both$`Data Sources Count.new`), num(both$`Data Sources Count.old`))
+  ds_old <- num(both$`Data Sources Count.old`)
+  ds_drop <- !is.na(ds_new) & !is.na(ds_old) & ds_new < ds_old
+
+  pol_new <- zero_if_lost(num(both$`Active Policies (Total).new`), num(both$`Active Policies (Total).old`))
+  pol_old <- num(both$`Active Policies (Total).old`)
+  pol_drop <- !is.na(pol_new) & !is.na(pol_old) & pol_new < pol_old
+
+  any_flag <- user_drop | ds_drop | pol_drop
+
+  field_changes <- both[any_flag, , drop = FALSE]
+  field_changes$user_drop_pct <- round(user_drop_pct[any_flag] * 100, 1)
+  field_changes$user_drop     <- user_drop[any_flag]
+  field_changes$ds_drop       <- ds_drop[any_flag]
+  field_changes$pol_drop      <- pol_drop[any_flag]
+
+  msg_parts <- c(
+    if (sum(user_drop) > 0) paste(sum(user_drop), paste0("user count drop(s) >", user_drop_threshold * 100, "%")),
+    if (sum(ds_drop) > 0)   paste(sum(ds_drop),   "data source drop(s)"),
+    if (sum(pol_drop) > 0)  paste(sum(pol_drop),  "policy drop(s)")
+  )
+  if (length(msg_parts)) message("  consumption: ", paste(msg_parts, collapse = ", "))
+
+  # Per-account deltas for *every* account present in both snapshots (not just
+  # flagged drops) — used to show a "Changes in ..." column for every account
+  # on the Consumption tab, not only the ones that declined.
+  all_deltas <- stats::setNames(
+    data.frame(both[[key]], ds_new - ds_old, pol_new - pol_old, stringsAsFactors = FALSE),
+    c(key, "Changes in Data Sources Count", "Changes in Active Policies")
+  )
+
+  list(field_changes = field_changes, all_deltas = all_deltas)
+}
+
+
 # ── Summary table ─────────────────────────────────────────────────────────────
 
 .build_change_summary <- function(changes) {
-  components <- c("accounts", "renewals", "expansions", "csm_table", "saas_pipeline")
+  components <- c("accounts", "renewals", "expansions", "csm_table", "saas_pipeline",
+                   "consumption")
 
   rows <- lapply(components, function(comp) {
     ch <- changes[[comp]]

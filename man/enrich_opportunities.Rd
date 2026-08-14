@@ -2,31 +2,80 @@
 % Please edit documentation in R/enrich_opportunities.R
 \name{enrich_opportunities}
 \alias{enrich_opportunities}
-\title{pull current opportunities from salesforce and enrich them.}
+\title{Pull and enrich opportunities, accounts, and supplementary tables from Salesforce.}
 \usage{
 enrich_opportunities(
   sf_opportunity_report = "00OVH000005p6A92AI",
   sf_account_report = "00OVH0000069G8Y2AU",
-  sf_provision_report = "00OVH000006Zryr2AC",
-  sf_support_case_report = "00OVH000006dyX72AI",
-  sf_contract_report = "00OVH0000070ZRZ2A2",
+  sf_active_order_report = "00OVV000006AOnB2AW",
+  sf_saas_migration_report = "00OVV000006FbWr2AK",
+  sf_csm_summary_report = "00OVV000006FbNB2A0",
+  sf_orders_report = "00OVV000005RTxV2AW",
   idex = FALSE,
   idex_path = "data/idex/",
-  fiscal.period,
-  re_tracker =
-    "https://docs.google.com/spreadsheets/d/1Rxl25OyKEW1W1ny8Vbv3TDa2QCqR9VSpTN0QVPu6o9w/edit?gid=0#gid=0"
+  looker = FALSE,
+  looker_cache_path = "data/looker/",
+  low_consumption_threshold = 0.25,
+  productboard = FALSE,
+  fiscal.period
 )
 }
 \arguments{
-\item{sf_opportunity_report}{A numeric value. The first number to be added.}
+\item{sf_opportunity_report}{Character. Salesforce report ID for the opportunity report.}
+
+\item{sf_account_report}{Character. Salesforce report ID for the account report.
+Expected to carry the QBR/EBR date and note fields, which
+\code{\link{normalize_qbr_fields}} copies to \code{Date Last QBR},
+\code{Date Next QBR}, and \code{QBR Note}.}
+
+\item{sf_active_order_report}{Character. Salesforce report ID for active orders.}
+
+\item{sf_saas_migration_report}{Character. Salesforce report ID for the SaaS migration pipeline.}
+
+\item{sf_csm_summary_report}{Character. Salesforce report ID for CSM account assignments.}
+
+\item{sf_orders_report}{Character. Salesforce report ID for the orders report.}
+
+\item{idex}{Logical. Whether to refresh idex parquet exports before reading. Defaults to \code{FALSE}.}
+
+\item{idex_path}{Character. Path to idex parquet directory. Defaults to \code{"data/idex/"}.}
+
+\item{looker}{Logical. If \code{TRUE}, pulls the six Looker looks that back the
+CPO consumption spreadsheet and joins live metrics (users, data sources, queries,
+policies, support cases) onto \code{op_list$consumption$renewals}. Requires
+\code{LOOKER_CLIENT_ID} and \code{LOOKER_CLIENT_SECRET} environment variables.
+Defaults to \code{FALSE} — SFDC-only stats are always computed.}
+
+\item{looker_cache_path}{Character or NULL. Directory for Looker parquet caches.
+Defaults to \code{"data/looker/"}. Pass \code{NULL} to disable caching.}
+
+\item{low_consumption_threshold}{Numeric. Fraction below which a customer's
+registered/licensed user ratio flags them as low consumption in
+\code{op_list$consumption$low_consumption$`Low Consumption`} — a customer
+is also flagged when their Production instance has zero active policies of
+any kind. Defaults to \code{0.25} (25\%). Passed through to
+\code{\link{op_list_consumption}}.}
+
+\item{productboard}{Logical. If \code{TRUE}, pulls Productboard notes and
+features and builds \code{op_list$product_board} (feedback + feature
+requests summarized per account). Requires a \code{PRODUCTBOARD_API_TOKEN}
+environment variable (see \code{?productboard}). This step makes one API
+call per note, so it's noticeably slower than the other enrich_*() steps
+— hence opt-in. Defaults to \code{FALSE}.}
+
+\item{fiscal.period}{Character vector of fiscal periods to retain in expansions,
+e.g. \code{c("Q1-2027", "Q2-2027")}.}
 }
 \value{
-a list with renewal and expansion data tables with all opportunities and enriched hyperlinks: opportunity_link,account_link,
-and consumption_link.
+A named list with elements: \code{renewals}, \code{expansions},
+  \code{accounts}, \code{active_orders}, \code{csm_table}, \code{saas_pipeline},
+  \code{orders}, \code{consumption}, (if \code{looker = TRUE})
+  \code{support}, and (if \code{productboard = TRUE}) \code{product_board}.
 }
 \description{
-pull current opportunities from salesforce and enrich them.
-}
-\examples{
-enrich_optable("00OVH000005p6A92AI")
+Fetches opportunity, account, active order, CSM assignment, and SaaS pipeline
+reports from Salesforce, enriches renewals and expansions with account context,
+and packages everything into a named list for downstream reporting.
+Also builds \code{op_list$consumption} from the orders report and — optionally
+— live Looker data.
 }

@@ -16,6 +16,7 @@ rm(.root)
 # Load packages used directly in this script
 library(salesforcer)
 library(googlesheets4)
+library(bigrquery)
 library(rmarkdown)
 library(dplyr)
 library(httr2)
@@ -104,16 +105,15 @@ op_list[["constants"]] <- load_constants()
 # Produce outputs
 # -----------------------------------------------------------------------------
 
-report_all_accounts_html(op_list)
-# output_gsheet_mbpipeline(op_list = op_list, mb_tracker)
-#output_customer_ops_tracker(op_list              = op_list,
-#                            customer_ops_tracker = customer_ops_tracker,
-#                            fiscal.period        = fiscal.period)
+report_all_accounts_html(op_list)   # -> output/immuta_accounts.html
 
-output_gsheet_BU_staging(op_list       = op_list,
-                         BU_staging    = BU_staging,
-                         fiscal.period = fiscal.period)
 
+# Slide assets, written locally only (see the Drive section at the bottom —
+# these are deliberately NOT uploaded).
+#   output/slide_content/headers/<Account ID>_slide_header.png
+#   output/slide_content/health_summaries/<Account ID>-adoption_tile.png
+generate_all_slide_headers(op_list)
+generate_all_slide_tiles(op_list)
 
 
 sheet_write(
@@ -137,3 +137,35 @@ op_list[["dates"]] <- paste0("Run Date: ", Sys.Date(),
                              " , Comparison Date: ", diff_date, ".RData")
 message("Saving op_list to: data/opportunities_", Sys.Date(), ".RData")
 save(op_list, file = paste0("data/opportunities_", Sys.Date(), ".RData"))
+
+
+# -----------------------------------------------------------------------------
+# Slide payload JSON (one file per region + a combined file)
+# -----------------------------------------------------------------------------
+# Same data the Google Slides generator renders, written to
+# output/slide_payloads/ so it syncs to Drive with everything else.
+output_slide_payload_json(op_list)
+
+
+# -----------------------------------------------------------------------------
+# Publish the dashboard to the shared Google Drive folder
+# -----------------------------------------------------------------------------
+# ONLY immuta_accounts.html is uploaded. The slide PNGs and payload JSON stay
+# local in output/ — they're regenerated every run, there are 144 of them, and
+# re-uploading the set each time is slow for no benefit. Push them by hand when
+# you actually need them on Drive:
+#
+#   push_output_to_drive()                              # everything
+#   push_output_to_drive(pattern = "slide_content")     # just the PNGs
+#
+# Matched by name and updated in place, so the dashboard's Drive link and file
+# ID stay stable across runs.
+#
+# Wrapped in tryCatch so a Drive failure warns rather than killing the run (or
+# the plumber /refresh request) after everything else already succeeded.
+tryCatch(
+  push_output_to_drive(pattern = "^immuta_accounts\\.html$"),
+  error = function(e) {
+    warning("Drive push skipped: ", conditionMessage(e), call. = FALSE)
+  }
+)

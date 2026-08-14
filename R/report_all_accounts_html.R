@@ -16,7 +16,7 @@
 #'   \code{active_orders} elements.
 #' @param output_path Character. Path where the HTML file will be written.
 #'   Parent directories are created automatically.
-#'   Defaults to \code{"output/account_briefs/immuta_accounts.html"}.
+#'   Defaults to \code{"output/immuta_accounts.html"}.
 #'
 #' @return Invisibly returns \code{output_path}.
 #'
@@ -27,7 +27,7 @@
 #' }
 #' @export
 report_all_accounts_html <- function(op_list,
-                                     output_path = "output/account_briefs/immuta_accounts.html") {
+                                     output_path = "output/immuta_accounts.html") {
 
   # Return the first candidate column present on `row` (a one-row data frame
   # slice), or NULL if none of the candidates exist. Lets us tolerate slightly
@@ -57,6 +57,30 @@ report_all_accounts_html <- function(op_list,
   renewals     <- op_list$renewals
   expansions   <- op_list$expansions
   active_orders <- op_list$active_orders
+
+  # Consumption + support lookups, so the Overview tab can carry the same three
+  # blocks the PNG health summary does. Both are optional — an SFDC-only
+  # op_list still renders, with em-dashes where the figures would be.
+  consumption <- op_list$consumption$low_consumption
+  support     <- op_list$support
+
+  # Row lookup by account name (consumption) / account ID (support).
+  .lookup_row <- function(df, key_col, key) {
+    if (is.null(df) || !is.data.frame(df) || !key_col %in% names(df)) return(NULL)
+    hit <- df[!is.na(df[[key_col]]) & df[[key_col]] == key, , drop = FALSE]
+    if (nrow(hit) == 0) NULL else hit[1, ]
+  }
+
+  .num_or_na <- function(row, col) {
+    if (is.null(row) || !col %in% names(row)) return(NA_real_)
+    suppressWarnings(as.numeric(row[[col]][1]))
+  }
+
+  # Comma-grouped integer, em-dash when missing — matches .tile_int().
+  .int_or_dash <- function(x) {
+    if (length(x) == 0 || is.na(x)) "—"
+    else format(round(x), big.mark = ",", trim = TRUE)
+  }
 
   accounts_sorted <- accounts[order(accounts$`Account Name`), ]
 
@@ -152,6 +176,17 @@ report_all_accounts_html <- function(op_list,
     qs <- qs[!is.na(qs) & qs != ""]
     churn_summary <- if (length(qs) == 0) "" else paste(qs, collapse = ", ")
 
+    # --- Consumption + support rows for the health-summary blocks ---
+    c_row <- .lookup_row(consumption, "Account Name", aname)
+    s_row <- .lookup_row(support,     "Account Name", aname)
+
+    reg_raw <- .num_or_na(c_row, "Registered Users")
+    lic_raw <- .num_or_na(c_row, "Licensed Users")
+    rat_raw <- .num_or_na(c_row, "Consumption Ratio")
+    if (is.na(rat_raw) && !is.na(reg_raw) && !is.na(lic_raw) && lic_raw > 0) {
+      rat_raw <- reg_raw / lic_raw
+    }
+
     list(
       id            = gsub("[^A-Za-z0-9]", "_", aname),
       name          = aname,
@@ -182,6 +217,24 @@ report_all_accounts_html <- function(op_list,
       comply_adoption = safe_val(.blank_dash(.first_col(acct, c("Comply Adoption")))),
       request_adoption = safe_val(.blank_dash(.first_col(acct, c("Request Adoption")))),
       agentic_governance_adoption = safe_val(.blank_dash(.first_col(acct, c("Agentic Governance Adoption")))),
+
+      # --- Health-summary blocks, mirroring generate_slide_tile() ---
+      registered_users = .int_or_dash(reg_raw),
+      licensed_users   = .int_or_dash(lic_raw),
+      consumption_ratio = if (is.na(rat_raw)) "—" else paste0(round(rat_raw * 1000) / 10, "%"),
+      consumption_ratio_raw = rat_raw,
+      immuta_version   = safe_val(.blank_dash(
+        if (!is.null(c_row)) c_row[["Immuta Version"]] else NA)),
+      inc_90d          = .int_or_dash(.num_or_na(s_row, "cases_90d")),
+      inc_360d         = .int_or_dash(.num_or_na(s_row, "cases_360d")),
+      custx_90d        = .int_or_dash(.num_or_na(s_row, "escalations_90d")),
+      custx_open       = .int_or_dash(.num_or_na(s_row, "escalations_open")),
+      custx_90d_raw    = .num_or_na(s_row, "escalations_90d"),
+      custx_open_raw   = .num_or_na(s_row, "escalations_open"),
+      last_qbr         = fmt_date(.first_col(acct, c("Date Last QBR"))),
+      next_qbr         = fmt_date(.first_col(acct, c("Date Next QBR"))),
+      qbr_note         = safe_val(.blank_dash(.first_col(acct, c("QBR Note")))),
+
       renewals      = ren_list,
       expansions    = exp_list,
       products      = prod_list
@@ -199,6 +252,15 @@ report_all_accounts_html <- function(op_list,
   csms <- sort(unique(accounts$`Customer Success Manager`))
   csms <- csms[!is.na(csms) & csms != ""]
 
+  # Lifecycle stages for the Self-Managed tab's filter pills -------------------
+  # (scoped to self-managed accounts only, since that's the only tab that uses it)
+  self_managed_is_saas <- vapply(accounts$`Is SaaS Customer`, function(v) {
+    isTRUE(v %in% c(TRUE, "Yes", "TRUE", "true", "yes"))
+  }, logical(1))
+  lifecycle_stages <- sort(unique(accounts$`Lifecycle Stage`[!self_managed_is_saas]))
+  lifecycle_stages <- lifecycle_stages[!is.na(lifecycle_stages) &
+                                       !lifecycle_stages %in% c("", "-")]
+
   # Snapshot dates for the diff-date picker (newest first) --------------------
   snap_files <- list.files(dirname(output_path),  # look relative to output, fall back to data/
                             pattern = "^opportunities_\\d{4}-\\d{2}-\\d{2}\\.RData$")
@@ -211,7 +273,8 @@ report_all_accounts_html <- function(op_list,
   consumption_json <- .build_consumption_json(op_list)
 
   # Build HTML -----------------------------------------------------------------
-  html <- .rah_html(json_data, regions, csms, snap_dates, changes_json, consumption_json)
+  html <- .rah_html(json_data, regions, csms, snap_dates, changes_json, consumption_json,
+                    lifecycle_stages)
 
   writeLines(html, output_path, useBytes = FALSE)
   message(".. wrote account HTML dashboard to ", output_path)
@@ -382,13 +445,43 @@ report_all_accounts_html <- function(op_list,
 
 .build_consumption_json <- function(op_list) {
   con <- op_list$consumption
-  if (is.null(con) || is.null(con$low_consumption)) return("null")
-  .to_json(con$low_consumption)
+  cd  <- op_list[["changes_detail"]]
+
+  has_data <- !is.null(con) && !is.null(con$low_consumption) && nrow(con$low_consumption) > 0
+
+  diff_date_str <- if (!is.null(cd)) {
+    tryCatch(format(as.Date(cd$diff_date), "%Y-%m-%d"),
+             error = function(e) as.character(cd$diff_date))
+  } else {
+    ""
+  }
+
+  rows_df <- if (has_data) con$low_consumption else NULL
+
+  # Merge in the per-account "Changes in ..." deltas (every account present in
+  # both snapshots, not just the ones flagged in cd$consumption$field_changes)
+  # so the main Consumption tab table can show them as ordinary columns.
+  deltas <- cd$consumption$all_deltas
+  if (!is.null(rows_df) && !is.null(deltas) && nrow(deltas) > 0) {
+    key <- if ("Account ID" %in% names(deltas)) "Account ID" else "Account Name"
+    if (key %in% names(rows_df)) {
+      rows_df <- merge(rows_df, deltas, by = key, all.x = TRUE)
+    }
+  }
+
+  .to_json(list(
+    has_data  = has_data,
+    rows      = if (!is.null(rows_df)) .df_to_rows(rows_df) else list(),
+    diff_date = diff_date_str,
+    changes   = list(
+      field_changes = .df_to_rows(cd$consumption$field_changes)
+    )
+  ))
 }
 
 # ---- Internal: full HTML page template -------------------------------------
 
-.rah_html <- function(json_data, regions, csms = character(0), snap_dates = character(0), changes_json = "null", consumption_json = "null") {
+.rah_html <- function(json_data, regions, csms = character(0), snap_dates = character(0), changes_json = "null", consumption_json = "null", lifecycle_stages = character(0)) {
 
   region_pills <- paste(
     vapply(regions, function(r) {
@@ -402,6 +495,15 @@ report_all_accounts_html <- function(op_list,
     vapply(csms, function(cm) {
       ce <- html_escape(cm)
       paste0('<button class="pill" data-csm="', ce, '">', ce, '</button>')
+    }, character(1)),
+    collapse = "\n    "
+  )
+
+  sm_lifecycle_pills <- paste(
+    vapply(lifecycle_stages, function(l) {
+      le <- html_escape(l)
+      paste0('<button class="flat-pill" data-sm-lifecycle="', le,
+             '" onclick="setSMLifecycle(\'', le, '\')">', le, '</button>')
     }, character(1)),
     collapse = "\n    "
   )
@@ -721,10 +823,12 @@ report_all_accounts_html <- function(op_list,
     letter-spacing: .1px;
     border: 1px solid transparent;
   }
-  .tag-region { background: #F0F0EE; color: var(--text-2); border-color: var(--border); }
-  .tag-saas   { background: var(--im-lime-lt); color: #5A7A00; border-color: #C8E870; }
-  .tag-churn  { background: var(--amber-lt);   color: #92400E; border-color: #FCD34D; }
-  .tag-renew  { background: var(--red-lt);     color: #991B1B; border-color: #FCA5A5; }
+  .tag-region   { background: #F0F0EE; color: var(--text-2); border-color: var(--border); }
+  .tag-saas     { background: var(--im-lime-lt); color: #5A7A00; border-color: #C8E870; }
+  .tag-sm-sup   { background: var(--amber-lt);   color: #92400E; border-color: #FCD34D; }
+  .tag-sm-unsup { background: var(--red-lt);      color: #991B1B; border-color: #FCA5A5; }
+  .tag-churn    { background: var(--amber-lt);   color: #92400E; border-color: #FCD34D; }
+  .tag-renew    { background: var(--red-lt);     color: #991B1B; border-color: #FCA5A5; }
 
   .expand-icon {
     font-size: 10px;
@@ -775,6 +879,81 @@ report_all_accounts_html <- function(op_list,
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     gap: 16px;
     padding: 6px 0;
+  }
+  /* Overview tab: three fixed columns, each stacking its fields top-to-bottom.
+     Commercial on the left, account team in the middle, adoption on the right.
+     Deliberately not auto-fill — the grouping is the point, so the columns must
+     not reflow into an arbitrary number of tracks as the card widens. */
+  .overview-cols {
+    display: grid;
+    grid-template-columns:
+      minmax(130px, .75fr)   /* commercial   */
+      minmax(150px, .9fr)    /* account team */
+      minmax(180px, 1.1fr)   /* adoption     */
+      minmax(170px, 1fr)     /* performance  */
+      minmax(180px, 1.1fr);  /* engagement   */
+    gap: 22px;
+    padding: 6px 0;
+    align-items: start;
+  }
+  .overview-col {
+    display: flex;
+    flex-direction: column;
+    gap: 13px;
+    min-width: 0;
+  }
+  /* Section heading above the three health-summary columns, so the Overview
+     tab reads with the same structure as the PNG health summary. */
+  .ov-head {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .6px;
+    text-transform: uppercase;
+    color: var(--text-1);
+    padding-bottom: 5px;
+    border-bottom: 2px solid var(--im-lime);
+    margin-bottom: 2px;
+  }
+  /* Compact label:value pairs inside the health-summary columns. */
+  .ov-pair {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 10px;
+    font-size: 12.5px;
+  }
+  .ov-pair-k { color: var(--text-3); white-space: nowrap; }
+  .ov-pair-v { color: var(--text-1); font-weight: 600; text-align: right; }
+  .ov-pair-v.bad { color: #991B1B; }
+  .ov-note {
+    font-size: 12px;
+    color: var(--text-2);
+    line-height: 1.45;
+  }
+  /* Adoption rows carry the full picklist definition under the stoplight, so
+     the criteria are readable without hovering for the tooltip. */
+  .ov-adopt {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .ov-adopt-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 10px;
+    font-size: 12.5px;
+  }
+  .ov-adopt-def {
+    font-size: 10.5px;
+    line-height: 1.4;
+    color: var(--text-3);
+  }
+  @media (max-width: 1500px) {
+    .overview-cols { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+  @media (max-width: 900px) {
+    .overview-cols { grid-template-columns: 1fr; gap: 18px; }
   }
   .field-label {
     font-size: 10px;
@@ -858,6 +1037,7 @@ report_all_accounts_html <- function(op_list,
     border: 1px solid rgba(0,0,0,.15);
   }
   .stoplight-green  { background: #22C55E; }
+  .stoplight-amber  { background: #F59E0B; }
   .stoplight-yellow { background: #F59E0B; }
   .stoplight-red    { background: #EF4444; }
   .stoplight-black  { background: #111111; }
@@ -1283,7 +1463,10 @@ report_all_accounts_html <- function(op_list,
       <span class="diff-date-chevron">&#9660;</span>
     </div>
   </div>
-  <a class="refresh-btn" href="https://drive.google.com/uc?export=download&id=1idalBhIkf05dLQHJ3Z_i8pbcVroVJODy" target="_blank" rel="noopener" style="text-decoration:none">&#11123; Download Update</a>
+  <!-- Drive file 1K5pNbz2TPrxGSvU8l2hbEjbMFfFShQ09, as the uc?export=download
+       form so the button downloads directly rather than opening the Drive
+       preview page. Swap to /file/d/<id>/view to land on the preview instead. -->
+  <a class="refresh-btn" href="https://drive.google.com/uc?export=download&id=1K5pNbz2TPrxGSvU8l2hbEjbMFfFShQ09" target="_blank" rel="noopener" style="text-decoration:none">&#11123; Download Update</a>
   <button class="refresh-btn" id="refresh-btn" onclick="triggerRefresh()">&#8635; Refresh</button>
 </div>
 
@@ -1316,6 +1499,9 @@ report_all_accounts_html <- function(op_list,
   </button>
   <button class="page-tab" data-page="consumption" onclick="switchPage(\'consumption\')">
     Consumption <span class="page-tab-count" id="tab-count-consumption">—</span>
+  </button>
+  <button class="page-tab" data-page="self_managed" onclick="switchPage(\'self_managed\')">
+    Self-Managed <span class="page-tab-count" id="tab-count-self-managed">—</span>
   </button>
 </div>
 
@@ -1380,8 +1566,47 @@ report_all_accounts_html <- function(op_list,
 <!-- CONSUMPTION PAGE -->
 <div id="page-consumption" class="page">
   <div class="consumption-page">
-    <div class="con-stats" id="con-stats"></div>
-    <div class="flat-table-wrap" id="con-table"></div>
+    <div class="consumption-sub-tabs">
+      <button class="csub-btn active" data-csub="all" onclick="switchConSub(\'all\')">
+        All Customers <span class="csub-count" id="csub-count-all">—</span>
+      </button>
+      <button class="csub-btn" data-csub="low" onclick="switchConSub(\'low\')">
+        Low Consumption <span class="csub-count" id="csub-count-low">—</span>
+      </button>
+      <button class="csub-btn" data-csub="changes" onclick="switchConSub(\'changes\')">
+        Changes <span class="csub-count" id="csub-count-changes">—</span>
+      </button>
+    </div>
+    <div class="consumption-panel active" id="con-panel-all">
+      <div class="con-stats" id="con-stats"></div>
+      <div class="flat-table-wrap" id="con-table"></div>
+    </div>
+    <div class="consumption-panel" id="con-panel-low">
+      <div class="con-stats" id="con-stats-low"></div>
+      <div class="flat-table-wrap" id="con-table-low"></div>
+    </div>
+    <div class="consumption-panel" id="con-panel-changes">
+      <div class="changes-header" id="con-changes-header"></div>
+      <div class="changes-body"   id="con-changes-content"></div>
+    </div>
+  </div>
+</div>
+
+<!-- SELF-MANAGED PAGE -->
+<div id="page-self_managed" class="page">
+  <div class="flat-page">
+    <div class="flat-filters" id="sm-support-filters">
+      <button class="flat-pill active" data-sm-support="all" onclick="setSMSupport(\'all\')">All Support Statuses</button>
+      <button class="flat-pill" data-sm-support="Supported" onclick="setSMSupport(\'Supported\')">Supported</button>
+      <button class="flat-pill" data-sm-support="Unsupported" onclick="setSMSupport(\'Unsupported\')">Unsupported</button>
+      <button class="flat-pill" data-sm-support="Unknown" onclick="setSMSupport(\'Unknown\')">Unknown</button>
+    </div>
+    <div class="flat-filters flat-filters-csm" id="sm-lifecycle-filters">
+      <button class="flat-pill active" data-sm-lifecycle="all" onclick="setSMLifecycle(\'all\')">All Lifecycle Stages</button>
+      {{SM_LIFECYCLE_PILLS}}
+    </div>
+    <div class="flat-stats" id="sm-stats"></div>
+    <div class="flat-table-wrap" id="sm-table"></div>
   </div>
 </div>
 
@@ -1399,6 +1624,21 @@ let activePage      = "accounts";
 let renewalSort         = { col: "end_date_raw", dir: 1 };
 let expansionSort       = { col: "close_date_raw", dir: 1 };
 let conSort             = { col: null, dir: 1 };
+let conSubTab           = "all";
+let smSort              = { col: null, dir: 1 };
+let activeSMSupport     = "all";
+let activeSMLifecycle   = "all";
+const SM_COLS = [
+  "Account Name", "Immuta Version", "Support Status", "Lifecycle Stage",
+  "Registered Users", "Licensed Users", "Consumption Ratio",
+  "Data Sources Count", "Active Policies (Total)"
+];
+const CON_COLS = [
+  "Account Name", "Contract ARR Rollup", "Is SaaS Customer",
+  "Customer on Unsupported Version", "Registered Users", "Licensed Users",
+  "Consumption Ratio", "Data Sources Count", "Changes in Data Sources Count",
+  "Active Policies (Total)", "Changes in Active Policies"
+];
 
 // ── Flat data derived from ACCOUNTS ────────────────────────────────────────
 const ALL_RENEWALS   = [];
@@ -1451,13 +1691,50 @@ function fieldHtmlRaw(label, innerHtml) {
   </div>`;
 }
 
+// Compact label:value row for the three health-summary columns. The stacked
+// label-over-value of fieldHtml() is too tall once a column carries 6-8 rows.
+function pairHtml(label, innerHtml, bad) {
+  return `<div class="ov-pair">
+    <span class="ov-pair-k">${label}</span>
+    <span class="ov-pair-v${bad ? \' bad\' : \'\'}">${innerHtml}</span>
+  </div>`;
+}
+
+// Adoption row: label + stoplight on the first line, then the definition text
+// from the picklist underneath. The leading colour word is stripped because the
+// stoplight already says it — "Black: Less than 25% consumption" renders as a
+// black dot labelled Black, with "Less than 25% consumption" beneath.
+function adoptionHtml(label, v) {
+  const raw = (v === null || v === undefined) ? "" : String(v).trim();
+  const blank = !raw || raw === "-" || raw === "\\u2014";
+  const def = blank ? "" : raw.replace(/^(green|amber|yellow|red|black)\\b[\\s:\\u2013\\u2014-]*/i, "");
+  return `<div class="ov-adopt">
+    <div class="ov-adopt-top">
+      <span class="ov-pair-k">${label}</span>
+      <span class="ov-pair-v">${fmtStoplight(v)}</span>
+    </div>
+    ${def ? `<div class="ov-adopt-def">${esc(def)}</div>` : ""}
+  </div>`;
+}
+
+// The same SaaS / SM: Supported / SM: Unsupported badge used in the card header
+// and on the PNG health summary, so all three describe an account identically.
+function deployTag(a) {
+  if (a.is_saas) return \'<span class="tag tag-saas">SaaS</span>\';
+  return a.unsupported
+    ? \'<span class="tag tag-sm-unsup">SM: Unsupported</span>\'
+    : \'<span class="tag tag-sm-sup">SM: Supported</span>\';
+}
+
 function fmtStoplight(v) {
   const raw = (v === null || v === undefined) ? "" : String(v).trim();
   if (!raw || raw === "-" || raw === "\\u2014") return \'<span class="em-dash">—</span>\';
   // The Salesforce picklist value is a full sentence, e.g. "Green (any 2): ..."
   // — pull the leading color word and keep the rest as a hover tooltip.
-  const m = raw.match(/^(green|yellow|red|black)\\b/i);
-  const labels = { green: "Green", yellow: "Yellow", red: "Red", black: "Black" };
+  // The picklists say AMBER, not "yellow" — omitting it rendered every amber
+  // account as an em-dash. "yellow" stays as an alias.
+  const m = raw.match(/^(green|amber|yellow|red|black)\\b/i);
+  const labels = { green: "Green", amber: "Amber", yellow: "Yellow", red: "Red", black: "Black" };
   if (!m) return `<span class="em-dash" title="${esc(raw)}">—</span>`;
   const color = m[1].toLowerCase();
   return `<span class="stoplight-badge" title="${esc(raw)}"><span class="stoplight-dot stoplight-${color}"></span>${labels[color]}</span>`;
@@ -1506,6 +1783,11 @@ function buildCard(a) {
     ? `<span class="tag tag-region">${esc(a.region)}</span>` : "";
   const saasTag = a.is_saas
     ? \'<span class="tag tag-saas">SaaS</span>\' : "";
+  const smTag = !a.is_saas
+    ? (a.unsupported
+        ? \'<span class="tag tag-sm-unsup">SM: Unsupported</span>\'
+        : \'<span class="tag tag-sm-sup">SM: Supported</span>\')
+    : "";
   const churnTag = a.churn_summary
     ? `<span class="tag tag-churn">${esc(a.churn_summary)}</span>` : "";
 
@@ -1517,7 +1799,7 @@ function buildCard(a) {
     ${a.consumption_link}
     ${a.customer_central_url ? `<a class="cc-link" href="${esc(a.customer_central_url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Customer Central &#8599;</a>` : \'\'}
     <div class="card-meta">
-      ${regionTag}${saasTag}${churnTag}
+      ${regionTag}${saasTag}${smTag}${churnTag}
     </div>
     <span class="expand-icon">&#9660;</span>
   </div>
@@ -1531,17 +1813,42 @@ function buildCard(a) {
 
     <!-- Overview tab -->
     <div class="tab-pane active" id="overview-${esc(a.id)}">
-      <div class="field-grid">
-        ${fieldHtml("Contract ARR", a.arr, "arr-value")}
-        ${fieldHtml("Region", a.region)}
-        ${fieldHtml("Customer Success Manager", a.csm)}
-        ${fieldHtml("Account Owner", a.account_owner)}
-        ${fieldHtml("Field CTO", a.field_cto)}
-        ${fieldHtml("Lifecycle Stage", a.lifecycle_stage)}
-        ${fieldHtmlRaw("PBAC Adoption", fmtStoplight(a.pbac_adoption))}
-        ${fieldHtmlRaw("Comply Adoption", fmtStoplight(a.comply_adoption))}
-        ${fieldHtmlRaw("Request Adoption", fmtStoplight(a.request_adoption))}
-        ${fieldHtmlRaw("Agentic Governance Adoption", fmtStoplight(a.agentic_governance_adoption))}
+      <div class="overview-cols">
+        <div class="overview-col">
+          ${fieldHtml("Contract ARR", a.arr, "arr-value")}
+          ${fieldHtml("Region", a.region)}
+        </div>
+        <div class="overview-col">
+          ${fieldHtml("Customer Success Manager", a.csm)}
+          ${fieldHtml("Account Owner", a.account_owner)}
+          ${fieldHtml("Field CTO", a.field_cto)}
+        </div>
+        <div class="overview-col">
+          <div class="ov-head">Adoption</div>
+          ${adoptionHtml("PBAC", a.pbac_adoption)}
+          ${adoptionHtml("Comply", a.comply_adoption)}
+          ${adoptionHtml("Request", a.request_adoption)}
+          ${adoptionHtml("Agentic", a.agentic_governance_adoption)}
+          ${pairHtml("Registered", esc(a.registered_users))}
+          ${pairHtml("Licensed", esc(a.licensed_users))}
+          ${pairHtml("Ratio", `<span class="${pctClass(a.consumption_ratio_raw)}">${esc(a.consumption_ratio)}</span>`)}
+          ${fieldHtml("Lifecycle Stage", a.lifecycle_stage)}
+        </div>
+        <div class="overview-col">
+          <div class="ov-head">Performance</div>
+          <div>${deployTag(a)}</div>
+          ${pairHtml("Version", esc(a.immuta_version))}
+          ${pairHtml("Incidents 90d", esc(a.inc_90d))}
+          ${pairHtml("Incidents 360d", esc(a.inc_360d))}
+          ${pairHtml("CustX 90d", esc(a.custx_90d), a.custx_90d_raw > 0)}
+          ${pairHtml("CustX open", esc(a.custx_open), a.custx_open_raw > 0)}
+        </div>
+        <div class="overview-col">
+          <div class="ov-head">Engagement</div>
+          ${pairHtml("Last QBR", esc(a.last_qbr))}
+          ${pairHtml("Next QBR", esc(a.next_qbr))}
+          ${fieldHtmlRaw("QBR Note", `<span class="ov-note">${esc(a.qbr_note)}</span>`)}
+        </div>
       </div>
     </div>
 
@@ -1596,43 +1903,69 @@ function render() {
   else if (activePage === "expansions")  renderExpansions();
   else if (activePage === "changes")     renderChanges();
   else if (activePage === "consumption") renderConsumption();
+  else if (activePage === "self_managed") renderSelfManaged();
 }
 
 // ── Consumption ────────────────────────────────────────────────────────────
+function switchConSub(name) {
+  conSubTab = name;
+  document.querySelectorAll(".csub-btn").forEach(b => b.classList.toggle("active", b.dataset.csub === name));
+  document.querySelectorAll(".consumption-panel").forEach(p => p.classList.toggle("active", p.id === "con-panel-" + name));
+  renderConsumption();
+}
+
 function sortCon(col) {
   conSort.dir = conSort.col === col ? -conSort.dir : 1;
   conSort.col = col;
   renderConsumption();
 }
 
-function renderConsumption() {
-  const noData = \'<p class="empty-msg" style="padding:40px">No consumption data — run op_list_consumption() and regenerate the report.</p>\';
-  const statsEl = document.getElementById("con-stats");
-  const tableEl = document.getElementById("con-table");
+function pctClass(ratio) {
+  if (ratio === null || ratio === undefined || isNaN(ratio)) return "pct-none";
+  if (ratio >= 0.5)  return "pct-high";
+  if (ratio >= 0.25) return "pct-med";
+  return "pct-low";
+}
 
-  if (!CONSUMPTION_DATA || !Array.isArray(CONSUMPTION_DATA) || !CONSUMPTION_DATA.length) {
+function renderConsumption() {
+  const rows    = (CONSUMPTION_DATA && CONSUMPTION_DATA.rows) || [];
+  const lowRows = rows.filter(r => r["Low Consumption"] === true);
+  const chgRows = (CONSUMPTION_DATA && CONSUMPTION_DATA.changes && CONSUMPTION_DATA.changes.field_changes) || [];
+
+  document.getElementById("tab-count-consumption").textContent = rows.length;
+  document.getElementById("csub-count-all").textContent     = rows.length;
+  document.getElementById("csub-count-low").textContent     = lowRows.length;
+  document.getElementById("csub-count-changes").textContent = chgRows.length;
+
+  if      (conSubTab === "all")     renderConTable(rows,    "con-stats",     "con-table",     "No consumption data — run op_list_consumption() and regenerate the report.");
+  else if (conSubTab === "low")     renderConTable(lowRows, "con-stats-low", "con-table-low", "No customers currently flagged as low consumption.");
+  else if (conSubTab === "changes") renderConsumptionChanges(chgRows);
+}
+
+function renderConTable(rows, statsElId, tableElId, emptyMsg) {
+  const statsEl = document.getElementById(statsElId);
+  const tableEl = document.getElementById(tableElId);
+
+  if (!rows.length) {
     if (statsEl) statsEl.innerHTML = "";
-    if (tableEl) tableEl.innerHTML = noData;
-    document.getElementById("tab-count-consumption").textContent = "0";
+    if (tableEl) tableEl.innerHTML = `<p class="empty-msg" style="padding:40px">${emptyMsg}</p>`;
     return;
   }
 
-  const rows = CONSUMPTION_DATA;
-  document.getElementById("tab-count-consumption").textContent = rows.length;
-
   // Stats strip
   if (statsEl) {
-    const arrCol  = "Contract ARR Rollup";
-    const totalArr = rows.reduce((s, r) => s + (parseFloat(r[arrCol]) || 0), 0);
+    const totalArr  = rows.reduce((s, r) => s + (parseFloat(r["Contract ARR Rollup"]) || 0), 0);
     const saasCount = rows.filter(r => r["Is SaaS Customer"] === true || r["Is SaaS Customer"] === "TRUE").length;
+    const lowCount  = rows.filter(r => r["Low Consumption"] === true).length;
     statsEl.innerHTML =
-      \'<div class="stat-item"><div class="stat-label">Customers</div><div class="stat-value">\' + rows.length + \'</div></div>\' +
-      \'<div class="stat-item"><div class="stat-label">Total ARR</div><div class="stat-value">$\' + Math.round(totalArr / 1e6 * 10) / 10 + \'M</div></div>\' +
-      \'<div class="stat-item"><div class="stat-label">SaaS</div><div class="stat-value">\' + saasCount + \'</div></div>\';
+      `<div class="stat-item"><div class="stat-label">Customers</div><div class="stat-value">${rows.length}</div></div>` +
+      `<div class="stat-item"><div class="stat-label">Total ARR</div><div class="stat-value">$${Math.round(totalArr / 1e6 * 10) / 10}M</div></div>` +
+      `<div class="stat-item"><div class="stat-label">SaaS</div><div class="stat-value">${saasCount}</div></div>` +
+      `<div class="stat-item"><div class="stat-label">Low Consumption</div><div class="stat-value">${lowCount}</div></div>`;
   }
 
-  // Dynamic table — columns come directly from the data keys
-  const cols = Object.keys(rows[0]);
+  // Fixed column set (see CON_COLS)
+  const cols = CON_COLS;
 
   // Sort
   const sorted = conSort.col ? rows.slice().sort((a, b) => {
@@ -1643,25 +1976,178 @@ function renderConsumption() {
 
   const hdrs = cols.map(c => {
     const arrow = conSort.col === c ? (conSort.dir === 1 ? " ↑" : " ↓") : "";
-    return \'<th onclick="sortCon(\\\'\' + c + \'\\\')" style="cursor:pointer">\' + esc(c) + arrow + \'</th>\';
+    return `<th onclick="sortCon(\'${c}\')" style="cursor:pointer">${esc(c)}${arrow}</th>`;
   }).join("");
 
-  const brs = sorted.map(r =>
-    \'<tr>\' + cols.map(c => {
+  const brs = sorted.map(r => {
+    const rowCls = r["Low Consumption"] === true ? \' class="low-con"\' : "";
+    return `<tr${rowCls}>` + cols.map(c => {
       const v = r[c];
-      if (v === null || v === undefined || v === "NA") return \'<td><span class="em-dash">—</span></td>\';
+      if (c === "Consumption Ratio") {
+        const pct = parseFloat(v);
+        if (v === null || v === undefined || v === "NA" || isNaN(pct)) return `<td><span class="em-dash">—</span></td>`;
+        return `<td class="${pctClass(pct)}">${Math.round(pct * 1000) / 10}%</td>`;
+      }
+      if (c === "Changes in Data Sources Count" || c === "Changes in Active Policies") {
+        const d = parseFloat(v);
+        if (v === null || v === undefined || v === "NA" || isNaN(d)) return `<td><span class="em-dash">—</span></td>`;
+        const cls  = d > 0 ? "pct-high" : d < 0 ? "pct-low" : "pct-none";
+        const sign = d > 0 ? "+" : "";
+        return `<td class="${cls}">${sign}${d.toLocaleString("en-US", {maximumFractionDigits: 2})}</td>`;
+      }
+      if (v === null || v === undefined || v === "NA") return `<td><span class="em-dash">—</span></td>`;
       if (c === "Is SaaS Customer")
-        return \'<td>\'+(v===true||v==="TRUE"?\'<span class="tag tag-saas">SaaS</span>\':\'<span class="tag tag-region">Self-Mgd</span>\')+\'</td>\';
+        return `<td>${v === true || v === "TRUE" ? \'<span class="tag tag-saas">SaaS</span>\' : \'<span class="tag tag-region">Self-Mgd</span>\'}</td>`;
       if (c === "Customer on Unsupported Version")
-        return \'<td>\'+(v===true||v==="TRUE"?\'<span class="tag tag-churn">Yes</span>\':\'\')+\'</td>\';
+        return `<td>${v === true || v === "TRUE" ? \'<span class="tag tag-churn">Yes</span>\' : \'\'}</td>`;
       const n = parseFloat(v);
       if (!isNaN(n) && typeof v !== "boolean" && String(v).trim() !== "")
-        return \'<td style="text-align:right">\' + n.toLocaleString("en-US", {maximumFractionDigits: 2}) + \'</td>\';
-      return \'<td>\' + esc(String(v)) + \'</td>\';
-    }).join("") + \'</tr>\'
-  ).join("");
+        return `<td style="text-align:right">${n.toLocaleString("en-US", {maximumFractionDigits: 2})}</td>`;
+      return `<td>${esc(String(v))}</td>`;
+    }).join("") + "</tr>";
+  }).join("");
 
-  tableEl.innerHTML = \'<table class="flat-table"><thead><tr>\' + hdrs + \'</tr></thead><tbody>\' + brs + \'</tbody></table>\';
+  tableEl.innerHTML = `<table class="flat-table"><thead><tr>${hdrs}</tr></thead><tbody>${brs}</tbody></table>`;
+}
+
+function renderConsumptionChanges(rows) {
+  const hdr      = document.getElementById("con-changes-header");
+  const body     = document.getElementById("con-changes-content");
+  const diffDate = (CONSUMPTION_DATA && CONSUMPTION_DATA.diff_date) || "";
+
+  hdr.innerHTML = diffDate
+    ? `<div><div class="changes-date-label">Comparing to</div><div class="changes-date-val">${esc(diffDate)}</div></div>`
+    : "";
+
+  if (!rows || rows.length === 0) {
+    body.innerHTML = `<p class="empty-msg" style="padding:40px">No consumption drops detected${diffDate ? \' since \' + esc(diffDate) : \'\'}.</p>`;
+    return;
+  }
+
+  const na = `<td class="chg-null">—</td>`;
+  const trs = rows.map(r => {
+    const acct = r["Account Name"] || "";
+    return `<tr>
+      <td><span class="acct-link" onclick="goToAccount(\'${esc(acct)}\')">${esc(acct)}</span></td>
+      ${r.user_drop ? `<td>${chgArrow(r["Registered Users.old"], r["Registered Users.new"])} <span class="chg-null">(&#8722;${r.user_drop_pct}%)</span></td>` : na}
+      ${r.ds_drop   ? `<td>${chgArrow(r["Data Sources Count.old"], r["Data Sources Count.new"])}</td>` : na}
+      ${r.pol_drop  ? `<td>${chgArrow(r["Active Policies (Total).old"], r["Active Policies (Total).new"])}</td>` : na}
+    </tr>`;
+  }).join("");
+
+  body.innerHTML = `
+    <div class="chg-group">
+      <div class="chg-group-title"><span class="chg-badge chg-changed">&#126; Changed (${rows.length})</span></div>
+      <table class="flat-table">
+        <thead><tr><th>Account</th><th>Registered Users</th><th>Data Sources</th><th>Active Policies</th></tr></thead>
+        <tbody>${trs}</tbody>
+      </table>
+    </div>`;
+}
+
+// ── Self-Managed ─────────────────────────────────────────────────────────────
+function smVersionStatus(r) {
+  const v = r["Customer on Unsupported Version"];
+  if (v === null || v === undefined || v === "" || v === "NA") return "Unknown";
+  return (v === true || v === "TRUE" || v === "Yes" || v === "yes") ? "Unsupported" : "Supported";
+}
+
+function smSupportBadge(status) {
+  const cls = status === "Supported" ? "arch-yes" : status === "Unsupported" ? "arch-warn" : "arch-no";
+  return `<span class="arch-badge ${cls}">${esc(status)}</span>`;
+}
+
+function setSMSupport(val) {
+  activeSMSupport = val;
+  document.querySelectorAll(\'.flat-pill[data-sm-support]\').forEach(b =>
+    b.classList.toggle("active", b.dataset.smSupport === val));
+  renderSelfManaged();
+}
+
+function setSMLifecycle(val) {
+  activeSMLifecycle = val;
+  document.querySelectorAll(\'.flat-pill[data-sm-lifecycle]\').forEach(b =>
+    b.classList.toggle("active", b.dataset.smLifecycle === val));
+  renderSelfManaged();
+}
+
+function sortSM(col) {
+  smSort.dir = smSort.col === col ? -smSort.dir : 1;
+  smSort.col = col;
+  renderSelfManaged();
+}
+
+function renderSelfManaged() {
+  const allRows = (CONSUMPTION_DATA && CONSUMPTION_DATA.rows) || [];
+  const selfManagedRows = allRows.filter(r =>
+    !(r["Is SaaS Customer"] === true || r["Is SaaS Customer"] === "TRUE")
+  );
+
+  document.getElementById("tab-count-self-managed").textContent = selfManagedRows.length;
+
+  let rows = selfManagedRows;
+  if (activeSMSupport !== "all") rows = rows.filter(r => smVersionStatus(r) === activeSMSupport);
+  if (activeSMLifecycle !== "all") rows = rows.filter(r => (r["Lifecycle Stage"] || "") === activeSMLifecycle);
+
+  const statsEl = document.getElementById("sm-stats");
+  const tableEl = document.getElementById("sm-table");
+
+  if (!selfManagedRows.length) {
+    statsEl.innerHTML = "";
+    tableEl.innerHTML = \'<p class="empty-msg" style="padding:40px">No self-managed accounts found, or consumption data hasn\\\'t been refreshed yet.</p>\';
+    return;
+  }
+
+  const unsupportedCount = selfManagedRows.filter(r => smVersionStatus(r) === "Unsupported").length;
+  const supportedCount   = selfManagedRows.filter(r => smVersionStatus(r) === "Supported").length;
+  const lowConCount      = selfManagedRows.filter(r => r["Low Consumption"] === true).length;
+  statsEl.innerHTML =
+    `<div class="stat-item"><div class="stat-label">Self-Managed</div><div class="stat-value">${selfManagedRows.length}</div></div>` +
+    `<div class="stat-item"><div class="stat-label">Supported</div><div class="stat-value">${supportedCount}</div></div>` +
+    `<div class="stat-item"><div class="stat-label">Unsupported</div><div class="stat-value">${unsupportedCount}</div></div>` +
+    `<div class="stat-item"><div class="stat-label">Low Consumption</div><div class="stat-value">${lowConCount}</div></div>`;
+
+  if (!rows.length) {
+    tableEl.innerHTML = \'<p class="empty-msg" style="padding:40px">No self-managed accounts match the current filters.</p>\';
+    return;
+  }
+
+  const cols = SM_COLS;
+  const sorted = smSort.col ? rows.slice().sort((a, b) => {
+    let av, bv;
+    if (smSort.col === "Support Status") { av = smVersionStatus(a); bv = smVersionStatus(b); }
+    else { av = a[smSort.col]; bv = b[smSort.col]; }
+    const anum = parseFloat(av), bnum = parseFloat(bv);
+    if (!isNaN(anum) && !isNaN(bnum) && String(av).trim() !== "" && String(bv).trim() !== "") {
+      return (anum - bnum) * smSort.dir;
+    }
+    return String(av || "").localeCompare(String(bv || "")) * smSort.dir;
+  }) : rows;
+
+  const hdrs = cols.map(c => {
+    const arrow = smSort.col === c ? (smSort.dir === 1 ? " \\u2191" : " \\u2193") : "";
+    return `<th onclick="sortSM(\'${c}\')" style="cursor:pointer">${esc(c)}${arrow}</th>`;
+  }).join("");
+
+  const brs = sorted.map(r => {
+    const rowCls = r["Low Consumption"] === true ? \' class="low-con"\' : "";
+    return `<tr${rowCls}>` + cols.map(c => {
+      if (c === "Support Status") return `<td>${smSupportBadge(smVersionStatus(r))}</td>`;
+      const v = r[c];
+      if (c === "Consumption Ratio") {
+        const pct = parseFloat(v);
+        if (v === null || v === undefined || v === "NA" || isNaN(pct)) return `<td><span class="em-dash">—</span></td>`;
+        return `<td class="${pctClass(pct)}">${Math.round(pct * 1000) / 10}%</td>`;
+      }
+      if (v === null || v === undefined || v === "" || v === "NA") return `<td><span class="em-dash">—</span></td>`;
+      const n = parseFloat(v);
+      if (!isNaN(n) && typeof v !== "boolean" && String(v).trim() !== "" && c !== "Immuta Version")
+        return `<td style="text-align:right">${n.toLocaleString("en-US", {maximumFractionDigits: 2})}</td>`;
+      return `<td>${esc(String(v))}</td>`;
+    }).join("") + "</tr>";
+  }).join("");
+
+  tableEl.innerHTML = `<table class="flat-table"><thead><tr>${hdrs}</tr></thead><tbody>${brs}</tbody></table>`;
 }
 
 // ── Accounts render ────────────────────────────────────────────────────────
@@ -2286,6 +2772,7 @@ render();
 
   tmpl <- gsub("{{REGION_PILLS}}", region_pills,          tmpl, fixed = TRUE)
   tmpl <- gsub("{{CSM_PILLS}}",   csm_pills,             tmpl, fixed = TRUE)
+  tmpl <- gsub("{{SM_LIFECYCLE_PILLS}}", sm_lifecycle_pills, tmpl, fixed = TRUE)
   tmpl <- gsub("{{SNAP_DATES}}",  .to_json(snap_dates),  tmpl, fixed = TRUE)
   tmpl <- gsub("{{CHANGES}}",      changes_json,          tmpl, fixed = TRUE)
   tmpl <- gsub("{{CONSUMPTION}}",  consumption_json,      tmpl, fixed = TRUE)

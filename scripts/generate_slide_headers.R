@@ -4,7 +4,7 @@
 # Run this from the ImmuteR project root in RStudio or the R console:
 #   source("scripts/generate_slide_headers.R")
 #
-# Output: output/slide_headers/<Account_Name>_slide_header.png
+# Output: output/slide_content/headers/<Account_Name>_slide_header.png
 # One 1280 × 200 px PNG per account, named by account name.
 # =============================================================================
 
@@ -36,7 +36,7 @@ load(latest)   # loads op_list into environment
 # ── Generate all headers ──────────────────────────────────────────────────────
 paths <- generate_all_slide_headers(
   op_list    = op_list,
-  output_dir = "output/slide_headers"
+  output_dir = "output/slide_content/headers"
 )
 
-message("\nAll done. Files written to output/slide_headers/")
+message("\nAll done. Files written to output/slide_content/headers/")

@@ -8,6 +8,9 @@
 #'
 #' @param sf_opportunity_report Character. Salesforce report ID for the opportunity report.
 #' @param sf_account_report Character. Salesforce report ID for the account report.
+#'   Expected to carry the QBR/EBR date and note fields, which
+#'   \code{\link{normalize_qbr_fields}} copies to \code{Date Last QBR},
+#'   \code{Date Next QBR}, and \code{QBR Note}.
 #' @param sf_active_order_report Character. Salesforce report ID for active orders.
 #' @param sf_saas_migration_report Character. Salesforce report ID for the SaaS migration pipeline.
 #' @param sf_csm_summary_report Character. Salesforce report ID for CSM account assignments.
@@ -21,9 +24,12 @@
 #'   Defaults to \code{FALSE} — SFDC-only stats are always computed.
 #' @param looker_cache_path Character or NULL. Directory for Looker parquet caches.
 #'   Defaults to \code{"data/looker/"}. Pass \code{NULL} to disable caching.
-#' @param low_consumption_threshold Numeric. Fraction below which a customer is
-#'   flagged as low consumption in \code{op_list$consumption$low_consumption}.
-#'   Defaults to \code{0.20} (20\%).
+#' @param low_consumption_threshold Numeric. Fraction below which a customer's
+#'   registered/licensed user ratio flags them as low consumption in
+#'   \code{op_list$consumption$low_consumption$`Low Consumption`} — a customer
+#'   is also flagged when their Production instance has zero active policies of
+#'   any kind. Defaults to \code{0.25} (25\%). Passed through to
+#'   \code{\link{op_list_consumption}}.
 #' @param productboard Logical. If \code{TRUE}, pulls Productboard notes and
 #'   features and builds \code{op_list$product_board} (feedback + feature
 #'   requests summarized per account). Requires a \code{PRODUCTBOARD_API_TOKEN}
@@ -35,7 +41,8 @@
 #'
 #' @return A named list with elements: \code{renewals}, \code{expansions},
 #'   \code{accounts}, \code{active_orders}, \code{csm_table}, \code{saas_pipeline},
-#'   \code{orders}, \code{consumption}, and (if \code{productboard = TRUE})
+#'   \code{orders}, \code{consumption}, \code{support} (from BigQuery — see
+#'   \code{\link{op_list_support}}), and (if \code{productboard = TRUE})
 #'   \code{product_board}.
 #' @export
 enrich_opportunities <- function(sf_opportunity_report    = "00OVH000005p6A92AI",
@@ -48,7 +55,7 @@ enrich_opportunities <- function(sf_opportunity_report    = "00OVH000005p6A92AI"
                                  idex_path                = "data/idex/",
                                  looker                   = FALSE,
                                  looker_cache_path        = "data/looker/",
-                                 low_consumption_threshold = 0.20,
+                                 low_consumption_threshold = 0.25,
                                  productboard             = FALSE,
                                  fiscal.period) {
 
@@ -65,6 +72,11 @@ enrich_opportunities <- function(sf_opportunity_report    = "00OVH000005p6A92AI"
     account.table$customer_central_url=paste("https://customer-central.immuta.support/customers/",account.table$`Account ID 18`,sep="")
     account.table$`Contract ARR Rollup`=extract_usd_amount(account.table$`Contract ARR Rollup`)
     # account.table$retool_url=paste("https://retool-nonprod.ic-ops.net/app/customer-central/customerDetail?customerName=",gsub(" ","%2O",account.table$`Account Name`),sep="")
+
+  # The account report carries the QBR/EBR fields directly; this just adds
+  # stably-named `Date Last QBR` / `Date Next QBR` / `QBR Note` copies, since
+  # Salesforce has renamed the underlying fields more than once.
+  account.table <- normalize_qbr_fields(account.table)
 
 
   # split into expansions and renewals
@@ -101,7 +113,22 @@ enrich_opportunities <- function(sf_opportunity_report    = "00OVH000005p6A92AI"
   }
   output_list[["consumption"]] <- op_list_consumption(
     op_list = output_list,
-    raw     = raw
+    raw     = raw,
+    low_consumption_threshold = low_consumption_threshold
+  )
+
+  # ── support child list ──────────────────────────────────────────────────────
+  # Pulled from BigQuery (retool-457517), not Looker — see ?op_list_support.
+  # Requires bigrquery::bq_auth() to have run at least once on this machine.
+  # Warns rather than aborting: everything downstream renders an em-dash for
+  # missing support figures.
+  message(".. building op_list$support")
+  output_list[["support"]] <- tryCatch(
+    op_list_support(accounts = output_list[["accounts"]]),
+    error = function(e) {
+      warning("Support rollup skipped: ", conditionMessage(e), call. = FALSE)
+      NULL
+    }
   )
 
   # ── product_board child list ────────────────────────────────────────────────
