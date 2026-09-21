@@ -44,9 +44,6 @@ if (nzchar(.env_diff_date)) {
 rm(.env_diff_date)
 fiscal.period   <- c("Q2-2027", "Q3-2027", "Q4-2027","Q1-2028")
 
-# idex parquet data directory (relative to project root)
-idex_path <- "data/idex/"
-
 # Asana
 # Generate your token at https://app.asana.com/0/my-apps
 # Then add ASANA_TOKEN=your_token to your .Renviron (usethis::edit_r_environ())
@@ -61,6 +58,7 @@ sf_active_order_report   <- "00OVV000006AOnB2AW"
 sf_saas_migration_report <- "00OVV000006FbWr2AK"
 sf_csm_summary_report    <- "00OVV000006FbNB2A0"
 sf_orders_report         <- "00OVV000005RTxV2AW"
+sf_forecast_report       <- "00OVH00000706ML2AY"  # CompanyChurnReport (renewal churn forecast)
 
 # Google Sheet URLs
 account_doc_tracker        <- "https://docs.google.com/spreadsheets/d/1Rxl25OyKEW1W1ny8Vbv3TDa2QCqR9VSpTN0QVPu6o9w/edit?usp=sharing"
@@ -88,10 +86,9 @@ new_op_list <- enrich_opportunities(
   sf_saas_migration_report = sf_saas_migration_report,
   sf_csm_summary_report    = sf_csm_summary_report,
   sf_orders_report         = sf_orders_report,
+  sf_forecast_report       = sf_forecast_report,
   fiscal.period            = fiscal.period,
-  idex                     = FALSE,
-  looker                   = TRUE,
-  idex_path                = idex_path
+  looker                   = TRUE
 )
 
 load(paste0("data/opportunities_", diff_date, ".RData"))
@@ -107,28 +104,69 @@ op_list[["constants"]] <- load_constants()
 
 report_all_accounts_html(op_list)   # -> output/immuta_accounts.html
 
+# Same records as the HTML page, as JSON, for the Dust frame experiment.
+# -> output/dust_frame/{accounts,changes,consumption}.json + schema.md
+# See DUST_FRAME_AGENT.md. Cheap to write; drop this line if the experiment ends.
+output_dust_payload(op_list)
+
+# Every account on the two axes the PBAC rating is built from, with the rating
+# grid shaded behind them. Needs a looker = TRUE run — skipped, with a note,
+# when consumption$pbac_adoption isn't there.
+if (!is.null(op_list$consumption$pbac_adoption) &&
+    nrow(op_list$consumption$pbac_adoption) > 0) {
+  report_pbac_scatter(op_list)      # -> output/pbac_scatter.html
+} else {
+  message("Skipping report_pbac_scatter(): no consumption$pbac_adoption ",
+          "(SFDC-only run?)")
+}
+
 
 # Slide assets, written locally only (see the Drive section at the bottom —
 # these are deliberately NOT uploaded).
-#   output/slide_content/headers/<Account ID>_slide_header.png
-#   output/slide_content/health_summaries/<Account ID>-adoption_tile.png
-generate_all_slide_headers(op_list)
-generate_all_slide_tiles(op_list)
+#   output/slide_content/headers/<n>_<account_name>_header.png
+#   output/slide_content/health_summaries/<n>_<account_name>_health.png
+#   output/slide_content/slide_assets_manifest.csv
+# One matched pair per account, numbered 1..N with no gaps. Both files share the
+# same <n>_<account_name> stem, which is what the Google Slides builder pairs on
+# — so generate both together rather than calling generate_all_slide_headers()
+# and generate_all_slide_tiles() separately, which can leave orphaned headers.
 
-
+op_list_inspector   = "https://docs.google.com/spreadsheets/d/1Rxl25OyKEW1W1ny8Vbv3TDa2QCqR9VSpTN0QVPu6o9w/edit?gid=926810859#gid=926810859"
 sheet_write(
-  data = report_all_accounts(op_list),
-  ss   = "https://docs.google.com/spreadsheets/d/1Rxl25OyKEW1W1ny8Vbv3TDa2QCqR9VSpTN0QVPu6o9w/edit?gid=926810859#gid=926810859",
+  data = op_list$accounts,
+  ss   = op_list_inspector,
   sheet = "AccountList"
 )
 
 sheet_write(
-  data  = op_list$orders,
-  ss    = "https://docs.google.com/spreadsheets/d/145woTlgjWeRx3eFQP8uXgb4cCy-lNpC1ZfI36rXFHbE/edit?usp=sharing",
-  sheet = "sfdc_order_data"
+  data = op_list$consumption$users,
+  ss   = op_list_inspector,
+  sheet = "users"
 )
 
+sheet_write(
+  data = op_list$consumption$data_sources,
+  ss   = op_list_inspector,
+  sheet = "data_sources"
+)
 
+sheet_write(
+  data = op_list$consumption$sdd_consumption,
+  ss   = op_list_inspector,
+  sheet = "sdd"
+)
+
+sheet_write(
+  data = op_list$consumption$pb ,
+  ss   = op_list_inspector,
+  sheet = "pbac"
+)
+
+sheet_write(
+  data = op_list$consumption$policy_metrics ,
+  ss   = op_list_inspector,
+  sheet = "policies"
+)
 # -----------------------------------------------------------------------------
 # Save list object for next run's diff
 # -----------------------------------------------------------------------------
@@ -140,12 +178,19 @@ save(op_list, file = paste0("data/opportunities_", Sys.Date(), ".RData"))
 
 
 # -----------------------------------------------------------------------------
-# Slide payload JSON (one file per region + a combined file)
+# Full op_list JSON dump
 # -----------------------------------------------------------------------------
-# Same data the Google Slides generator renders, written to
-# output/slide_payloads/ so it syncs to Drive with everything else.
-output_slide_payload_json(op_list)
-
+# output/current_state/op_list.json — everything the run produced, including
+# op_list$forecast and op_list$changes_detail$forecast. Written after the
+# snapshot save so the file and the .RData always describe the same run.
+dir.create("output/current_state", recursive = TRUE, showWarnings = FALSE)
+tryCatch(
+  jsonlite::write_json(op_list, "output/current_state/op_list.json",
+                       auto_unbox = TRUE, na = "null", pretty = TRUE),
+  error = function(e) {
+    warning("op_list.json write skipped: ", conditionMessage(e), call. = FALSE)
+  }
+)
 
 # -----------------------------------------------------------------------------
 # Publish the dashboard to the shared Google Drive folder

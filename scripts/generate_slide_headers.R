@@ -4,8 +4,15 @@
 # Run this from the ImmuteR project root in RStudio or the R console:
 #   source("scripts/generate_slide_headers.R")
 #
-# Output: output/slide_content/headers/<Account_Name>_slide_header.png
-# One 1280 × 200 px PNG per account, named by account name.
+# Output: output/slide_content/headers/<n>_<account_name>_header.png
+#         output/slide_content/health_summaries/<n>_<account_name>_health.png
+#         output/slide_content/slide_assets_manifest.csv
+#
+# Headers and health summaries are generated together, as one matched pair per
+# account numbered 1..N (e.g. 1_acorns_header.png + 1_acorns_health.png). The
+# Google Slides builder pairs the two files on that <n>_<account_name> stem, so
+# they must be produced in the same pass — running the header generator on its
+# own can leave a header with no health summary beside it.
 # =============================================================================
 
 # Load package functions (dev mode — no install needed)
@@ -33,10 +40,8 @@ latest <- rdata_files[which.max(as.Date(gsub(".*opportunities_(.+)\\.RData", "\\
 message("Loading: ", latest)
 load(latest)   # loads op_list into environment
 
-# ── Generate all headers ──────────────────────────────────────────────────────
-paths <- generate_all_slide_headers(
-  op_list    = op_list,
-  output_dir = "output/slide_content/headers"
-)
+# ── Generate all slide assets ─────────────────────────────────────────────────
+manifest <- generate_all_slide_assets(op_list)
 
-message("\nAll done. Files written to output/slide_content/headers/")
+message("\nAll done. ", nrow(manifest), " account(s) written to ",
+        "output/slide_content/")

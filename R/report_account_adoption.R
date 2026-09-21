@@ -12,6 +12,8 @@
 #'
 #' @return A data frame with columns \code{Account Name}, \code{Region},
 #'   \code{Lifecycle Stage}, \code{PBAC Adoption}, \code{Request Adoption},
+#'   \code{request_adoption_looker} (the tier derived from Looker dashboard
+#'   1009 — see \code{\link{op_list_request_adoption}}),
 #'   \code{Comply Adoption}, \code{Agentic Governance Adoption}, and
 #'   \code{Is SaaS Customer}, sorted alphabetically by account name. Any of
 #'   these columns missing from \code{op_list$accounts} (e.g. an older
@@ -24,8 +26,13 @@
 #' @export
 report_account_adoption <- function(op_list) {
 
+  # request_adoption_looker sits next to the hand-maintained Request Adoption
+  # picklist rather than replacing it, so the sheet shows both and the gaps are
+  # visible. Missing columns are filled with NA below, so snapshots taken
+  # before this field existed (or from a looker = FALSE run) still work.
   cols <- c("Account Name", "Region", "Lifecycle Stage",
-            "PBAC Adoption", "Request Adoption", "Comply Adoption",
+            "PBAC Adoption", "Request Adoption", "request_adoption_looker",
+            "Comply Adoption",
             "Agentic Governance Adoption", "Is SaaS Customer")
 
   accounts <- op_list$accounts

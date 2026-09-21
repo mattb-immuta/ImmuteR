@@ -7,8 +7,9 @@
 generate_slide_header(
   account_name,
   op_list,
-  output_dir = "output/slide_headers",
-  dpi = 600
+  output_dir = "output/slide_content/headers",
+  dpi = 600,
+  index = NULL
 )
 }
 \arguments{
@@ -20,13 +21,22 @@ to contain \code{accounts} and \code{renewals} elements.}
 
 \item{output_dir}{Character. Directory to write the PNG into. Created
 recursively if it does not exist. Defaults to
-\code{"output/slide_headers"}.}
+\code{"output/slide_content/headers"}.}
 
 \item{dpi}{Integer. Output resolution in dots per inch. Defaults to
 \code{600} (6000 × 600 px for a 10 × 1 inch image).}
+
+\item{index}{Integer or \code{NULL}. Sequence number used as the filename
+prefix. When \code{NULL} (the default) it is derived from the account's
+position in the canonical slide ordering of \code{op_list$accounts} —
+Region, then Customer Success Manager, then account name — so the header
+and the health summary for an account always share the same number.}
 }
 \value{
-Invisibly returns the full path to the written PNG file.
+Invisibly returns the full path to the written PNG file. The file is
+  named \code{"<index>_<account_name>_header.png"} — the name lowercased with
+  spaces collapsed to underscores and all other punctuation dropped, e.g.
+  \code{"1_acorns_header.png"}.
 }
 \description{
 Creates a 10 × 1 inch PNG banner styled with Immuta brand tokens

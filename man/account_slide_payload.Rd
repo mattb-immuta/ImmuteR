@@ -18,9 +18,10 @@ A named list with elements:
     account_url, customer_central_url.}
   \item{\code{adoption}}{modules (a list of label/status/colour triples),
     registered, licensed, ratio, lifecycle_stage.}
-  \item{\code{performance}}{cases_60d, escalations_60d, cases_180d,
-    escalations_180d, cases_total, windowed (logical), deployment, version,
-    support_status.}
+  \item{\code{performance}}{cases_90d, cases_360d, cases_total,
+    escalations_90d, escalations_360d, escalations_open, deployment
+    (the SaaS / SM: Supported / SM: Unsupported badge text),
+    deployment_color, version.}
   \item{\code{engagement}}{last_qbr, next_qbr, qbr_note.}
 }
 }

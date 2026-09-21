@@ -32,6 +32,8 @@ Imports:
     purrr,
     rmarkdown,
     httr2,
+    glue,
+    readr,
     ggplot2,
     svglite,
     rsvg,

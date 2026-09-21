@@ -6,7 +6,7 @@
 \usage{
 generate_all_slide_tiles(
   op_list,
-  output_dir = "output/slide_headers",
+  output_dir = "output/slide_content/health_summaries",
   dpi = 600
 )
 }
@@ -14,7 +14,7 @@ generate_all_slide_tiles(
 \item{op_list}{Named list returned by \code{enrich_opportunities()}.}
 
 \item{output_dir}{Character. Output directory. Defaults to
-\code{"output/slide_headers"}.}
+\code{"output/slide_content/health_summaries"}.}
 
 \item{dpi}{Integer. Output resolution. Defaults to \code{600}.}
 }
@@ -25,8 +25,14 @@ Invisibly returns a named character vector of written file paths
 \description{
 Calls \code{\link{generate_slide_tile}} for every unique account in
 \code{op_list$accounts}, writing one
-\code{"<account name>-adoption_tile.png"} per account. Accounts that fail
+\code{"<index>_<account_name>_health.png"} per account. Accounts that fail
 are skipped with a warning.
+}
+\details{
+Health summaries only — see the note on
+\code{\link{generate_all_slide_headers}}; use
+\code{\link{generate_all_slide_assets}} when the headers and health summaries
+have to line up.
 }
 \examples{
 \dontrun{

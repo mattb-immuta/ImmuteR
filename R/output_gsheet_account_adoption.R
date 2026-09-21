@@ -2,7 +2,9 @@
 #'
 #' Builds the table from \code{\link{report_account_adoption}} (account name,
 #' region, lifecycle stage, PBAC/Request/Comply/Agentic Governance adoption,
-#' and SaaS-customer flag) and writes it out with \code{googlesheets4}.
+#' the Looker-derived \code{request_adoption_looker} tier alongside the
+#' Salesforce Request picklist, and SaaS-customer flag) and writes it out with
+#' \code{googlesheets4}.
 #'
 #' @param op_list Named list returned by \code{enrich_opportunities()} (or
 #'   loaded from a saved snapshot in \code{data/}).

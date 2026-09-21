@@ -1,0 +1,1041 @@
+{
+  "generated_at": "2026-09-18T17:48:38Z",
+  "region": "Public Sector",
+  "account_count": 11,
+  "accounts": [
+    {
+      "slide_ids": {
+        "slide": "s_boozallenhamilton_18654",
+        "title": "t_boozallenhamilton_18654",
+        "arr": "r_boozallenhamilton_18654",
+        "meta": "d_boozallenhamilton_18654",
+        "header": [
+          "h1_boozallenhamilton_18654",
+          "h2_boozallenhamilton_18654",
+          "h3_boozallenhamilton_18654"
+        ],
+        "metrics": [
+          "m1_boozallenhamilton_18654",
+          "m2_boozallenhamilton_18654",
+          "m3_boozallenhamilton_18654"
+        ],
+        "comment": [
+          "c1_boozallenhamilton_18654",
+          "c2_boozallenhamilton_18654",
+          "c3_boozallenhamilton_18654"
+        ],
+        "writable": [
+          "t_boozallenhamilton_18654",
+          "r_boozallenhamilton_18654",
+          "d_boozallenhamilton_18654",
+          "h1_boozallenhamilton_18654",
+          "h2_boozallenhamilton_18654",
+          "h3_boozallenhamilton_18654",
+          "m1_boozallenhamilton_18654",
+          "m2_boozallenhamilton_18654",
+          "m3_boozallenhamilton_18654"
+        ],
+        "never_overwrite": [
+          "c1_boozallenhamilton_18654",
+          "c2_boozallenhamilton_18654",
+          "c3_boozallenhamilton_18654"
+        ]
+      },
+      "account": {
+        "name": "Booz Allen Hamilton",
+        "region": "Public Sector",
+        "arr": "$198,000",
+        "ae": "Alex Jendzejec",
+        "csm": "Adam Mangen",
+        "fcto": "Samantha Hamernick",
+        "next_renewal": "$198,000, Q2-2028",
+        "account_url": "https://immuta.lightning.force.com/lightning/r/Account/0011K00002A9GwL/view",
+        "customer_central_url": "https://customer-central.immuta.support/customers/0011K00002A9GwLQAV"
+      },
+      "adoption": {
+        "modules": [
+          {
+            "label": "PBAC",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Comply",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Request",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Agentic",
+            "status": "Black",
+            "colour": "#111111"
+          }
+        ],
+        "registered": "363",
+        "licensed": "880",
+        "ratio": "41.2%",
+        "lifecycle_stage": "S2. MVP in prod, use case pipelining."
+      },
+      "performance": {
+        "cases_90d": "1",
+        "cases_360d": "10",
+        "cases_total": "146",
+        "escalations_90d": "0",
+        "escalations_360d": "2",
+        "escalations_open": "0",
+        "deployment": "SM: Supported",
+        "deployment_color": "#92400E",
+        "version": "—"
+      },
+      "engagement": {
+        "last_qbr": "March 24, 2026",
+        "next_qbr": "October 20, 2026",
+        "qbr_note": "9/18 - EBR scheduled 10/20"
+      }
+    },
+    {
+      "slide_ids": {
+        "slide": "s_defensehealthagencydha_29721",
+        "title": "t_defensehealthagencydha_29721",
+        "arr": "r_defensehealthagencydha_29721",
+        "meta": "d_defensehealthagencydha_29721",
+        "header": [
+          "h1_defensehealthagencydha_29721",
+          "h2_defensehealthagencydha_29721",
+          "h3_defensehealthagencydha_29721"
+        ],
+        "metrics": [
+          "m1_defensehealthagencydha_29721",
+          "m2_defensehealthagencydha_29721",
+          "m3_defensehealthagencydha_29721"
+        ],
+        "comment": [
+          "c1_defensehealthagencydha_29721",
+          "c2_defensehealthagencydha_29721",
+          "c3_defensehealthagencydha_29721"
+        ],
+        "writable": [
+          "t_defensehealthagencydha_29721",
+          "r_defensehealthagencydha_29721",
+          "d_defensehealthagencydha_29721",
+          "h1_defensehealthagencydha_29721",
+          "h2_defensehealthagencydha_29721",
+          "h3_defensehealthagencydha_29721",
+          "m1_defensehealthagencydha_29721",
+          "m2_defensehealthagencydha_29721",
+          "m3_defensehealthagencydha_29721"
+        ],
+        "never_overwrite": [
+          "c1_defensehealthagencydha_29721",
+          "c2_defensehealthagencydha_29721",
+          "c3_defensehealthagencydha_29721"
+        ]
+      },
+      "account": {
+        "name": "Defense Health Agency (DHA)",
+        "region": "Public Sector",
+        "arr": "$550,000",
+        "ae": "Alex Jendzejec",
+        "csm": "Mark Zindren",
+        "fcto": "Paul Myres",
+        "next_renewal": "$275,000, Q1-2028",
+        "account_url": "https://immuta.lightning.force.com/lightning/r/Account/0011K00002RDtPQ/view",
+        "customer_central_url": "https://customer-central.immuta.support/customers/0011K00002RDtPQQA1"
+      },
+      "adoption": {
+        "modules": [
+          {
+            "label": "PBAC",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Comply",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Request",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Agentic",
+            "status": "Black",
+            "colour": "#111111"
+          }
+        ],
+        "registered": "—",
+        "licensed": "—",
+        "ratio": "—",
+        "lifecycle_stage": "S1: Installation and Config."
+      },
+      "performance": {
+        "cases_90d": "0",
+        "cases_360d": "0",
+        "cases_total": "4",
+        "escalations_90d": "0",
+        "escalations_360d": "0",
+        "escalations_open": "0",
+        "deployment": "SM: Supported",
+        "deployment_color": "#92400E",
+        "version": "—"
+      },
+      "engagement": {
+        "last_qbr": "April 30, 2025",
+        "next_qbr": "—",
+        "qbr_note": "8/31: NTR. Minimal engagement from Dark Wolf."
+      }
+    },
+    {
+      "slide_ids": {
+        "slide": "s_departmentofveteransaffa_53649",
+        "title": "t_departmentofveteransaffa_53649",
+        "arr": "r_departmentofveteransaffa_53649",
+        "meta": "d_departmentofveteransaffa_53649",
+        "header": [
+          "h1_departmentofveteransaffa_53649",
+          "h2_departmentofveteransaffa_53649",
+          "h3_departmentofveteransaffa_53649"
+        ],
+        "metrics": [
+          "m1_departmentofveteransaffa_53649",
+          "m2_departmentofveteransaffa_53649",
+          "m3_departmentofveteransaffa_53649"
+        ],
+        "comment": [
+          "c1_departmentofveteransaffa_53649",
+          "c2_departmentofveteransaffa_53649",
+          "c3_departmentofveteransaffa_53649"
+        ],
+        "writable": [
+          "t_departmentofveteransaffa_53649",
+          "r_departmentofveteransaffa_53649",
+          "d_departmentofveteransaffa_53649",
+          "h1_departmentofveteransaffa_53649",
+          "h2_departmentofveteransaffa_53649",
+          "h3_departmentofveteransaffa_53649",
+          "m1_departmentofveteransaffa_53649",
+          "m2_departmentofveteransaffa_53649",
+          "m3_departmentofveteransaffa_53649"
+        ],
+        "never_overwrite": [
+          "c1_departmentofveteransaffa_53649",
+          "c2_departmentofveteransaffa_53649",
+          "c3_departmentofveteransaffa_53649"
+        ]
+      },
+      "account": {
+        "name": "Department of Veterans Affairs (VA)",
+        "region": "Public Sector",
+        "arr": "$1.82M",
+        "ae": "Jessup Goodwin",
+        "csm": "Adam Mangen",
+        "fcto": "Kevin Crawford",
+        "next_renewal": "$1,819,000, Q3-2027",
+        "account_url": "https://immuta.lightning.force.com/lightning/r/Account/0011K00002A9H0X/view",
+        "customer_central_url": "https://customer-central.immuta.support/customers/0011K00002A9H0XQAV"
+      },
+      "adoption": {
+        "modules": [
+          {
+            "label": "PBAC",
+            "status": "Red",
+            "colour": "#EF4444"
+          },
+          {
+            "label": "Comply",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Request",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Agentic",
+            "status": "Black",
+            "colour": "#111111"
+          }
+        ],
+        "registered": "3,858",
+        "licensed": "825",
+        "ratio": "467.6%",
+        "lifecycle_stage": "S2. MVP in prod, use case pipelining."
+      },
+      "performance": {
+        "cases_90d": "0",
+        "cases_360d": "6",
+        "cases_total": "24",
+        "escalations_90d": "0",
+        "escalations_360d": "0",
+        "escalations_open": "0",
+        "deployment": "SM: Supported",
+        "deployment_color": "#92400E",
+        "version": "—"
+      },
+      "engagement": {
+        "last_qbr": "June 16, 2026",
+        "next_qbr": "—",
+        "qbr_note": "6/16 - Focus on this quarter is onboarding workgroups in pipeline and getting to stable adoption."
+      }
+    },
+    {
+      "slide_ids": {
+        "slide": "s_federalreservenationalit_62688",
+        "title": "t_federalreservenationalit_62688",
+        "arr": "r_federalreservenationalit_62688",
+        "meta": "d_federalreservenationalit_62688",
+        "header": [
+          "h1_federalreservenationalit_62688",
+          "h2_federalreservenationalit_62688",
+          "h3_federalreservenationalit_62688"
+        ],
+        "metrics": [
+          "m1_federalreservenationalit_62688",
+          "m2_federalreservenationalit_62688",
+          "m3_federalreservenationalit_62688"
+        ],
+        "comment": [
+          "c1_federalreservenationalit_62688",
+          "c2_federalreservenationalit_62688",
+          "c3_federalreservenationalit_62688"
+        ],
+        "writable": [
+          "t_federalreservenationalit_62688",
+          "r_federalreservenationalit_62688",
+          "d_federalreservenationalit_62688",
+          "h1_federalreservenationalit_62688",
+          "h2_federalreservenationalit_62688",
+          "h3_federalreservenationalit_62688",
+          "m1_federalreservenationalit_62688",
+          "m2_federalreservenationalit_62688",
+          "m3_federalreservenationalit_62688"
+        ],
+        "never_overwrite": [
+          "c1_federalreservenationalit_62688",
+          "c2_federalreservenationalit_62688",
+          "c3_federalreservenationalit_62688"
+        ]
+      },
+      "account": {
+        "name": "Federal Reserve National IT Division",
+        "region": "Public Sector",
+        "arr": "$626,000",
+        "ae": "Jessup Goodwin",
+        "csm": "Mark Zindren",
+        "fcto": "Paul Myres",
+        "next_renewal": "$569,000, Q2-2028",
+        "account_url": "https://immuta.lightning.force.com/lightning/r/Account/0011K00002SRx3f/view",
+        "customer_central_url": "https://customer-central.immuta.support/customers/0011K00002SRx3fQAD"
+      },
+      "adoption": {
+        "modules": [
+          {
+            "label": "PBAC",
+            "status": "Red",
+            "colour": "#EF4444"
+          },
+          {
+            "label": "Comply",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Request",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Agentic",
+            "status": "Red",
+            "colour": "#EF4444"
+          }
+        ],
+        "registered": "122",
+        "licensed": "840",
+        "ratio": "14.5%",
+        "lifecycle_stage": "S2. MVP in prod, use case pipelining."
+      },
+      "performance": {
+        "cases_90d": "4",
+        "cases_360d": "21",
+        "cases_total": "50",
+        "escalations_90d": "0",
+        "escalations_360d": "6",
+        "escalations_open": "0",
+        "deployment": "SM: Supported",
+        "deployment_color": "#92400E",
+        "version": "—"
+      },
+      "engagement": {
+        "last_qbr": "June 10, 2025",
+        "next_qbr": "—",
+        "qbr_note": "8/31: Upcoming meetings on SaaS/FedRAMP. Targeting roadmap discussions in parallel"
+      }
+    },
+    {
+      "slide_ids": {
+        "slide": "s_internalrevenueserviceir_39147",
+        "title": "t_internalrevenueserviceir_39147",
+        "arr": "r_internalrevenueserviceir_39147",
+        "meta": "d_internalrevenueserviceir_39147",
+        "header": [
+          "h1_internalrevenueserviceir_39147",
+          "h2_internalrevenueserviceir_39147",
+          "h3_internalrevenueserviceir_39147"
+        ],
+        "metrics": [
+          "m1_internalrevenueserviceir_39147",
+          "m2_internalrevenueserviceir_39147",
+          "m3_internalrevenueserviceir_39147"
+        ],
+        "comment": [
+          "c1_internalrevenueserviceir_39147",
+          "c2_internalrevenueserviceir_39147",
+          "c3_internalrevenueserviceir_39147"
+        ],
+        "writable": [
+          "t_internalrevenueserviceir_39147",
+          "r_internalrevenueserviceir_39147",
+          "d_internalrevenueserviceir_39147",
+          "h1_internalrevenueserviceir_39147",
+          "h2_internalrevenueserviceir_39147",
+          "h3_internalrevenueserviceir_39147",
+          "m1_internalrevenueserviceir_39147",
+          "m2_internalrevenueserviceir_39147",
+          "m3_internalrevenueserviceir_39147"
+        ],
+        "never_overwrite": [
+          "c1_internalrevenueserviceir_39147",
+          "c2_internalrevenueserviceir_39147",
+          "c3_internalrevenueserviceir_39147"
+        ]
+      },
+      "account": {
+        "name": "Internal Revenue Service (IRS)",
+        "region": "Public Sector",
+        "arr": "$480,000",
+        "ae": "Jessup Goodwin",
+        "csm": "Adam Mangen",
+        "fcto": "Kevin Crawford",
+        "next_renewal": "$480,000, Q4-2027",
+        "account_url": "https://immuta.lightning.force.com/lightning/r/Account/0011K00002Cja2E/view",
+        "customer_central_url": "https://customer-central.immuta.support/customers/0011K00002Cja2EQAR"
+      },
+      "adoption": {
+        "modules": [
+          {
+            "label": "PBAC",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Comply",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Request",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Agentic",
+            "status": "Black",
+            "colour": "#111111"
+          }
+        ],
+        "registered": "—",
+        "licensed": "—",
+        "ratio": "—",
+        "lifecycle_stage": "S1: Installation and Config."
+      },
+      "performance": {
+        "cases_90d": "0",
+        "cases_360d": "9",
+        "cases_total": "21",
+        "escalations_90d": "0",
+        "escalations_360d": "1",
+        "escalations_open": "0",
+        "deployment": "SM: Supported",
+        "deployment_color": "#92400E",
+        "version": "—"
+      },
+      "engagement": {
+        "last_qbr": "March 05, 2026",
+        "next_qbr": "October 19, 2026",
+        "qbr_note": "9/18 - EBR scheduled 10/19"
+      }
+    },
+    {
+      "slide_ids": {
+        "slide": "s_leidos_02238",
+        "title": "t_leidos_02238",
+        "arr": "r_leidos_02238",
+        "meta": "d_leidos_02238",
+        "header": [
+          "h1_leidos_02238",
+          "h2_leidos_02238",
+          "h3_leidos_02238"
+        ],
+        "metrics": [
+          "m1_leidos_02238",
+          "m2_leidos_02238",
+          "m3_leidos_02238"
+        ],
+        "comment": [
+          "c1_leidos_02238",
+          "c2_leidos_02238",
+          "c3_leidos_02238"
+        ],
+        "writable": [
+          "t_leidos_02238",
+          "r_leidos_02238",
+          "d_leidos_02238",
+          "h1_leidos_02238",
+          "h2_leidos_02238",
+          "h3_leidos_02238",
+          "m1_leidos_02238",
+          "m2_leidos_02238",
+          "m3_leidos_02238"
+        ],
+        "never_overwrite": [
+          "c1_leidos_02238",
+          "c2_leidos_02238",
+          "c3_leidos_02238"
+        ]
+      },
+      "account": {
+        "name": "Leidos",
+        "region": "Public Sector",
+        "arr": "$570,000",
+        "ae": "Alex Jendzejec",
+        "csm": "Mark Zindren",
+        "fcto": "Samantha Hamernick",
+        "next_renewal": "$585,000, Q3-2028",
+        "account_url": "https://immuta.lightning.force.com/lightning/r/Account/0011K00002A9H8v/view",
+        "customer_central_url": "https://customer-central.immuta.support/customers/0011K00002A9H8vQAF"
+      },
+      "adoption": {
+        "modules": [
+          {
+            "label": "PBAC",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Comply",
+            "status": "Red",
+            "colour": "#EF4444"
+          },
+          {
+            "label": "Request",
+            "status": "Red",
+            "colour": "#EF4444"
+          },
+          {
+            "label": "Agentic",
+            "status": "Black",
+            "colour": "#111111"
+          }
+        ],
+        "registered": "630",
+        "licensed": "3,055",
+        "ratio": "20.6%",
+        "lifecycle_stage": "S2. MVP in prod, use case pipelining."
+      },
+      "performance": {
+        "cases_90d": "3",
+        "cases_360d": "8",
+        "cases_total": "10",
+        "escalations_90d": "0",
+        "escalations_360d": "0",
+        "escalations_open": "0",
+        "deployment": "SaaS",
+        "deployment_color": "#5A7A00",
+        "version": "—"
+      },
+      "engagement": {
+        "last_qbr": "—",
+        "next_qbr": "—",
+        "qbr_note": "8/31: Bunn was against onsite. Need to reschedule Agentic Security Demo"
+      }
+    },
+    {
+      "slide_ids": {
+        "slide": "s_lmiconsultingllc_15003",
+        "title": "t_lmiconsultingllc_15003",
+        "arr": "r_lmiconsultingllc_15003",
+        "meta": "d_lmiconsultingllc_15003",
+        "header": [
+          "h1_lmiconsultingllc_15003",
+          "h2_lmiconsultingllc_15003",
+          "h3_lmiconsultingllc_15003"
+        ],
+        "metrics": [
+          "m1_lmiconsultingllc_15003",
+          "m2_lmiconsultingllc_15003",
+          "m3_lmiconsultingllc_15003"
+        ],
+        "comment": [
+          "c1_lmiconsultingllc_15003",
+          "c2_lmiconsultingllc_15003",
+          "c3_lmiconsultingllc_15003"
+        ],
+        "writable": [
+          "t_lmiconsultingllc_15003",
+          "r_lmiconsultingllc_15003",
+          "d_lmiconsultingllc_15003",
+          "h1_lmiconsultingllc_15003",
+          "h2_lmiconsultingllc_15003",
+          "h3_lmiconsultingllc_15003",
+          "m1_lmiconsultingllc_15003",
+          "m2_lmiconsultingllc_15003",
+          "m3_lmiconsultingllc_15003"
+        ],
+        "never_overwrite": [
+          "c1_lmiconsultingllc_15003",
+          "c2_lmiconsultingllc_15003",
+          "c3_lmiconsultingllc_15003"
+        ]
+      },
+      "account": {
+        "name": "LMI Consulting LLC",
+        "region": "Public Sector",
+        "arr": "$250,000",
+        "ae": "Jessup Goodwin",
+        "csm": "Mark Zindren",
+        "fcto": "Kevin Crawford",
+        "next_renewal": "$250,000, Q2-2028",
+        "account_url": "https://immuta.lightning.force.com/lightning/r/Account/0014100001bVTuQ/view",
+        "customer_central_url": "https://customer-central.immuta.support/customers/0014100001bVTuQAAW"
+      },
+      "adoption": {
+        "modules": [
+          {
+            "label": "PBAC",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Comply",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Request",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Agentic",
+            "status": "Red",
+            "colour": "#EF4444"
+          }
+        ],
+        "registered": "19",
+        "licensed": "150",
+        "ratio": "12.7%",
+        "lifecycle_stage": "S2. MVP in prod, use case pipelining."
+      },
+      "performance": {
+        "cases_90d": "1",
+        "cases_360d": "11",
+        "cases_total": "84",
+        "escalations_90d": "0",
+        "escalations_360d": "0",
+        "escalations_open": "0",
+        "deployment": "SM: Supported",
+        "deployment_color": "#92400E",
+        "version": "2024.2.11"
+      },
+      "engagement": {
+        "last_qbr": "March 06, 2025",
+        "next_qbr": "—",
+        "qbr_note": "8/31: Looking to have Agentic Demo with LMI leadership. Coordination in progress"
+      }
+    },
+    {
+      "slide_ids": {
+        "slide": "s_militarysealiftcommandms_38420",
+        "title": "t_militarysealiftcommandms_38420",
+        "arr": "r_militarysealiftcommandms_38420",
+        "meta": "d_militarysealiftcommandms_38420",
+        "header": [
+          "h1_militarysealiftcommandms_38420",
+          "h2_militarysealiftcommandms_38420",
+          "h3_militarysealiftcommandms_38420"
+        ],
+        "metrics": [
+          "m1_militarysealiftcommandms_38420",
+          "m2_militarysealiftcommandms_38420",
+          "m3_militarysealiftcommandms_38420"
+        ],
+        "comment": [
+          "c1_militarysealiftcommandms_38420",
+          "c2_militarysealiftcommandms_38420",
+          "c3_militarysealiftcommandms_38420"
+        ],
+        "writable": [
+          "t_militarysealiftcommandms_38420",
+          "r_militarysealiftcommandms_38420",
+          "d_militarysealiftcommandms_38420",
+          "h1_militarysealiftcommandms_38420",
+          "h2_militarysealiftcommandms_38420",
+          "h3_militarysealiftcommandms_38420",
+          "m1_militarysealiftcommandms_38420",
+          "m2_militarysealiftcommandms_38420",
+          "m3_militarysealiftcommandms_38420"
+        ],
+        "never_overwrite": [
+          "c1_militarysealiftcommandms_38420",
+          "c2_militarysealiftcommandms_38420",
+          "c3_militarysealiftcommandms_38420"
+        ]
+      },
+      "account": {
+        "name": "Military Sealift Command (MSC)",
+        "region": "Public Sector",
+        "arr": "$480,000",
+        "ae": "Alex Jendzejec",
+        "csm": "Adam Mangen",
+        "fcto": "Samantha Hamernick",
+        "next_renewal": "$480,000, Q3-2028",
+        "account_url": "https://immuta.lightning.force.com/lightning/r/Account/0011K00002STJcd/view",
+        "customer_central_url": "https://customer-central.immuta.support/customers/0011K00002STJcdQAH"
+      },
+      "adoption": {
+        "modules": [
+          {
+            "label": "PBAC",
+            "status": "Amber",
+            "colour": "#F59E0B"
+          },
+          {
+            "label": "Comply",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Request",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Agentic",
+            "status": "Black",
+            "colour": "#111111"
+          }
+        ],
+        "registered": "31",
+        "licensed": "20",
+        "ratio": "155%",
+        "lifecycle_stage": "S3: greater than 75% license consumption"
+      },
+      "performance": {
+        "cases_90d": "0",
+        "cases_360d": "2",
+        "cases_total": "31",
+        "escalations_90d": "1",
+        "escalations_360d": "2",
+        "escalations_open": "0",
+        "deployment": "SM: Unsupported",
+        "deployment_color": "#991B1B",
+        "version": "—"
+      },
+      "engagement": {
+        "last_qbr": "January 05, 2026",
+        "next_qbr": "—",
+        "qbr_note": "9/1 - We will restart conversations with the EB to coincide with the 2026.2 release."
+      }
+    },
+    {
+      "slide_ids": {
+        "slide": "s_usdepartmentofstate_28136",
+        "title": "t_usdepartmentofstate_28136",
+        "arr": "r_usdepartmentofstate_28136",
+        "meta": "d_usdepartmentofstate_28136",
+        "header": [
+          "h1_usdepartmentofstate_28136",
+          "h2_usdepartmentofstate_28136",
+          "h3_usdepartmentofstate_28136"
+        ],
+        "metrics": [
+          "m1_usdepartmentofstate_28136",
+          "m2_usdepartmentofstate_28136",
+          "m3_usdepartmentofstate_28136"
+        ],
+        "comment": [
+          "c1_usdepartmentofstate_28136",
+          "c2_usdepartmentofstate_28136",
+          "c3_usdepartmentofstate_28136"
+        ],
+        "writable": [
+          "t_usdepartmentofstate_28136",
+          "r_usdepartmentofstate_28136",
+          "d_usdepartmentofstate_28136",
+          "h1_usdepartmentofstate_28136",
+          "h2_usdepartmentofstate_28136",
+          "h3_usdepartmentofstate_28136",
+          "m1_usdepartmentofstate_28136",
+          "m2_usdepartmentofstate_28136",
+          "m3_usdepartmentofstate_28136"
+        ],
+        "never_overwrite": [
+          "c1_usdepartmentofstate_28136",
+          "c2_usdepartmentofstate_28136",
+          "c3_usdepartmentofstate_28136"
+        ]
+      },
+      "account": {
+        "name": "U.S. Department of State",
+        "region": "Public Sector",
+        "arr": "$129,000",
+        "ae": "Jessup Goodwin",
+        "csm": "Mark Zindren",
+        "fcto": "Samantha Hamernick",
+        "next_renewal": "$129,000, Q3-2028",
+        "account_url": "https://immuta.lightning.force.com/lightning/r/Account/0011K00002A9Gzk/view",
+        "customer_central_url": "https://customer-central.immuta.support/customers/0011K00002A9GzkQAF"
+      },
+      "adoption": {
+        "modules": [
+          {
+            "label": "PBAC",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Comply",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Request",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Agentic",
+            "status": "Black",
+            "colour": "#111111"
+          }
+        ],
+        "registered": "11",
+        "licensed": "70",
+        "ratio": "15.7%",
+        "lifecycle_stage": "S1: Installation and Config."
+      },
+      "performance": {
+        "cases_90d": "3",
+        "cases_360d": "6",
+        "cases_total": "11",
+        "escalations_90d": "1",
+        "escalations_360d": "1",
+        "escalations_open": "1",
+        "deployment": "SM: Supported",
+        "deployment_color": "#92400E",
+        "version": "—"
+      },
+      "engagement": {
+        "last_qbr": "—",
+        "next_qbr": "—",
+        "qbr_note": "8/31: Looking to meet with Ron & Clay on topic of SaaS/FedRAMP. Will target Sept or October"
+      }
+    },
+    {
+      "slide_ids": {
+        "slide": "s_usspecialoperationscomma_65694",
+        "title": "t_usspecialoperationscomma_65694",
+        "arr": "r_usspecialoperationscomma_65694",
+        "meta": "d_usspecialoperationscomma_65694",
+        "header": [
+          "h1_usspecialoperationscomma_65694",
+          "h2_usspecialoperationscomma_65694",
+          "h3_usspecialoperationscomma_65694"
+        ],
+        "metrics": [
+          "m1_usspecialoperationscomma_65694",
+          "m2_usspecialoperationscomma_65694",
+          "m3_usspecialoperationscomma_65694"
+        ],
+        "comment": [
+          "c1_usspecialoperationscomma_65694",
+          "c2_usspecialoperationscomma_65694",
+          "c3_usspecialoperationscomma_65694"
+        ],
+        "writable": [
+          "t_usspecialoperationscomma_65694",
+          "r_usspecialoperationscomma_65694",
+          "d_usspecialoperationscomma_65694",
+          "h1_usspecialoperationscomma_65694",
+          "h2_usspecialoperationscomma_65694",
+          "h3_usspecialoperationscomma_65694",
+          "m1_usspecialoperationscomma_65694",
+          "m2_usspecialoperationscomma_65694",
+          "m3_usspecialoperationscomma_65694"
+        ],
+        "never_overwrite": [
+          "c1_usspecialoperationscomma_65694",
+          "c2_usspecialoperationscomma_65694",
+          "c3_usspecialoperationscomma_65694"
+        ]
+      },
+      "account": {
+        "name": "U.S. Special Operations Command (SOCOM)",
+        "region": "Public Sector",
+        "arr": "$1.29M",
+        "ae": "Alex Jendzejec",
+        "csm": "Adam Mangen",
+        "fcto": "-",
+        "next_renewal": "$1,288,000, Q3-2028",
+        "account_url": "https://immuta.lightning.force.com/lightning/r/Account/0014100001PchYW/view",
+        "customer_central_url": "https://customer-central.immuta.support/customers/0014100001PchYWAAZ"
+      },
+      "adoption": {
+        "modules": [
+          {
+            "label": "PBAC",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Comply",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Request",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Agentic",
+            "status": "Black",
+            "colour": "#111111"
+          }
+        ],
+        "registered": "—",
+        "licensed": "—",
+        "ratio": "—",
+        "lifecycle_stage": "-"
+      },
+      "performance": {
+        "cases_90d": "0",
+        "cases_360d": "0",
+        "cases_total": "2",
+        "escalations_90d": "0",
+        "escalations_360d": "0",
+        "escalations_open": "0",
+        "deployment": "SM: Supported",
+        "deployment_color": "#92400E",
+        "version": "—"
+      },
+      "engagement": {
+        "last_qbr": "—",
+        "next_qbr": "—",
+        "qbr_note": "—"
+      }
+    },
+    {
+      "slide_ids": {
+        "slide": "s_unitedstatespostalservic_53598",
+        "title": "t_unitedstatespostalservic_53598",
+        "arr": "r_unitedstatespostalservic_53598",
+        "meta": "d_unitedstatespostalservic_53598",
+        "header": [
+          "h1_unitedstatespostalservic_53598",
+          "h2_unitedstatespostalservic_53598",
+          "h3_unitedstatespostalservic_53598"
+        ],
+        "metrics": [
+          "m1_unitedstatespostalservic_53598",
+          "m2_unitedstatespostalservic_53598",
+          "m3_unitedstatespostalservic_53598"
+        ],
+        "comment": [
+          "c1_unitedstatespostalservic_53598",
+          "c2_unitedstatespostalservic_53598",
+          "c3_unitedstatespostalservic_53598"
+        ],
+        "writable": [
+          "t_unitedstatespostalservic_53598",
+          "r_unitedstatespostalservic_53598",
+          "d_unitedstatespostalservic_53598",
+          "h1_unitedstatespostalservic_53598",
+          "h2_unitedstatespostalservic_53598",
+          "h3_unitedstatespostalservic_53598",
+          "m1_unitedstatespostalservic_53598",
+          "m2_unitedstatespostalservic_53598",
+          "m3_unitedstatespostalservic_53598"
+        ],
+        "never_overwrite": [
+          "c1_unitedstatespostalservic_53598",
+          "c2_unitedstatespostalservic_53598",
+          "c3_unitedstatespostalservic_53598"
+        ]
+      },
+      "account": {
+        "name": "United States Postal Service (USPS)",
+        "region": "Public Sector",
+        "arr": "$792,000",
+        "ae": "Jessup Goodwin",
+        "csm": "Mark Zindren",
+        "fcto": "Paul Myres",
+        "next_renewal": "$792,000, Q3-2028",
+        "account_url": "https://immuta.lightning.force.com/lightning/r/Account/0011K00002A9Gv0/view",
+        "customer_central_url": "https://customer-central.immuta.support/customers/0011K00002A9Gv0QAF"
+      },
+      "adoption": {
+        "modules": [
+          {
+            "label": "PBAC",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Comply",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Request",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Agentic",
+            "status": "Black",
+            "colour": "#111111"
+          }
+        ],
+        "registered": "848",
+        "licensed": "1,050",
+        "ratio": "80.8%",
+        "lifecycle_stage": "S2. MVP in prod, use case pipelining."
+      },
+      "performance": {
+        "cases_90d": "4",
+        "cases_360d": "30",
+        "cases_total": "34",
+        "escalations_90d": "0",
+        "escalations_360d": "9",
+        "escalations_open": "0",
+        "deployment": "SM: Supported",
+        "deployment_color": "#92400E",
+        "version": "—"
+      },
+      "engagement": {
+        "last_qbr": "October 16, 2025",
+        "next_qbr": "—",
+        "qbr_note": "8/31: Inquiry sent to Navjot for onsite QBR 8/25. No Response"
+      }
+    }
+  ]
+}

@@ -2,113 +2,72 @@
 % Please edit documentation in R/op_list_support.R
 \name{op_list_support}
 \alias{op_list_support}
-\title{Build the support child list for op_list}
+\title{Build the support child list for op_list from BigQuery.}
 \usage{
 op_list_support(
-  raw,
-  accounts = NULL,
-  as_of = Sys.Date(),
-  windows = c(`60d` = 60L, `180d` = 180L),
-  account_col = NULL,
-  date_col = NULL,
-  count_col = NULL,
-  escalation_col = NULL,
-  escalation_values = NULL
+  accounts,
+  billing_project = "retool-457517",
+  table = "retool-457517.reports.account_support_rollup_live",
+  quiet = FALSE
 )
 }
 \arguments{
-\item{raw}{Named list from \code{\link{load_op_list_raw}}, or a data frame of
-support cases directly. When \code{NULL} the function returns \code{NULL}
-(so \code{enrich_opportunities(looker = FALSE)} degrades cleanly).}
+\item{accounts}{Data frame — typically \code{op_list$accounts}. Used both for
+the join key and to expand the result to one row per account. Required.}
 
-\item{accounts}{Optional data frame (typically \code{op_list$accounts}). When
-supplied, the result is expanded to one row per account in
-\code{accounts}, with zeros for accounts that have no cases.}
+\item{billing_project}{Character. GCP project billed for the query. Defaults
+to \code{"retool-457517"}.}
 
-\item{as_of}{Date. Anchor for the trailing windows. Defaults to
-\code{Sys.Date()}. Ignored in total-only mode.}
+\item{table}{Character. Fully-qualified source table. Defaults to
+\code{"retool-457517.reports.account_support_rollup_live"}.}
 
-\item{windows}{Named integer vector of trailing window lengths in days.
-Defaults to \code{c("60d" = 60, "180d" = 180)}; the names become the column
-suffixes.}
-
-\item{account_col, date_col, count_col, escalation_col}{Character or
-\code{NULL}. Explicit column names, overriding auto-detection.}
-
-\item{escalation_values}{Character vector or \code{NULL}. When supplied, a
-row is an escalation only if the escalation column matches one of these
-values exactly (case-insensitive).}
+\item{quiet}{Logical. Suppress the summary message. Defaults to
+\code{FALSE}.}
 }
 \value{
-A data frame with one row per account: \code{Account Name},
-  \code{cases_60d}, \code{escalations_60d}, \code{cases_180d},
-  \code{escalations_180d}, \code{cases_total}. Carries \code{"as_of"},
-  \code{"mode"}, and \code{"columns"} attributes.
+A data frame with one row per account and columns \code{Account
+  Name}, \code{Account ID}, \code{cases_90d}, \code{cases_360d},
+  \code{cases_total}, \code{escalations_90d}, \code{escalations_360d},
+  \code{escalations_open}. Carries a \code{"computed_at"} attribute (when the
+  BigQuery rollup last ran) and a \code{"matched"} attribute.
 }
 \description{
-Aggregates the raw Looker support-case look (\code{1776}, \emph{RAW DATA -
-SUPPORT CASES}, fetched by \code{\link{load_op_list_raw}}) into one row per
-account.
+Pulls the pre-aggregated support rollup from BigQuery and returns one row per
+account: support case counts over the trailing 90 and 360 days, customer
+escalation counts over the same windows plus currently-open escalations, and
+the timestamp the rollup was computed.
 }
 \details{
 Called automatically by \code{\link{enrich_opportunities}} and stored as
-\code{op_list$support}. Can also be called directly against a
-\code{load_op_list_raw()} result to refresh support counts without re-running
-the full pull.
+\code{op_list$support}. Can also be called directly to refresh support
+figures without re-running the full pull.
 }
-\section{Two modes}{
+\section{Why BigQuery and not Looker look 1776}{
 
-The function adapts to what the look actually returns.
-\describe{
-  \item{\strong{windowed}}{The look has one row per case and a case-date
-    column. Produces \code{cases_60d}, \code{escalations_60d},
-    \code{cases_180d}, \code{escalations_180d}, and \code{cases_total}.}
-  \item{\strong{total-only}}{The look is pre-aggregated — one row per
-    customer with a count column and no date (this is what look 1776
-    currently returns: \code{Front Conversation Customer Name} and
-    \code{Front Conversation Count}). Produces \code{cases_total} only; the
-    windowed columns are \code{NA}, because a rolling 60/180-day split
-    cannot be recovered from a total. Getting real windows requires adding a
-    case-created-date dimension (and an escalation field) to the look in
-    Looker.}
-}
-The mode is recorded in the \code{"mode"} attribute of the result.
+The previous implementation aggregated Looker look 1776, which returned only
+\code{Front Conversation Customer Name} and \code{Front Conversation Count} —
+no case dates, so no rolling windows; no escalation field; and free-text
+Front customer names that had to be fuzzy-matched to Salesforce accounts.
+This table fixes all three: the windows are precomputed, escalations are a
+first-class column, and \code{salesforce_account_id} gives an exact join key.
+Look 1776 is still fetched by \code{\link{load_op_list_raw}} but nothing
+consumes it.
 }
 
-\section{Schema detection}{
+\section{Joining}{
 
-Column names are resolved at runtime rather than hardcoded:
-\itemize{
-  \item \strong{account} — anything matching \code{"Account Name"},
-    \code{"Front Conversation Customer Name"}, or
-    \code{/(customer|company|account)\\s*name/i}.
-  \item \strong{date} — \code{"Created Date"}, \code{"Opened Date"}, or the
-    first \code{/creat|open/i} column that parses as a date. Optional.
-  \item \strong{count} — a numeric column matching
-    \code{/count|conversations|cases|tickets/i}. Used for the total-only
-    mode.
-  \item \strong{escalation} — the first column matching \code{/escalat/i}.
-    Optional.
-}
-Pass \code{account_col}, \code{date_col}, \code{count_col}, or
-\code{escalation_col} explicitly to override. If the account column cannot be
-found the function stops with the columns it actually saw.
-}
-
-\section{Name matching}{
-
-Account names in the look are matched to \code{accounts} by exact string
-after trimming. Front's customer names are not guaranteed to equal Salesforce
-account names, so the function reports the match rate — a low rate means the
-names diverge and need a mapping (compare \code{.pb_normalize_name()} in
-\code{R/productboard_utils.R}, which solves the same problem for
-Productboard).
+Accounts are matched on \code{salesforce_account_id} against \code{Account
+ID} (or \code{Account ID 18}) in \code{op_list$accounts} — an ID join, so no
+name normalisation is involved. Salesforce IDs come in 15- and 18-character
+forms and the two are compared case-sensitively on their common 15-character
+prefix, which is the safe way to reconcile them. Accounts with no row in the
+rollup get zeros for counts, not \code{NA}: the table covers every account,
+so absence means no cases rather than no data.
 }
 
 \examples{
 \dontrun{
-  raw <- load_op_list_raw(cache_path = "data/looker/")
-  s <- op_list_support(raw, accounts = op_list$accounts)
-  attr(s, "mode")
+  bigrquery::bq_auth()
+  op_list_support(op_list$accounts)
 }
 }

@@ -12,9 +12,15 @@
 #' Three lime-headed sections are rendered:
 #' \describe{
 #'   \item{\strong{Adoption}}{Stoplight dots for PBAC, Comply, Request, and
-#'     Agentic Governance, coloured from the leading word of each Salesforce
-#'     picklist value (Green / Yellow / Red / Black); then Registered Users,
-#'     Licensed Users, and the Consumption Ratio (colour-coded: lime at
+#'     Agentic Governance. PBAC is rated from
+#'     \code{op_list$consumption$pbac_adoption} and Request from the stage
+#'     tile the account appears on in Looker dashboard 1009, each labelled
+#'     with what the value says ("Moderate adoption", "Retained") rather than
+#'     the colour word; Comply and Agentic Governance are the Salesforce
+#'     picklists, labelled Green / Yellow / Red / Black. Both derived rows
+#'     fall back to their picklist when the pipeline ran without Looker. Then
+#'     the platforms and features behind the PBAC rating, then Registered
+#'     Users, Licensed Users, and the Consumption Ratio (colour-coded: lime at
 #'     \eqn{\ge} 50\%, amber at \eqn{\ge} 25\%, red below); then Lifecycle
 #'     Stage.}
 #'   \item{\strong{Performance}}{Support cases over the trailing 90 and 360
@@ -44,15 +50,16 @@
 #'   \code{"output/slide_content/health_summaries"}.
 #' @param dpi Integer. Output resolution in dots per inch. Defaults to
 #'   \code{600} (3000 × 4800 px for a 5 × 8 inch image).
+#' @param index Integer or \code{NULL}. Sequence number used as the filename
+#'   prefix. When \code{NULL} (the default) it is derived from the account's
+#'   position in the canonical slide ordering of \code{op_list$accounts} —
+#'   Region, then Customer Success Manager, then account name — so the health
+#'   summary and the header for an account always share the same number.
 #'
 #' @return Invisibly returns the full path to the written PNG file. The file is
-#'   named \code{"<Salesforce account ID>-adoption_tile.png"} using the
-#'   18-character ID — so \code{"Cigna"} writes
-#'   \code{output/slide_content/health_summaries/0014100000NkmjAAAR-adoption_tile.png}.
-#'   The ID is used rather than the account name because names get renamed in
-#'   Salesforce and can contain punctuation that has to be mangled; the ID is
-#'   stable, unique, and the same key the roster sheet and Customer Central
-#'   URLs use.
+#'   named \code{"<index>_<account_name>_health.png"} — the name lowercased with
+#'   spaces collapsed to underscores and all other punctuation dropped, e.g.
+#'   \code{output/slide_content/health_summaries/1_acorns_health.png}.
 #'
 #' @examples
 #' \dontrun{
@@ -63,7 +70,8 @@
 generate_slide_tile <- function(account_name,
                                 op_list,
                                 output_dir = "output/slide_content/health_summaries",
-                                dpi        = 600) {
+                                dpi        = 600,
+                                index      = NULL) {
 
   # ── 0. Check dependencies ──────────────────────────────────────────────────
   if (!requireNamespace("ggplot2", quietly = TRUE)) stop("Package 'ggplot2' is required.")
@@ -82,10 +90,9 @@ generate_slide_tile <- function(account_name,
   lic_raw <- .tile_num(c_data, "Licensed Users")
   rat_raw <- .tile_num(c_data, "Consumption Ratio")
 
-  # Recompute the ratio if the column is absent but both counts are present.
-  if (is.na(rat_raw) && !is.na(reg_raw) && !is.na(lic_raw) && lic_raw > 0) {
-    rat_raw <- reg_raw / lic_raw
-  }
+  # Recompute the ratio if the column is absent. consumption_ratio() carries the
+  # ELA rule (Licensed Users of 0 is unlimited seats, so the ratio is 1, not NA).
+  if (is.na(rat_raw)) rat_raw <- consumption_ratio(reg_raw, lic_raw)
 
   reg_fmt <- .tile_int(reg_raw)
   lic_fmt <- .tile_int(lic_raw)
@@ -123,8 +130,12 @@ generate_slide_tile <- function(account_name,
   dep_tag <- .tile_deploy_tag(is_saas, unsup)
 
   # ── 5. Lifecycle stage ─────────────────────────────────────────────────────
+  # One line: the platforms/features rows above pushed this block down, and a
+  # second line would run into the Performance header. The longest picklist
+  # value today is 40 characters, so nothing wraps — but a longer one would
+  # truncate with an ellipsis rather than collide.
   lifecycle <- .tile_wrap(.coalesce_chr(a_data[["Lifecycle Stage"]], "—"),
-                          width = 44, max_lines = 2)
+                          width = 46, max_lines = 1)
 
   # ── 5b. QBR fields (normalised on accounts by normalize_qbr_fields()) ──────
   qbr_last <- fmt_date(a_data[["Date Last QBR"]])
@@ -132,13 +143,29 @@ generate_slide_tile <- function(account_name,
   qbr_note <- .tile_wrap(.coalesce_chr(a_data[["QBR Note"]], "—"),
                          width = 46, max_lines = 3)
 
-  # ── 6. Adoption stoplights ─────────────────────────────────────────────────
-  adoption <- list(
-    list(label = "PBAC",    value = a_data[["PBAC Adoption"]]),
-    list(label = "COMPLY",  value = a_data[["Comply Adoption"]]),
-    list(label = "REQUEST", value = a_data[["Request Adoption"]]),
-    list(label = "AGENTIC", value = a_data[["Agentic Governance Adoption"]])
-  )
+  # ── 6. Adoption stoplights + platform strings ─────────────────────────────
+  # PBAC and Request are rated from Looker, Comply and Agentic from the
+  # Salesforce picklists — see adoption_rows(), which account_slide_payload()
+  # shares so the PNG and the slide feed can't disagree.
+  p_data   <- pbac_row(op_list, account_name)
+  adoption <- adoption_rows(a_data, p_data)
+
+  # Features behind the PBAC rating, on one line under the stoplights.
+  # "None" is a measurement (Looker ran, nothing is in use); an em-dash is the
+  # absence of one, so an SFDC-only tile doesn't assert that a customer uses
+  # no features when the truth is that nothing was measured.
+  pbac_features <- if (is.null(p_data)) {
+    "—"
+  } else {
+    f <- pbac_feature_labels(p_data)
+    if (length(f) == 0) "None" else .tile_wrap(paste(f, collapse = " · "),
+                                               width = 52, max_lines = 1)
+  }
+
+  plat_prod <- if (!is.null(c_data) && "platform_prod" %in% names(c_data) &&
+                   !is.na(c_data[["platform_prod"]])) c_data[["platform_prod"]] else "—"
+  plat_dev  <- if (!is.null(c_data) && "platform_dev"  %in% names(c_data) &&
+                   !is.na(c_data[["platform_dev"]]))  c_data[["platform_dev"]]  else NA_character_
 
   # ── 7. Canvas and layout constants (inches as coordinate units) ────────────
   W   <- 5.0    # width  (inches)
@@ -172,27 +199,38 @@ generate_slide_tile <- function(account_name,
   y_ad_row1   <- H - 0.94   # label; dot + status sit y_drop below
   y_ad_row2   <- H - 1.42
   y_drop      <- 0.24
-  y_con_value <- H - 2.06
-  y_con_label <- H - 2.32
-  y_lc_eye    <- H - 2.60
-  y_lc_value  <- H - 2.82   # vjust = 1, so this is the top of the wrapped text
+
+  # Evidence for the PBAC rating, directly under the stoplights: which
+  # platforms are in play (production in white, dev-only muted after it) and
+  # which features are in use. This is where the old standalone platforms row
+  # went — it says more next to the rating it explains than it did floating
+  # below Lifecycle Stage, and moving it keeps the canvas the same height.
+  y_plat_eye  <- H - 1.88
+  y_plat_val  <- H - 2.08
+  y_feat_eye  <- H - 2.30
+  y_feat_val  <- H - 2.50
+
+  y_con_value <- H - 2.86
+  y_con_label <- H - 3.12
+  y_lc_eye    <- H - 3.38
+  y_lc_value  <- H - 3.58   # vjust = 1, so this is the top of the wrapped text
 
   # PERFORMANCE — deployment tag + version, then BigQuery incident/custx counts
-  y_h2        <- H - 3.52
-  y_rule_2    <- H - 3.78
-  y_dep_label <- H - 4.02
-  y_dep_value <- H - 4.30   # pill centre line, and the version value
-  y_sup_eye   <- H - 4.60
-  y_sup_value <- H - 4.94
-  y_sup_label <- H - 5.18
+  y_h2        <- H - 3.92
+  y_rule_2    <- H - 4.18
+  y_dep_label <- H - 4.42
+  y_dep_value <- H - 4.70   # pill centre line, and the version value
+  y_sup_eye   <- H - 5.00
+  y_sup_value <- H - 5.34
+  y_sup_label <- H - 5.58
 
-  # ENGAGEMENT — QBR dates and note
-  y_h3        <- H - 5.74
-  y_rule_3    <- H - 6.00
-  y_qbr_label <- H - 6.28
-  y_qbr_value <- H - 6.52
-  y_note_eye  <- H - 6.84
-  y_note_val  <- H - 7.06   # vjust = 1, top of the wrapped note
+  # ENGAGEMENT — QBR dates and note (also shifted down 0.40 inches)
+  y_h3        <- H - 6.14
+  y_rule_3    <- H - 6.40
+  y_qbr_label <- H - 6.68
+  y_qbr_value <- H - 6.92
+  y_note_eye  <- H - 7.24
+  y_note_val  <- H - 7.46   # vjust = 1, top of the wrapped note
 
   # ── 8. Build plot ──────────────────────────────────────────────────────────
   p <- ggplot2::ggplot() +
@@ -245,7 +283,7 @@ generate_slide_tile <- function(account_name,
 
     p <- p +
       ggplot2::annotate("text",
-        x = x_0, y = y_lab, label = ad$label,
+        x = x_0, y = y_lab, label = toupper(ad$label),
         hjust = 0, vjust = 0.5, family = fam, fontface = "bold",
         size = sz_label, colour = col_muted
       ) +
@@ -257,9 +295,44 @@ generate_slide_tile <- function(account_name,
       ) +
       ggplot2::annotate("text",
         x = x_0 + 0.22, y = y_val,
-        label = .tile_stoplight_word(ad$value),
+        label = ad$word,
         hjust = 0, vjust = 0.5, family = fam, fontface = "bold",
         size = sz_body, colour = col_white
+      )
+  }
+
+  # Platforms + features, the evidence behind the PBAC rating above.
+  p <- p +
+    ggplot2::annotate("text",
+      x = pad, y = y_plat_eye, label = "PLATFORMS",
+      hjust = 0, vjust = 0.5, family = fam, fontface = "bold",
+      size = sz_label, colour = col_muted
+    ) +
+    ggplot2::annotate("text",
+      x = pad, y = y_plat_val, label = plat_prod,
+      hjust = 0, vjust = 0.5, family = fam, fontface = "bold",
+      size = sz_body, colour = if (identical(plat_prod, "—")) col_none else col_white
+    ) +
+    ggplot2::annotate("text",
+      x = pad, y = y_feat_eye, label = "FEATURES",
+      hjust = 0, vjust = 0.5, family = fam, fontface = "bold",
+      size = sz_label, colour = col_muted
+    ) +
+    ggplot2::annotate("text",
+      x = pad, y = y_feat_val, label = pbac_features,
+      hjust = 0, vjust = 0.5, family = fam, fontface = "bold",
+      size = sz_body,
+      colour = if (pbac_features %in% c("None", "—")) col_none else col_white
+    )
+
+  # Dev/test-only platforms trail the production list in muted type, so the
+  # difference between "running it" and "trying it" stays visible.
+  if (!is.na(plat_dev) && nzchar(plat_dev)) {
+    p <- p +
+      ggplot2::annotate("text",
+        x = pad + col2, y = y_plat_val, label = paste0("dev: ", plat_dev),
+        hjust = 0, vjust = 0.5, family = fam, fontface = "bold",
+        size = sz_body, colour = col_muted
       )
   }
 
@@ -357,10 +430,11 @@ generate_slide_tile <- function(account_name,
   # ── 9. Write file ──────────────────────────────────────────────────────────
   if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
 
-  # Filename pattern: "<Salesforce account ID>-adoption_tile.png"
-  stem     <- .account_file_id(a_data, account_name)
-  svg_path <- file.path(tempdir(),  paste0(stem, "-adoption_tile.svg"))
-  png_path <- file.path(output_dir, paste0(stem, "-adoption_tile.png"))
+  # Filename pattern: "<index>_<account_name>_health.png" (e.g. "1_acorns_health.png")
+  if (is.null(index)) index <- .account_slide_index(op_list, account_name)
+  stem     <- .account_asset_stem(index, account_name, "health")
+  svg_path <- file.path(tempdir(),  paste0(stem, ".svg"))
+  png_path <- file.path(output_dir, paste0(stem, ".png"))
 
   # Step 1: render to SVG (vector — fonts stay as paths)
   ggplot2::ggsave(
@@ -388,8 +462,13 @@ generate_slide_tile <- function(account_name,
 #'
 #' Calls \code{\link{generate_slide_tile}} for every unique account in
 #' \code{op_list$accounts}, writing one
-#' \code{"<Salesforce account ID>-adoption_tile.png"} per account. Accounts that fail
+#' \code{"<index>_<account_name>_health.png"} per account. Accounts that fail
 #' are skipped with a warning.
+#'
+#' Health summaries only — see the note on
+#' \code{\link{generate_all_slide_headers}}; use
+#' \code{\link{generate_all_slide_assets}} when the headers and health summaries
+#' have to line up.
 #'
 #' @param op_list Named list returned by \code{enrich_opportunities()}.
 #' @param output_dir Character. Output directory. Defaults to
@@ -408,12 +487,13 @@ generate_all_slide_tiles <- function(op_list,
                                      output_dir = "output/slide_content/health_summaries",
                                      dpi        = 600) {
 
-  accounts <- unique(op_list$accounts[["Account Name"]])
+  accounts <- .account_slide_order(op_list)
   message("Generating account tiles for ", length(accounts), " accounts...")
 
-  paths <- purrr::map_chr(accounts, function(acct) {
+  paths <- purrr::imap_chr(accounts, function(acct, i) {
     tryCatch(
-      generate_slide_tile(acct, op_list, output_dir = output_dir, dpi = dpi),
+      generate_slide_tile(acct, op_list, output_dir = output_dir, dpi = dpi,
+                          index = i),
       error = function(e) {
         warning("Skipped '", acct, "': ", conditionMessage(e), call. = FALSE)
         NA_character_

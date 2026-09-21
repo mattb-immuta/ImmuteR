@@ -69,8 +69,9 @@ e.g. \code{c("Q1-2027", "Q2-2027")}.}
 \value{
 A named list with elements: \code{renewals}, \code{expansions},
   \code{accounts}, \code{active_orders}, \code{csm_table}, \code{saas_pipeline},
-  \code{orders}, \code{consumption}, (if \code{looker = TRUE})
-  \code{support}, and (if \code{productboard = TRUE}) \code{product_board}.
+  \code{orders}, \code{consumption}, \code{support} (from BigQuery — see
+  \code{\link{op_list_support}}), and (if \code{productboard = TRUE})
+  \code{product_board}.
 }
 \description{
 Fetches opportunity, account, active order, CSM assignment, and SaaS pipeline

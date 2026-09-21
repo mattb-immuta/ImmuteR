@@ -7,8 +7,9 @@
 generate_slide_tile(
   account_name,
   op_list,
-  output_dir = "output/slide_headers",
-  dpi = 600
+  output_dir = "output/slide_content/health_summaries",
+  dpi = 600,
+  index = NULL
 )
 }
 \arguments{
@@ -19,16 +20,22 @@ in \code{op_list$accounts}.}
 
 \item{output_dir}{Character. Directory to write the PNG into. Created
 recursively if it does not exist. Defaults to
-\code{"output/slide_headers"}.}
+\code{"output/slide_content/health_summaries"}.}
 
 \item{dpi}{Integer. Output resolution in dots per inch. Defaults to
 \code{600} (3000 × 4800 px for a 5 × 8 inch image).}
+
+\item{index}{Integer or \code{NULL}. Sequence number used as the filename
+prefix. When \code{NULL} (the default) it is derived from the account's
+position in the canonical slide ordering of \code{op_list$accounts} —
+Region, then Customer Success Manager, then account name — so the health
+summary and the header for an account always share the same number.}
 }
 \value{
 Invisibly returns the full path to the written PNG file. The file is
-  named \code{"<account name>-adoption_tile.png"}, with any character outside
-  \code{[A-Za-z0-9_-]} in the account name replaced by an underscore — so
-  \code{"Cigna"} writes \code{output/slide_headers/Cigna-adoption_tile.png}.
+  named \code{"<index>_<account_name>_health.png"} — the name lowercased with
+  spaces collapsed to underscores and all other punctuation dropped, e.g.
+  \code{output/slide_content/health_summaries/1_acorns_health.png}.
 }
 \description{
 Creates a 5 × 8 inch PNG card styled with the same Immuta brand tokens as
@@ -49,9 +56,10 @@ Three lime-headed sections are rendered:
     Licensed Users, and the Consumption Ratio (colour-coded: lime at
     \eqn{\ge} 50\%, amber at \eqn{\ge} 25\%, red below); then Lifecycle
     Stage.}
-  \item{\strong{Performance}}{Support cases and escalations over the
-    trailing 60 and 180 days (from \code{op_list$support}), plus deployment
-    type, Immuta version, and version support status.}
+  \item{\strong{Performance}}{Support cases over the trailing 90 and 360
+    days, customer escalations over 90 days and currently open (from
+    \code{op_list$support}, via BigQuery), plus deployment type, Immuta
+    version, and version support status.}
   \item{\strong{Engagement}}{Date of the last and next QBR, and the QBR
     note (wrapped, truncated to three lines).}
 }
@@ -63,7 +71,7 @@ three QBR fields (\code{Date Last QBR}, \code{Date Next QBR},
 \code{op_list$accounts}; consumption figures and \code{Immuta Version} from
 \code{op_list$consumption$low_consumption}; case counts from
 \code{op_list$support} (built by \code{\link{op_list_support}}, which needs
-\code{enrich_opportunities(looker = TRUE)}). Any value that is missing
+\code{bigrquery::bq_auth()}). Any value that is missing
 renders as an em-dash or a grey "no data" dot rather than erroring — so a
 tile still builds from an SFDC-only \code{op_list}.
 }

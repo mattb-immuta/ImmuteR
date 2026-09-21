@@ -21,8 +21,11 @@
 #' \describe{
 #'   \item{\code{account}}{name, region, arr, ae, csm, fcto, next_renewal,
 #'     account_url, customer_central_url.}
-#'   \item{\code{adoption}}{modules (a list of label/status/colour triples),
-#'     registered, licensed, ratio, lifecycle_stage.}
+#'   \item{\code{adoption}}{modules (a list of label/status/colour/source
+#'     entries — PBAC and Request rated from Looker, Comply and Agentic from
+#'     the Salesforce picklists, with \code{source} naming which), platforms,
+#'     platforms_dev, features (always an array), features_text, registered,
+#'     licensed, ratio, lifecycle_stage.}
 #'   \item{\code{performance}}{cases_90d, cases_360d, cases_total,
 #'     escalations_90d, escalations_360d, escalations_open, deployment
 #'     (the SaaS / SM: Supported / SM: Unsupported badge text),
@@ -74,25 +77,44 @@ account_slide_payload <- function(account_name, op_list) {
   } else "No open renewal"
 
   # ── Adoption ───────────────────────────────────────────────────────────────
-  modules <- lapply(
-    list(c("PBAC",    "PBAC Adoption"),
-         c("Comply",  "Comply Adoption"),
-         c("Request", "Request Adoption"),
-         c("Agentic", "Agentic Governance Adoption")),
-    function(m) {
-      v <- a_data[[m[2]]]
-      list(label  = m[1],
-           status = .tile_stoplight_word(v),
-           colour = .tile_stoplight_colour(v))
-    }
-  )
+  # PBAC and Request are rated from Looker, Comply and Agentic from the
+  # Salesforce picklists — adoption_rows() is shared with
+  # generate_slide_tile() so the PNG and this feed always agree, including on
+  # the fallback when a run had no Looker data.
+  #
+  # `status` keeps its contract as the text that goes beside the dot; for the
+  # picklists that is still the colour word, for the derived rows it is what
+  # the value says ("Retained", "Moderate adoption"). `source` is new, so a
+  # consumer can tell which of the two a row came from.
+  p_data <- pbac_row(op_list, account_name)
+
+  modules <- lapply(adoption_rows(a_data, p_data), function(m) {
+    list(label  = m$label,
+         status = m$word,
+         colour = .tile_stoplight_colour(m$value),
+         source = m$source)
+  })
+
+  # Evidence behind the PBAC rating. `features` is always an array so a
+  # consumer can iterate it; `features_text` is the display string, where
+  # "None" means Looker measured nothing in use and an em-dash means nothing
+  # was measured.
+  pbac_feats <- pbac_feature_labels(p_data)
+
+  features_text <- if (is.null(p_data)) {
+    "—"
+  } else if (length(pbac_feats) == 0) {
+    "None"
+  } else {
+    paste(pbac_feats, collapse = " · ")
+  }
 
   reg_raw <- .tile_num(c_data, "Registered Users")
   lic_raw <- .tile_num(c_data, "Licensed Users")
   rat_raw <- .tile_num(c_data, "Consumption Ratio")
-  if (is.na(rat_raw) && !is.na(reg_raw) && !is.na(lic_raw) && lic_raw > 0) {
-    rat_raw <- reg_raw / lic_raw
-  }
+  # ELA rule lives in consumption_ratio(): Licensed Users of 0 is unlimited
+  # seats, so the ratio is 1 rather than NA.
+  if (is.na(rat_raw)) rat_raw <- consumption_ratio(reg_raw, lic_raw)
 
   # ── Performance ────────────────────────────────────────────────────────────
 
@@ -136,6 +158,12 @@ account_slide_payload <- function(account_name, op_list) {
     ),
     adoption = list(
       modules         = modules,
+      platforms       = .coalesce_chr(
+        if (!is.null(c_data)) c_data[["platform_prod"]] else NA, "—"),
+      platforms_dev   = .coalesce_chr(
+        if (!is.null(c_data)) c_data[["platform_dev"]] else NA, "—"),
+      features        = as.list(pbac_feats),
+      features_text   = features_text,
       registered      = .tile_int(reg_raw),
       licensed        = .tile_int(lic_raw),
       ratio           = if (is.na(rat_raw)) "—" else paste0(round(rat_raw * 1000) / 10, "%"),

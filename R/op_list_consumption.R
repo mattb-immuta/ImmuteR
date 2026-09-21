@@ -9,6 +9,95 @@
   support_cases = 1776L    # RAW DATA - SUPPORT CASES
 )
 
+# Short display names mapped to their Look 1744 column names.
+.PLATFORM_COLS <- c(
+  "Redshift"       = "[Usage Metrics] Data Sources Count: Amazon Redshift",
+  "S3"             = "[Usage Metrics] Data Sources Count: Amazon S3",
+  "Synapse"        = "[Usage Metrics] Data Sources Count: Azure Synapse",
+  "BigQuery"       = "[Usage Metrics] Data Sources Count: BigQuery",
+  "Databricks"     = "[Usage Metrics] Data Sources Count: Databricks",
+  "Lake Formation" = "[Usage Metrics] Data Sources Count: Lake Formation",
+  "Snowflake"      = "[Usage Metrics] Data Sources Count: Snowflake",
+  "Trino"          = "[Usage Metrics] Data Sources Count: Trino",
+  "Other"          = "Data Sources: Other"
+)
+
+# Build per-account platform HTML strings and multiplatform flag from the raw
+# data_sources look (1744). Production platforms render in normal weight;
+# platforms present only in Dev/Test render in grey. Returns a data frame with
+# columns: Account Name, platform_html, multiplatform.
+.build_platform_data <- function(data_sources) {
+  col_map  <- .PLATFORM_COLS[.PLATFORM_COLS %in% names(data_sources)]
+  short_nm <- names(col_map)
+  raw_cols <- unname(col_map)
+
+  if (length(col_map) == 0) {
+    return(data.frame(`Account Name` = character(0),
+                      platform_html  = character(0),
+                      multiplatform  = logical(0),
+                      check.names    = FALSE))
+  }
+
+  agg <- data_sources |>
+    dplyr::rename(`Account Name` = `Salesforce Accounts Account Name`) |>
+    dplyr::select(
+      `Account Name`,
+      `Instance Type` = `Immuta Instances Instance Type`,
+      dplyr::all_of(setNames(raw_cols, short_nm))
+    ) |>
+    dplyr::mutate(dplyr::across(dplyr::all_of(short_nm),
+                                ~ suppressWarnings(as.numeric(.)))) |>
+    dplyr::group_by(`Account Name`, `Instance Type`) |>
+    dplyr::summarise(dplyr::across(dplyr::all_of(short_nm),
+                                   ~ sum(.x, na.rm = TRUE)),
+                     .groups = "drop")
+
+  prod_agg <- agg |> dplyr::filter(`Instance Type` == "Production")
+  dev_agg  <- agg |>
+    dplyr::filter(`Instance Type` != "Production") |>
+    dplyr::group_by(`Account Name`) |>
+    dplyr::summarise(dplyr::across(dplyr::all_of(short_nm),
+                                   ~ sum(.x, na.rm = TRUE)),
+                     .groups = "drop")
+
+  rows <- lapply(unique(agg$`Account Name`), function(acct) {
+    pr <- prod_agg[prod_agg$`Account Name` == acct, , drop = FALSE]
+    dv <- dev_agg[dev_agg$`Account Name`   == acct, , drop = FALSE]
+
+    prod_active <- if (nrow(pr) > 0) {
+      short_nm[vapply(short_nm,
+                      function(p) { v <- pr[[p]]; !is.na(v) && v > 0 },
+                      logical(1))]
+    } else character(0)
+
+    dev_only <- if (nrow(dv) > 0) {
+      short_nm[vapply(short_nm,
+                      function(p) {
+                        v <- dv[[p]]
+                        !is.na(v) && v > 0 && !(p %in% prod_active)
+                      }, logical(1))]
+    } else character(0)
+
+    parts <- c(
+      prod_active,
+      if (length(dev_only) > 0)
+        paste0('<span style="color:#aaa">', dev_only, '</span>')
+      else character(0)
+    )
+
+    data.frame(
+      `Account Name` = acct,
+      platform_html  = if (length(parts) > 0) paste(parts, collapse = " · ") else "—",
+      platform_prod  = if (length(prod_active) > 0) paste(prod_active, collapse = " · ") else "—",
+      platform_dev   = if (length(dev_only)    > 0) paste(dev_only,    collapse = " · ") else NA_character_,
+      multiplatform  = length(prod_active) > 1,
+      check.names    = FALSE
+    )
+  })
+
+  do.call(rbind, rows)
+}
+
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
 .parse_currency <- function(x) {
@@ -41,44 +130,21 @@
 #' Load raw op_list data from Looker
 #'
 #' Fetches each of the six Looker looks that back the CPO op_list consumption
-#' spreadsheet. Results are optionally cached as parquet files so subsequent
-#' calls skip the network round-trip.
+#' spreadsheet directly from Looker on every call.
 #'
-#' @param token      Character. Bearer token from \code{looker_auth()}.
+#' @param token Character. Bearer token from \code{looker_auth()}.
 #'   Defaults to calling \code{looker_auth()} automatically.
-#' @param cache_path Character or NULL. Directory for parquet caches. Set to
-#'   \code{"data/op_list/"} (relative to project root) to enable caching.
-#' @param refresh    Logical. If \code{TRUE}, re-fetch from Looker even when a
-#'   cache file exists. Default \code{FALSE}.
 #'
 #' @return Named list of tibbles: \code{users}, \code{data_sources},
 #'   \code{queries}, \code{policies}, \code{sdd_active}, \code{support_cases}.
 #' @export
-load_op_list_raw <- function(token     = NULL,
-                              cache_path = NULL,
-                              refresh    = FALSE) {
+load_op_list_raw <- function(token = NULL) {
   if (is.null(token)) token <- looker_auth()
 
   raw <- lapply(names(.OP_LIST_LOOKS), function(name) {
-    look_id    <- .OP_LIST_LOOKS[[name]]
-    cache_file <- if (!is.null(cache_path))
-      file.path(cache_path, paste0("op_list_", name, ".parquet"))
-    else
-      NULL
-
-    if (!is.null(cache_file) && file.exists(cache_file) && !refresh) {
-      message(glue::glue(".. {name}: loading from cache"))
-      return(arrow::read_parquet(cache_file))
-    }
-
+    look_id <- .OP_LIST_LOOKS[[name]]
     message(glue::glue(".. {name}: fetching look {look_id} from Looker"))
-    df <- run_looker_look(look_id, token)
-
-    if (!is.null(cache_file)) {
-      dir.create(cache_path, recursive = TRUE, showWarnings = FALSE)
-      arrow::write_parquet(df, cache_file)
-    }
-    df
+    run_looker_look(look_id, token)
   })
 
   names(raw) <- names(.OP_LIST_LOOKS)
@@ -128,6 +194,11 @@ load_op_list_raw <- function(token     = NULL,
 #' @param low_consumption_threshold Numeric. Fraction below which a customer's
 #'   registered/licensed user ratio flags them as low consumption. Default
 #'   \code{0.25} (25\%).
+#' @param domain_accounts Character vector or \code{NULL}. Accounts using
+#'   domains, passed through to \code{\link{op_list_pbac_adoption}}.
+#'   \code{enrich_opportunities()} supplies this from the Domains dashboard
+#'   (Looker 1053) on a \code{looker = TRUE} run; \code{NULL} scores the
+#'   \code{domains} component \code{0} for everyone.
 #'
 #' @return Named list stored as \code{op_list$consumption}, with elements:
 #' \describe{
@@ -145,11 +216,21 @@ load_op_list_raw <- function(token     = NULL,
 #'     accounts, literal \code{"saas"} for SaaS-hosted accounts, \code{NA}
 #'     when not captured by the SDD-active look), and \code{Low Consumption}
 #'     columns described above.}
+#'   \item{\code{metrics}}{One row per account with the numeric inputs for
+#'     adoption scoring — currently \code{platform_count}. See
+#'     \code{\link{op_list_metrics}}. Zero rows when \code{raw} is
+#'     \code{NULL}.}
+#'   \item{\code{pbac_adoption}}{One row per account with the PBAC complexity
+#'     signals, their weighted \code{complexity_score}, the production
+#'     \code{consumption_ratio}, and the \code{pbac_adoption} stoplight rating
+#'     derived from those two. See \code{\link{op_list_pbac_adoption}}.
+#'     Components with no Looker data behind them score \code{0}.}
 #' }
 #' @export
 op_list_consumption <- function(op_list,
                                 raw = NULL,
-                                low_consumption_threshold = 0.25) {
+                                low_consumption_threshold = 0.25,
+                                domain_accounts = NULL) {
   if (is.null(op_list$orders)) {
     stop("`op_list$orders` is NULL. Run enrich_opportunities() first.")
   }
@@ -329,16 +410,19 @@ op_list_consumption <- function(op_list,
     active_policies  <- suppressWarnings(as.numeric(low_consumption$`Active Policies (Total)`))
     data_source_ct   <- suppressWarnings(as.numeric(low_consumption$`[Usage Metrics] Data Sources Count`))
 
-    consumption_ratio <- ifelse(!is.na(licensed_users) & licensed_users > 0,
-                                registered_users / licensed_users, NA_real_)
+    # Licensed Users of 0 means an ELA (unlimited seats), not a bad denominator
+    # — consumption_ratio() in utils_internal.R scores those 1 rather than NA.
+    # Named `ratio` rather than `consumption_ratio` so it doesn't shadow that
+    # helper for the rest of the function.
+    ratio <- consumption_ratio(registered_users, licensed_users)
 
-    low_ratio   <- !is.na(consumption_ratio) & consumption_ratio < low_consumption_threshold
+    low_ratio   <- !is.na(ratio) & ratio < low_consumption_threshold
     no_policies <- !is.na(active_policies) & active_policies == 0
-    has_signal  <- !is.na(consumption_ratio) | !is.na(active_policies)
+    has_signal  <- !is.na(ratio) | !is.na(active_policies)
 
     low_consumption$`Registered Users`         <- registered_users
     low_consumption$`Licensed Users`           <- licensed_users
-    low_consumption$`Consumption Ratio`        <- consumption_ratio
+    low_consumption$`Consumption Ratio`        <- ratio
     low_consumption$`Data Sources Count`       <- data_source_ct
     low_consumption$`Data Policies`            <- data_policies
     low_consumption$`Subscription Policies`    <- sub_policies
@@ -348,9 +432,51 @@ op_list_consumption <- function(op_list,
       ifelse(has_signal, low_ratio | no_policies, NA)   # otherwise: ratio or zero-policy check
     )
 
+    # ── Platform breakdown ───────────────────────────────────────────────────────
+    # Build per-account platform HTML strings and multiplatform flag, then join
+    # onto low_consumption so downstream reports and the HTML dashboard can use them.
+    platform_data <- .build_platform_data(data_sources)
+    low_consumption <- low_consumption |>
+      dplyr::left_join(
+        platform_data |> dplyr::select(`Account Name`, platform_html,
+                                       platform_prod, platform_dev, multiplatform),
+        by = "Account Name"
+      )
+
   } else {
     low_consumption <- account_base
   }
+
+  # ── PBAC adoption ───────────────────────────────────────────────────────────
+  # multiplatform lives on low_consumption at this point, not on accounts:
+  # enrich_opportunities() copies it across only AFTER this function returns.
+  # Any stale copy on accounts (from calling this on an already-enriched
+  # op_list) is dropped first, so the join can't produce .x/.y suffixes and
+  # silently zero the component.
+  accounts_mp <- op_list$accounts
+  if (!is.null(low_consumption) && "multiplatform" %in% names(low_consumption)) {
+    # Dropped only when there's a replacement to join: an SFDC-only re-run
+    # against an already-enriched op_list keeps the multiplatform values
+    # enrich_opportunities() put on accounts rather than zeroing the component.
+    accounts_mp$multiplatform <- NULL
+    accounts_mp <- accounts_mp |>
+      dplyr::left_join(
+        low_consumption |>
+          dplyr::select(`Account Name`, multiplatform) |>
+          # One row per name: a duplicated account would fan the join out and
+          # break row alignment with op_list$accounts.
+          dplyr::distinct(`Account Name`, .keep_all = TRUE),
+        by = "Account Name"
+      )
+  }
+
+  pbac_adoption <- op_list_pbac_adoption(
+    accounts        = accounts_mp,
+    low_consumption = low_consumption,
+    sdd_consumption = sdd_consumption,
+    policy_metrics  = policy_metrics,
+    domain_accounts = domain_accounts
+  )
 
   message(".. op_list_consumption: complete")
 
@@ -362,6 +488,8 @@ op_list_consumption <- function(op_list,
     data_sources    = data_sources,    # look 1744 — all instances, all columns
 
     # ── Derived ─────────────────────────────────────────────────────────────────
-    low_consumption = low_consumption  # one row per customer, accounts + Looker
+    low_consumption = low_consumption,  # one row per customer, accounts + Looker
+    metrics         = op_list_metrics(data_sources),  # one row per account, scoring inputs
+    pbac_adoption   = pbac_adoption  # one row per account, PBAC rating + inputs
   )
 }

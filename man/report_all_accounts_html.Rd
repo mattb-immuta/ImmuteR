@@ -4,10 +4,7 @@
 \alias{report_all_accounts_html}
 \title{Generate an HTML dashboard of all account summaries.}
 \usage{
-report_all_accounts_html(
-  op_list,
-  output_path = "output/account_briefs/immuta_accounts.html"
-)
+report_all_accounts_html(op_list, output_path = "output/immuta_accounts.html")
 }
 \arguments{
 \item{op_list}{Named list returned by \code{enrich_opportunities()}, expected
@@ -16,7 +13,7 @@ to contain \code{accounts}, \code{renewals}, \code{expansions}, and
 
 \item{output_path}{Character. Path where the HTML file will be written.
 Parent directories are created automatically.
-Defaults to \code{"output/account_briefs/immuta_accounts.html"}.}
+Defaults to \code{"output/immuta_accounts.html"}.}
 }
 \value{
 Invisibly returns \code{output_path}.

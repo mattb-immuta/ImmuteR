@@ -15,15 +15,20 @@
 #' @param sf_saas_migration_report Character. Salesforce report ID for the SaaS migration pipeline.
 #' @param sf_csm_summary_report Character. Salesforce report ID for CSM account assignments.
 #' @param sf_orders_report Character. Salesforce report ID for the orders report.
-#' @param idex Logical. Whether to refresh idex parquet exports before reading. Defaults to \code{FALSE}.
-#' @param idex_path Character. Path to idex parquet directory. Defaults to \code{"data/idex/"}.
+#' @param sf_forecast_report Character. Salesforce report ID for the renewal
+#'   churn forecast report ("CompanyChurnReport"), pulled on every run into
+#'   \code{op_list$forecast} via \code{\link{op_list_forecast}}. Set to
+#'   \code{NULL} to skip the pull.
 #' @param looker Logical. If \code{TRUE}, pulls the six Looker looks that back the
 #'   CPO consumption spreadsheet and joins live metrics (users, data sources, queries,
 #'   policies, support cases) onto \code{op_list$consumption$renewals}. Requires
 #'   \code{LOOKER_CLIENT_ID} and \code{LOOKER_CLIENT_SECRET} environment variables.
+#'   Also derives \code{request_adoption_looker} (plus
+#'   \code{request_adoption_looker_stage} and \code{request_adoption_match}) on
+#'   \code{op_list$accounts} from the Request metrics dashboard (see
+#'   \code{\link{op_list_request_adoption}}); the hand-maintained Salesforce
+#'   \code{Request Adoption} picklist is left untouched alongside it.
 #'   Defaults to \code{FALSE} — SFDC-only stats are always computed.
-#' @param looker_cache_path Character or NULL. Directory for Looker parquet caches.
-#'   Defaults to \code{"data/looker/"}. Pass \code{NULL} to disable caching.
 #' @param low_consumption_threshold Numeric. Fraction below which a customer's
 #'   registered/licensed user ratio flags them as low consumption in
 #'   \code{op_list$consumption$low_consumption$`Low Consumption`} — a customer
@@ -41,7 +46,8 @@
 #'
 #' @return A named list with elements: \code{renewals}, \code{expansions},
 #'   \code{accounts}, \code{active_orders}, \code{csm_table}, \code{saas_pipeline},
-#'   \code{orders}, \code{consumption}, \code{support} (from BigQuery — see
+#'   \code{orders}, \code{consumption}, \code{forecast} (see
+#'   \code{\link{op_list_forecast}}), \code{support} (from BigQuery — see
 #'   \code{\link{op_list_support}}), and (if \code{productboard = TRUE})
 #'   \code{product_board}.
 #' @export
@@ -51,10 +57,8 @@ enrich_opportunities <- function(sf_opportunity_report    = "00OVH000005p6A92AI"
                                  sf_saas_migration_report = "00OVV000006FbWr2AK",
                                  sf_csm_summary_report    = "00OVV000006FbNB2A0",
                                  sf_orders_report         = "00OVV000005RTxV2AW",
-                                 idex                     = FALSE,
-                                 idex_path                = "data/idex/",
+                                 sf_forecast_report       = "00OVH00000706ML2AY",
                                  looker                   = FALSE,
-                                 looker_cache_path        = "data/looker/",
                                  low_consumption_threshold = 0.25,
                                  productboard             = FALSE,
                                  fiscal.period) {
@@ -104,18 +108,97 @@ enrich_opportunities <- function(sf_opportunity_report    = "00OVH000005p6A92AI"
   output_list[["saas_pipeline"]]<-sf_run_report(sf_saas_migration_report)
   output_list[["orders"]] <- sf_run_report(sf_orders_report)
 
+  # ── forecast child table ────────────────────────────────────────────────────
+  # Renewal churn forecast, grouped by churn quarter. Diffed against the prior
+  # snapshot in enrich_list_object() -> op_list$changes_detail$forecast.
+  # Warns rather than aborting so a report permission change doesn't kill a run
+  # that has already pulled everything else.
+  if (!is.null(sf_forecast_report) && nzchar(sf_forecast_report)) {
+    message(".. building op_list$forecast")
+    output_list[["forecast"]] <- tryCatch(
+      op_list_forecast(sf_forecast_report = sf_forecast_report,
+                       opportunity_table  = opportunity.table),
+      error = function(e) {
+        warning("Forecast report skipped: ", conditionMessage(e), call. = FALSE)
+        NULL
+      }
+    )
+  }
+
   # ── consumption child list ──────────────────────────────────────────────────
   message(".. building op_list$consumption")
+  # One login reused by every Looker call in this run (the looks below and the
+  # Request adoption dashboard further down).
+  looker_token <- if (looker) looker_auth() else NULL
+
   raw <- if (looker) {
-    load_op_list_raw(cache_path = looker_cache_path)
+    load_op_list_raw(token = looker_token)
   } else {
     NULL
   }
+  # Accounts using domains, from the retained-accounts tile of the Domains
+  # dashboard — one of the PBAC complexity signals. Warns rather than aborting:
+  # the component scores 0 for everyone if the tile can't be read.
+  domain_accounts <- if (looker) {
+    tryCatch(
+      looker_tile_accounts(1053, "retained accounts", token = looker_token),
+      error = function(e) {
+        warning("Domain accounts skipped: ", conditionMessage(e), call. = FALSE)
+        NULL
+      }
+    )
+  } else {
+    NULL
+  }
+
   output_list[["consumption"]] <- op_list_consumption(
     op_list = output_list,
     raw     = raw,
-    low_consumption_threshold = low_consumption_threshold
+    low_consumption_threshold = low_consumption_threshold,
+    domain_accounts = domain_accounts
   )
+
+  # Propagate multiplatform flag from low_consumption onto accounts so it is
+  # available for downstream functions (HTML report, slide headers, etc.).
+  if (!is.null(output_list[["consumption"]][["low_consumption"]]) &&
+      "multiplatform" %in% names(output_list[["consumption"]][["low_consumption"]])) {
+    mp_tbl <- output_list[["consumption"]][["low_consumption"]] |>
+      dplyr::select(`Account Name`, multiplatform)
+    output_list[["accounts"]] <- output_list[["accounts"]] |>
+      dplyr::left_join(mp_tbl, by = "Account Name") |>
+      dplyr::mutate(multiplatform = dplyr::coalesce(multiplatform, FALSE))
+  }
+
+  # ── derived Request adoption tier ───────────────────────────────────────────
+  # The Salesforce `Request Adoption` picklist is maintained by hand; this
+  # derives the same four tiers from the stage tiles of the Request metrics
+  # dashboard (Looker 1009) and attaches them ALONGSIDE the SFDC value rather
+  # than replacing it, so the two can be compared before the automation is
+  # trusted. Needs Looker, and warns rather than aborting — downstream renders
+  # an em-dash when absent.
+  if (looker) {
+    message(".. deriving Request Adoption from Looker dashboard 1009")
+    ra <- tryCatch(
+      op_list_request_adoption(accounts = output_list[["accounts"]],
+                               token    = looker_token),
+      error = function(e) {
+        warning("Request Adoption derivation skipped: ", conditionMessage(e),
+                call. = FALSE)
+        NULL
+      }
+    )
+
+    if (!is.null(ra)) {
+      output_list[["accounts"]] <- output_list[["accounts"]] |>
+        dplyr::left_join(
+          # One row per account name: `ra` comes back one row per row of
+          # accounts, so a duplicated name in the SFDC report would otherwise
+          # fan this join out.
+          ra |> dplyr::distinct(`Account Name`, .keep_all = TRUE),
+          by = "Account Name"
+        )
+    }
+  }
 
   # ── support child list ──────────────────────────────────────────────────────
   # Pulled from BigQuery (retool-457517), not Looker — see ?op_list_support.

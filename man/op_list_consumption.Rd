@@ -29,7 +29,9 @@ Named list stored as \code{op_list$consumption}, with elements:
   \item{\code{low_consumption}}{One row per customer: account base fields
     (including \code{Lifecycle Stage}), Production Looker metrics, and the
     derived \code{Registered Users}, \code{Licensed Users}, \code{Consumption
-    Ratio}, \code{Data Sources Count}, \code{Active Policies (Total)},
+    Ratio}, \code{Data Sources Count}, \code{Data Policies},
+    \code{Subscription Policies}, \code{Guardrail Policies},
+    \code{Active Policies (Total)}, \code{Prod Instance Count},
     \code{Immuta Version} (software version string for self-managed
     accounts, literal \code{"saas"} for SaaS-hosted accounts, \code{NA}
     when not captured by the SDD-active look), and \code{Low Consumption}
@@ -53,8 +55,11 @@ the same source that backs the \emph{Data} sheet in the CPO spreadsheet.
 
 All Looker-derived metrics (\code{Registered Users}, \code{Data Sources
 Count}, \code{Active Policies (Total)}, etc.) are scoped to each account's
-\strong{Production} instance only — Development/Test instances are never
-counted. When Looker data is supplied (\code{raw} not \code{NULL}), each
+\strong{Production} instances only — Development/Test instances are never
+counted. Where an account runs more than one Production instance, user and
+policy counts are \strong{summed across all of them}; \code{Licensed Users}
+is a contract-level figure Looker repeats per instance row, so it is taken
+once rather than summed. When Looker data is supplied (\code{raw} not \code{NULL}), each
 customer's \code{low_consumption} row is also annotated with a \code{Low
 Consumption} flag. A customer is flagged when \emph{any} of:
 \itemize{

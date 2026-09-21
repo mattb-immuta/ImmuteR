@@ -1,0 +1,1887 @@
+{
+  "generated_at": "2026-09-18T17:48:38Z",
+  "region": "US - W",
+  "account_count": 20,
+  "accounts": [
+    {
+      "slide_ids": {
+        "slide": "s_acornsgrowincorporated_30318",
+        "title": "t_acornsgrowincorporated_30318",
+        "arr": "r_acornsgrowincorporated_30318",
+        "meta": "d_acornsgrowincorporated_30318",
+        "header": [
+          "h1_acornsgrowincorporated_30318",
+          "h2_acornsgrowincorporated_30318",
+          "h3_acornsgrowincorporated_30318"
+        ],
+        "metrics": [
+          "m1_acornsgrowincorporated_30318",
+          "m2_acornsgrowincorporated_30318",
+          "m3_acornsgrowincorporated_30318"
+        ],
+        "comment": [
+          "c1_acornsgrowincorporated_30318",
+          "c2_acornsgrowincorporated_30318",
+          "c3_acornsgrowincorporated_30318"
+        ],
+        "writable": [
+          "t_acornsgrowincorporated_30318",
+          "r_acornsgrowincorporated_30318",
+          "d_acornsgrowincorporated_30318",
+          "h1_acornsgrowincorporated_30318",
+          "h2_acornsgrowincorporated_30318",
+          "h3_acornsgrowincorporated_30318",
+          "m1_acornsgrowincorporated_30318",
+          "m2_acornsgrowincorporated_30318",
+          "m3_acornsgrowincorporated_30318"
+        ],
+        "never_overwrite": [
+          "c1_acornsgrowincorporated_30318",
+          "c2_acornsgrowincorporated_30318",
+          "c3_acornsgrowincorporated_30318"
+        ]
+      },
+      "account": {
+        "name": "Acorns Grow Incorporated",
+        "region": "US - W",
+        "arr": "$205,000",
+        "ae": "Cory Phillips",
+        "csm": "John Timberlake",
+        "fcto": "Samantha Hamernick",
+        "next_renewal": "$205,000, Q2-2028",
+        "account_url": "https://immuta.lightning.force.com/lightning/r/Account/0011K00002A9Goo/view",
+        "customer_central_url": "https://customer-central.immuta.support/customers/0011K00002A9GooQAF"
+      },
+      "adoption": {
+        "modules": [
+          {
+            "label": "PBAC",
+            "status": "Amber",
+            "colour": "#F59E0B"
+          },
+          {
+            "label": "Comply",
+            "status": "Red",
+            "colour": "#EF4444"
+          },
+          {
+            "label": "Request",
+            "status": "Amber",
+            "colour": "#F59E0B"
+          },
+          {
+            "label": "Agentic",
+            "status": "Red",
+            "colour": "#EF4444"
+          }
+        ],
+        "registered": "218",
+        "licensed": "210",
+        "ratio": "103.8%",
+        "lifecycle_stage": "S3: greater than 75% license consumption"
+      },
+      "performance": {
+        "cases_90d": "2",
+        "cases_360d": "13",
+        "cases_total": "72",
+        "escalations_90d": "2",
+        "escalations_360d": "6",
+        "escalations_open": "1",
+        "deployment": "SaaS",
+        "deployment_color": "#5A7A00",
+        "version": "saas"
+      },
+      "engagement": {
+        "last_qbr": "July 22, 2026",
+        "next_qbr": "—",
+        "qbr_note": "Onsite Q1.  Remote Q2 QBR on 7/22. Targeting onsite in Q3."
+      }
+    },
+    {
+      "slide_ids": {
+        "slide": "s_activisionblizzard_19396",
+        "title": "t_activisionblizzard_19396",
+        "arr": "r_activisionblizzard_19396",
+        "meta": "d_activisionblizzard_19396",
+        "header": [
+          "h1_activisionblizzard_19396",
+          "h2_activisionblizzard_19396",
+          "h3_activisionblizzard_19396"
+        ],
+        "metrics": [
+          "m1_activisionblizzard_19396",
+          "m2_activisionblizzard_19396",
+          "m3_activisionblizzard_19396"
+        ],
+        "comment": [
+          "c1_activisionblizzard_19396",
+          "c2_activisionblizzard_19396",
+          "c3_activisionblizzard_19396"
+        ],
+        "writable": [
+          "t_activisionblizzard_19396",
+          "r_activisionblizzard_19396",
+          "d_activisionblizzard_19396",
+          "h1_activisionblizzard_19396",
+          "h2_activisionblizzard_19396",
+          "h3_activisionblizzard_19396",
+          "m1_activisionblizzard_19396",
+          "m2_activisionblizzard_19396",
+          "m3_activisionblizzard_19396"
+        ],
+        "never_overwrite": [
+          "c1_activisionblizzard_19396",
+          "c2_activisionblizzard_19396",
+          "c3_activisionblizzard_19396"
+        ]
+      },
+      "account": {
+        "name": "Activision Blizzard",
+        "region": "US - W",
+        "arr": "$100,000",
+        "ae": "Cory Phillips",
+        "csm": "John Timberlake",
+        "fcto": "Kevin Crawford",
+        "next_renewal": "$100,000, Q1-2028",
+        "account_url": "https://immuta.lightning.force.com/lightning/r/Account/0011K00002A9GQW/view",
+        "customer_central_url": "https://customer-central.immuta.support/customers/0011K00002A9GQWQA3"
+      },
+      "adoption": {
+        "modules": [
+          {
+            "label": "PBAC",
+            "status": "Amber",
+            "colour": "#F59E0B"
+          },
+          {
+            "label": "Comply",
+            "status": "Red",
+            "colour": "#EF4444"
+          },
+          {
+            "label": "Request",
+            "status": "Red",
+            "colour": "#EF4444"
+          },
+          {
+            "label": "Agentic",
+            "status": "Red",
+            "colour": "#EF4444"
+          }
+        ],
+        "registered": "839",
+        "licensed": "203",
+        "ratio": "413.3%",
+        "lifecycle_stage": "S2. MVP in prod, use case pipelining."
+      },
+      "performance": {
+        "cases_90d": "0",
+        "cases_360d": "1",
+        "cases_total": "40",
+        "escalations_90d": "0",
+        "escalations_360d": "0",
+        "escalations_open": "0",
+        "deployment": "SM: Unsupported",
+        "deployment_color": "#991B1B",
+        "version": "—"
+      },
+      "engagement": {
+        "last_qbr": "July 22, 2026",
+        "next_qbr": "—",
+        "qbr_note": "Virtual Q1. Remote Q2 QBR on 7/22. Priority Onsite in BC in Q3"
+      }
+    },
+    {
+      "slide_ids": {
+        "slide": "s_americancenturyinvestmen_41881",
+        "title": "t_americancenturyinvestmen_41881",
+        "arr": "r_americancenturyinvestmen_41881",
+        "meta": "d_americancenturyinvestmen_41881",
+        "header": [
+          "h1_americancenturyinvestmen_41881",
+          "h2_americancenturyinvestmen_41881",
+          "h3_americancenturyinvestmen_41881"
+        ],
+        "metrics": [
+          "m1_americancenturyinvestmen_41881",
+          "m2_americancenturyinvestmen_41881",
+          "m3_americancenturyinvestmen_41881"
+        ],
+        "comment": [
+          "c1_americancenturyinvestmen_41881",
+          "c2_americancenturyinvestmen_41881",
+          "c3_americancenturyinvestmen_41881"
+        ],
+        "writable": [
+          "t_americancenturyinvestmen_41881",
+          "r_americancenturyinvestmen_41881",
+          "d_americancenturyinvestmen_41881",
+          "h1_americancenturyinvestmen_41881",
+          "h2_americancenturyinvestmen_41881",
+          "h3_americancenturyinvestmen_41881",
+          "m1_americancenturyinvestmen_41881",
+          "m2_americancenturyinvestmen_41881",
+          "m3_americancenturyinvestmen_41881"
+        ],
+        "never_overwrite": [
+          "c1_americancenturyinvestmen_41881",
+          "c2_americancenturyinvestmen_41881",
+          "c3_americancenturyinvestmen_41881"
+        ]
+      },
+      "account": {
+        "name": "American Century Investments",
+        "region": "US - W",
+        "arr": "$301,000",
+        "ae": "Matt Sundberg",
+        "csm": "Philip Nightingale",
+        "fcto": "Kevin Crawford",
+        "next_renewal": "$301,000, Q3-2029",
+        "account_url": "https://immuta.lightning.force.com/lightning/r/Account/0011K00002Do4A2/view",
+        "customer_central_url": "https://customer-central.immuta.support/customers/0011K00002Do4A2QAJ"
+      },
+      "adoption": {
+        "modules": [
+          {
+            "label": "PBAC",
+            "status": "Amber",
+            "colour": "#F59E0B"
+          },
+          {
+            "label": "Comply",
+            "status": "Red",
+            "colour": "#EF4444"
+          },
+          {
+            "label": "Request",
+            "status": "Red",
+            "colour": "#EF4444"
+          },
+          {
+            "label": "Agentic",
+            "status": "Black",
+            "colour": "#111111"
+          }
+        ],
+        "registered": "1,277",
+        "licensed": "1,005",
+        "ratio": "127.1%",
+        "lifecycle_stage": "S3: greater than 75% license consumption"
+      },
+      "performance": {
+        "cases_90d": "4",
+        "cases_360d": "13",
+        "cases_total": "48",
+        "escalations_90d": "2",
+        "escalations_360d": "5",
+        "escalations_open": "2",
+        "deployment": "SaaS",
+        "deployment_color": "#5A7A00",
+        "version": "—"
+      },
+      "engagement": {
+        "last_qbr": "May 22, 2025",
+        "next_qbr": "—",
+        "qbr_note": "Q3 priority"
+      }
+    },
+    {
+      "slide_ids": {
+        "slide": "s_assetmark_04640",
+        "title": "t_assetmark_04640",
+        "arr": "r_assetmark_04640",
+        "meta": "d_assetmark_04640",
+        "header": [
+          "h1_assetmark_04640",
+          "h2_assetmark_04640",
+          "h3_assetmark_04640"
+        ],
+        "metrics": [
+          "m1_assetmark_04640",
+          "m2_assetmark_04640",
+          "m3_assetmark_04640"
+        ],
+        "comment": [
+          "c1_assetmark_04640",
+          "c2_assetmark_04640",
+          "c3_assetmark_04640"
+        ],
+        "writable": [
+          "t_assetmark_04640",
+          "r_assetmark_04640",
+          "d_assetmark_04640",
+          "h1_assetmark_04640",
+          "h2_assetmark_04640",
+          "h3_assetmark_04640",
+          "m1_assetmark_04640",
+          "m2_assetmark_04640",
+          "m3_assetmark_04640"
+        ],
+        "never_overwrite": [
+          "c1_assetmark_04640",
+          "c2_assetmark_04640",
+          "c3_assetmark_04640"
+        ]
+      },
+      "account": {
+        "name": "AssetMark",
+        "region": "US - W",
+        "arr": "$328,000",
+        "ae": "Matt Sundberg",
+        "csm": "Lauren Lorenzo",
+        "fcto": "Kevin Crawford",
+        "next_renewal": "$328,000, Q4-2028",
+        "account_url": "https://immuta.lightning.force.com/lightning/r/Account/0011K00002IpVwh/view",
+        "customer_central_url": "https://customer-central.immuta.support/customers/0011K00002IpVwhQAF"
+      },
+      "adoption": {
+        "modules": [
+          {
+            "label": "PBAC",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Comply",
+            "status": "Red",
+            "colour": "#EF4444"
+          },
+          {
+            "label": "Request",
+            "status": "Red",
+            "colour": "#EF4444"
+          },
+          {
+            "label": "Agentic",
+            "status": "Black",
+            "colour": "#111111"
+          }
+        ],
+        "registered": "20",
+        "licensed": "303",
+        "ratio": "6.6%",
+        "lifecycle_stage": "S2. MVP in prod, use case pipelining."
+      },
+      "performance": {
+        "cases_90d": "5",
+        "cases_360d": "14",
+        "cases_total": "14",
+        "escalations_90d": "4",
+        "escalations_360d": "6",
+        "escalations_open": "2",
+        "deployment": "SaaS",
+        "deployment_color": "#5A7A00",
+        "version": "—"
+      },
+      "engagement": {
+        "last_qbr": "—",
+        "next_qbr": "—",
+        "qbr_note": "9/3: working through a few pending issues, targeting end of year."
+      }
+    },
+    {
+      "slide_ids": {
+        "slide": "s_burnsmcdonnell_14183",
+        "title": "t_burnsmcdonnell_14183",
+        "arr": "r_burnsmcdonnell_14183",
+        "meta": "d_burnsmcdonnell_14183",
+        "header": [
+          "h1_burnsmcdonnell_14183",
+          "h2_burnsmcdonnell_14183",
+          "h3_burnsmcdonnell_14183"
+        ],
+        "metrics": [
+          "m1_burnsmcdonnell_14183",
+          "m2_burnsmcdonnell_14183",
+          "m3_burnsmcdonnell_14183"
+        ],
+        "comment": [
+          "c1_burnsmcdonnell_14183",
+          "c2_burnsmcdonnell_14183",
+          "c3_burnsmcdonnell_14183"
+        ],
+        "writable": [
+          "t_burnsmcdonnell_14183",
+          "r_burnsmcdonnell_14183",
+          "d_burnsmcdonnell_14183",
+          "h1_burnsmcdonnell_14183",
+          "h2_burnsmcdonnell_14183",
+          "h3_burnsmcdonnell_14183",
+          "m1_burnsmcdonnell_14183",
+          "m2_burnsmcdonnell_14183",
+          "m3_burnsmcdonnell_14183"
+        ],
+        "never_overwrite": [
+          "c1_burnsmcdonnell_14183",
+          "c2_burnsmcdonnell_14183",
+          "c3_burnsmcdonnell_14183"
+        ]
+      },
+      "account": {
+        "name": "Burns & McDonnell",
+        "region": "US - W",
+        "arr": "$299,000",
+        "ae": "Matt Sundberg",
+        "csm": "Tyler Ditto",
+        "fcto": "Kevin Crawford",
+        "next_renewal": "$115,000, Q3-2028",
+        "account_url": "https://immuta.lightning.force.com/lightning/r/Account/0011K00002FmSyV/view",
+        "customer_central_url": "https://customer-central.immuta.support/customers/0011K00002FmSyVQAV"
+      },
+      "adoption": {
+        "modules": [
+          {
+            "label": "PBAC",
+            "status": "Amber",
+            "colour": "#F59E0B"
+          },
+          {
+            "label": "Comply",
+            "status": "Red",
+            "colour": "#EF4444"
+          },
+          {
+            "label": "Request",
+            "status": "Green",
+            "colour": "#22C55E"
+          },
+          {
+            "label": "Agentic",
+            "status": "Red",
+            "colour": "#EF4444"
+          }
+        ],
+        "registered": "296",
+        "licensed": "1,006",
+        "ratio": "29.4%",
+        "lifecycle_stage": "S4: Multi-Sales Play Adoption"
+      },
+      "performance": {
+        "cases_90d": "0",
+        "cases_360d": "7",
+        "cases_total": "15",
+        "escalations_90d": "0",
+        "escalations_360d": "1",
+        "escalations_open": "0",
+        "deployment": "SaaS",
+        "deployment_color": "#5A7A00",
+        "version": "—"
+      },
+      "engagement": {
+        "last_qbr": "June 27, 2025",
+        "next_qbr": "—",
+        "qbr_note": "Plan for Immuta value, MP data product creation with Immuta and Collibra, Planning for Domain onboarding, etc. Team is far from true value. Incremental progress can be made, but this hinges on significant org exec decisions."
+      }
+    },
+    {
+      "slide_ids": {
+        "slide": "s_cardinalhealth_11602",
+        "title": "t_cardinalhealth_11602",
+        "arr": "r_cardinalhealth_11602",
+        "meta": "d_cardinalhealth_11602",
+        "header": [
+          "h1_cardinalhealth_11602",
+          "h2_cardinalhealth_11602",
+          "h3_cardinalhealth_11602"
+        ],
+        "metrics": [
+          "m1_cardinalhealth_11602",
+          "m2_cardinalhealth_11602",
+          "m3_cardinalhealth_11602"
+        ],
+        "comment": [
+          "c1_cardinalhealth_11602",
+          "c2_cardinalhealth_11602",
+          "c3_cardinalhealth_11602"
+        ],
+        "writable": [
+          "t_cardinalhealth_11602",
+          "r_cardinalhealth_11602",
+          "d_cardinalhealth_11602",
+          "h1_cardinalhealth_11602",
+          "h2_cardinalhealth_11602",
+          "h3_cardinalhealth_11602",
+          "m1_cardinalhealth_11602",
+          "m2_cardinalhealth_11602",
+          "m3_cardinalhealth_11602"
+        ],
+        "never_overwrite": [
+          "c1_cardinalhealth_11602",
+          "c2_cardinalhealth_11602",
+          "c3_cardinalhealth_11602"
+        ]
+      },
+      "account": {
+        "name": "Cardinal Health",
+        "region": "US - W",
+        "arr": "$986,000",
+        "ae": "Tyler Ditto",
+        "csm": "Tyler Ditto",
+        "fcto": "Kevin Crawford",
+        "next_renewal": "$796,000, Q1-2028",
+        "account_url": "https://immuta.lightning.force.com/lightning/r/Account/001410000031a3G/view",
+        "customer_central_url": "https://customer-central.immuta.support/customers/001410000031a3GAAQ"
+      },
+      "adoption": {
+        "modules": [
+          {
+            "label": "PBAC",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Comply",
+            "status": "Red",
+            "colour": "#EF4444"
+          },
+          {
+            "label": "Request",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Agentic",
+            "status": "Red",
+            "colour": "#EF4444"
+          }
+        ],
+        "registered": "15",
+        "licensed": "1,460",
+        "ratio": "1%",
+        "lifecycle_stage": "S1: Installation and Config."
+      },
+      "performance": {
+        "cases_90d": "4",
+        "cases_360d": "4",
+        "cases_total": "5",
+        "escalations_90d": "2",
+        "escalations_360d": "2",
+        "escalations_open": "0",
+        "deployment": "SaaS",
+        "deployment_color": "#5A7A00",
+        "version": "—"
+      },
+      "engagement": {
+        "last_qbr": "—",
+        "next_qbr": "—",
+        "qbr_note": "—"
+      }
+    },
+    {
+      "slide_ids": {
+        "slide": "s_coastalcommunitybank_24417",
+        "title": "t_coastalcommunitybank_24417",
+        "arr": "r_coastalcommunitybank_24417",
+        "meta": "d_coastalcommunitybank_24417",
+        "header": [
+          "h1_coastalcommunitybank_24417",
+          "h2_coastalcommunitybank_24417",
+          "h3_coastalcommunitybank_24417"
+        ],
+        "metrics": [
+          "m1_coastalcommunitybank_24417",
+          "m2_coastalcommunitybank_24417",
+          "m3_coastalcommunitybank_24417"
+        ],
+        "comment": [
+          "c1_coastalcommunitybank_24417",
+          "c2_coastalcommunitybank_24417",
+          "c3_coastalcommunitybank_24417"
+        ],
+        "writable": [
+          "t_coastalcommunitybank_24417",
+          "r_coastalcommunitybank_24417",
+          "d_coastalcommunitybank_24417",
+          "h1_coastalcommunitybank_24417",
+          "h2_coastalcommunitybank_24417",
+          "h3_coastalcommunitybank_24417",
+          "m1_coastalcommunitybank_24417",
+          "m2_coastalcommunitybank_24417",
+          "m3_coastalcommunitybank_24417"
+        ],
+        "never_overwrite": [
+          "c1_coastalcommunitybank_24417",
+          "c2_coastalcommunitybank_24417",
+          "c3_coastalcommunitybank_24417"
+        ]
+      },
+      "account": {
+        "name": "Coastal Community Bank",
+        "region": "US - W",
+        "arr": "$129,000",
+        "ae": "Matt Sundberg",
+        "csm": "Matt Jacober",
+        "fcto": "Kevin Crawford",
+        "next_renewal": "$129,000, Q1-2028",
+        "account_url": "https://immuta.lightning.force.com/lightning/r/Account/001VH000009Bn1s/view",
+        "customer_central_url": "https://customer-central.immuta.support/customers/001VH000009Bn1sYAC"
+      },
+      "adoption": {
+        "modules": [
+          {
+            "label": "PBAC",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Comply",
+            "status": "Red",
+            "colour": "#EF4444"
+          },
+          {
+            "label": "Request",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Agentic",
+            "status": "Black",
+            "colour": "#111111"
+          }
+        ],
+        "registered": "132",
+        "licensed": "203",
+        "ratio": "65%",
+        "lifecycle_stage": "S2. MVP in prod, use case pipelining."
+      },
+      "performance": {
+        "cases_90d": "2",
+        "cases_360d": "14",
+        "cases_total": "14",
+        "escalations_90d": "0",
+        "escalations_360d": "6",
+        "escalations_open": "0",
+        "deployment": "SaaS",
+        "deployment_color": "#5A7A00",
+        "version": "—"
+      },
+      "engagement": {
+        "last_qbr": "—",
+        "next_qbr": "—",
+        "qbr_note": "6/24 - Customer wants QBR AUG/SEP timeframe when initial roll out is complete"
+      }
+    },
+    {
+      "slide_ids": {
+        "slide": "s_disneyentertainmentespn_32142",
+        "title": "t_disneyentertainmentespn_32142",
+        "arr": "r_disneyentertainmentespn_32142",
+        "meta": "d_disneyentertainmentespn_32142",
+        "header": [
+          "h1_disneyentertainmentespn_32142",
+          "h2_disneyentertainmentespn_32142",
+          "h3_disneyentertainmentespn_32142"
+        ],
+        "metrics": [
+          "m1_disneyentertainmentespn_32142",
+          "m2_disneyentertainmentespn_32142",
+          "m3_disneyentertainmentespn_32142"
+        ],
+        "comment": [
+          "c1_disneyentertainmentespn_32142",
+          "c2_disneyentertainmentespn_32142",
+          "c3_disneyentertainmentespn_32142"
+        ],
+        "writable": [
+          "t_disneyentertainmentespn_32142",
+          "r_disneyentertainmentespn_32142",
+          "d_disneyentertainmentespn_32142",
+          "h1_disneyentertainmentespn_32142",
+          "h2_disneyentertainmentespn_32142",
+          "h3_disneyentertainmentespn_32142",
+          "m1_disneyentertainmentespn_32142",
+          "m2_disneyentertainmentespn_32142",
+          "m3_disneyentertainmentespn_32142"
+        ],
+        "never_overwrite": [
+          "c1_disneyentertainmentespn_32142",
+          "c2_disneyentertainmentespn_32142",
+          "c3_disneyentertainmentespn_32142"
+        ]
+      },
+      "account": {
+        "name": "Disney Entertainment & ESPN",
+        "region": "US - W",
+        "arr": "$340,000",
+        "ae": "Cory Phillips",
+        "csm": "Lauren Lorenzo",
+        "fcto": "Samantha Hamernick",
+        "next_renewal": "$340,000, Q2-2028",
+        "account_url": "https://immuta.lightning.force.com/lightning/r/Account/0011K00002K12Jg/view",
+        "customer_central_url": "https://customer-central.immuta.support/customers/0011K00002K12JgQAJ"
+      },
+      "adoption": {
+        "modules": [
+          {
+            "label": "PBAC",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Comply",
+            "status": "Red",
+            "colour": "#EF4444"
+          },
+          {
+            "label": "Request",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Agentic",
+            "status": "Black",
+            "colour": "#111111"
+          }
+        ],
+        "registered": "31",
+        "licensed": "110",
+        "ratio": "28.2%",
+        "lifecycle_stage": "S1: Installation and Config."
+      },
+      "performance": {
+        "cases_90d": "1",
+        "cases_360d": "2",
+        "cases_total": "32",
+        "escalations_90d": "0",
+        "escalations_360d": "0",
+        "escalations_open": "0",
+        "deployment": "SaaS",
+        "deployment_color": "#5A7A00",
+        "version": "—"
+      },
+      "engagement": {
+        "last_qbr": "—",
+        "next_qbr": "—",
+        "qbr_note": "Agreed to scheduling for Nov/Dec, will finalize one MVP live."
+      }
+    },
+    {
+      "slide_ids": {
+        "slide": "s_edwardjones_07590",
+        "title": "t_edwardjones_07590",
+        "arr": "r_edwardjones_07590",
+        "meta": "d_edwardjones_07590",
+        "header": [
+          "h1_edwardjones_07590",
+          "h2_edwardjones_07590",
+          "h3_edwardjones_07590"
+        ],
+        "metrics": [
+          "m1_edwardjones_07590",
+          "m2_edwardjones_07590",
+          "m3_edwardjones_07590"
+        ],
+        "comment": [
+          "c1_edwardjones_07590",
+          "c2_edwardjones_07590",
+          "c3_edwardjones_07590"
+        ],
+        "writable": [
+          "t_edwardjones_07590",
+          "r_edwardjones_07590",
+          "d_edwardjones_07590",
+          "h1_edwardjones_07590",
+          "h2_edwardjones_07590",
+          "h3_edwardjones_07590",
+          "m1_edwardjones_07590",
+          "m2_edwardjones_07590",
+          "m3_edwardjones_07590"
+        ],
+        "never_overwrite": [
+          "c1_edwardjones_07590",
+          "c2_edwardjones_07590",
+          "c3_edwardjones_07590"
+        ]
+      },
+      "account": {
+        "name": "Edward Jones",
+        "region": "US - W",
+        "arr": "$786,000",
+        "ae": "Matt Sundberg",
+        "csm": "Philip Nightingale",
+        "fcto": "Kevin Crawford",
+        "next_renewal": "$786,000, Q2-2028",
+        "account_url": "https://immuta.lightning.force.com/lightning/r/Account/0011K00002A9H17/view",
+        "customer_central_url": "https://customer-central.immuta.support/customers/0011K00002A9H17QAF"
+      },
+      "adoption": {
+        "modules": [
+          {
+            "label": "PBAC",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Comply",
+            "status": "Red",
+            "colour": "#EF4444"
+          },
+          {
+            "label": "Request",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Agentic",
+            "status": "Red",
+            "colour": "#EF4444"
+          }
+        ],
+        "registered": "1,218",
+        "licensed": "10,050",
+        "ratio": "12.1%",
+        "lifecycle_stage": "S2. MVP in prod, use case pipelining."
+      },
+      "performance": {
+        "cases_90d": "11",
+        "cases_360d": "31",
+        "cases_total": "139",
+        "escalations_90d": "0",
+        "escalations_360d": "4",
+        "escalations_open": "0",
+        "deployment": "SaaS",
+        "deployment_color": "#5A7A00",
+        "version": "—"
+      },
+      "engagement": {
+        "last_qbr": "—",
+        "next_qbr": "—",
+        "qbr_note": "9/22: Waiting for org dust to settle, but frequent conversation point"
+      }
+    },
+    {
+      "slide_ids": {
+        "slide": "s_elililly_04447",
+        "title": "t_elililly_04447",
+        "arr": "r_elililly_04447",
+        "meta": "d_elililly_04447",
+        "header": [
+          "h1_elililly_04447",
+          "h2_elililly_04447",
+          "h3_elililly_04447"
+        ],
+        "metrics": [
+          "m1_elililly_04447",
+          "m2_elililly_04447",
+          "m3_elililly_04447"
+        ],
+        "comment": [
+          "c1_elililly_04447",
+          "c2_elililly_04447",
+          "c3_elililly_04447"
+        ],
+        "writable": [
+          "t_elililly_04447",
+          "r_elililly_04447",
+          "d_elililly_04447",
+          "h1_elililly_04447",
+          "h2_elililly_04447",
+          "h3_elililly_04447",
+          "m1_elililly_04447",
+          "m2_elililly_04447",
+          "m3_elililly_04447"
+        ],
+        "never_overwrite": [
+          "c1_elililly_04447",
+          "c2_elililly_04447",
+          "c3_elililly_04447"
+        ]
+      },
+      "account": {
+        "name": "Eli Lilly",
+        "region": "US - W",
+        "arr": "$987,000",
+        "ae": "Nate Stamper",
+        "csm": "Tyler Ditto",
+        "fcto": "Kevin Crawford",
+        "next_renewal": "$987,000, Q3-2027",
+        "account_url": "https://immuta.lightning.force.com/lightning/r/Account/0011K00002A9Gkk/view",
+        "customer_central_url": "https://customer-central.immuta.support/customers/0011K00002A9GkkQAF"
+      },
+      "adoption": {
+        "modules": [
+          {
+            "label": "PBAC",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Comply",
+            "status": "Red",
+            "colour": "#EF4444"
+          },
+          {
+            "label": "Request",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Agentic",
+            "status": "Amber",
+            "colour": "#F59E0B"
+          }
+        ],
+        "registered": "263",
+        "licensed": "1,040",
+        "ratio": "25.3%",
+        "lifecycle_stage": "S2. MVP in prod, use case pipelining."
+      },
+      "performance": {
+        "cases_90d": "27",
+        "cases_360d": "91",
+        "cases_total": "149",
+        "escalations_90d": "1",
+        "escalations_360d": "6",
+        "escalations_open": "0",
+        "deployment": "SM: Unsupported",
+        "deployment_color": "#991B1B",
+        "version": "—"
+      },
+      "engagement": {
+        "last_qbr": "July 24, 2025",
+        "next_qbr": "—",
+        "qbr_note": "Product roadmap overview, saaS migration planning, MD use case pipelining"
+      }
+    },
+    {
+      "slide_ids": {
+        "slide": "s_generalmotors_10674",
+        "title": "t_generalmotors_10674",
+        "arr": "r_generalmotors_10674",
+        "meta": "d_generalmotors_10674",
+        "header": [
+          "h1_generalmotors_10674",
+          "h2_generalmotors_10674",
+          "h3_generalmotors_10674"
+        ],
+        "metrics": [
+          "m1_generalmotors_10674",
+          "m2_generalmotors_10674",
+          "m3_generalmotors_10674"
+        ],
+        "comment": [
+          "c1_generalmotors_10674",
+          "c2_generalmotors_10674",
+          "c3_generalmotors_10674"
+        ],
+        "writable": [
+          "t_generalmotors_10674",
+          "r_generalmotors_10674",
+          "d_generalmotors_10674",
+          "h1_generalmotors_10674",
+          "h2_generalmotors_10674",
+          "h3_generalmotors_10674",
+          "m1_generalmotors_10674",
+          "m2_generalmotors_10674",
+          "m3_generalmotors_10674"
+        ],
+        "never_overwrite": [
+          "c1_generalmotors_10674",
+          "c2_generalmotors_10674",
+          "c3_generalmotors_10674"
+        ]
+      },
+      "account": {
+        "name": "General Motors",
+        "region": "US - W",
+        "arr": "$4.50M",
+        "ae": "Nate Stamper",
+        "csm": "Tyler Ditto",
+        "fcto": "Mike Dunlap",
+        "next_renewal": "$5,000,000, Q3-2030",
+        "account_url": "https://immuta.lightning.force.com/lightning/r/Account/001410000031a1P/view",
+        "customer_central_url": "https://customer-central.immuta.support/customers/001410000031a1PAAQ"
+      },
+      "adoption": {
+        "modules": [
+          {
+            "label": "PBAC",
+            "status": "Green",
+            "colour": "#22C55E"
+          },
+          {
+            "label": "Comply",
+            "status": "Amber",
+            "colour": "#F59E0B"
+          },
+          {
+            "label": "Request",
+            "status": "Green",
+            "colour": "#22C55E"
+          },
+          {
+            "label": "Agentic",
+            "status": "Red",
+            "colour": "#EF4444"
+          }
+        ],
+        "registered": "29,252",
+        "licensed": "0",
+        "ratio": "—",
+        "lifecycle_stage": "S4: Multi-Sales Play Adoption"
+      },
+      "performance": {
+        "cases_90d": "32",
+        "cases_360d": "87",
+        "cases_total": "149",
+        "escalations_90d": "6",
+        "escalations_360d": "27",
+        "escalations_open": "1",
+        "deployment": "SaaS",
+        "deployment_color": "#5A7A00",
+        "version": "saas"
+      },
+      "engagement": {
+        "last_qbr": "September 10, 2025",
+        "next_qbr": "—",
+        "qbr_note": "Orchestrated as part of the CAB/Summit. They have committed to leveraging Provisioning with a timeline by end of July. We are also evaluating teams and working groups to force onboarding to close gap on unused licensing."
+      }
+    },
+    {
+      "slide_ids": {
+        "slide": "s_grail_01102",
+        "title": "t_grail_01102",
+        "arr": "r_grail_01102",
+        "meta": "d_grail_01102",
+        "header": [
+          "h1_grail_01102",
+          "h2_grail_01102",
+          "h3_grail_01102"
+        ],
+        "metrics": [
+          "m1_grail_01102",
+          "m2_grail_01102",
+          "m3_grail_01102"
+        ],
+        "comment": [
+          "c1_grail_01102",
+          "c2_grail_01102",
+          "c3_grail_01102"
+        ],
+        "writable": [
+          "t_grail_01102",
+          "r_grail_01102",
+          "d_grail_01102",
+          "h1_grail_01102",
+          "h2_grail_01102",
+          "h3_grail_01102",
+          "m1_grail_01102",
+          "m2_grail_01102",
+          "m3_grail_01102"
+        ],
+        "never_overwrite": [
+          "c1_grail_01102",
+          "c2_grail_01102",
+          "c3_grail_01102"
+        ]
+      },
+      "account": {
+        "name": "GRAIL",
+        "region": "US - W",
+        "arr": "$97,000",
+        "ae": "Cory Phillips",
+        "csm": "John Timberlake",
+        "fcto": "Samantha Hamernick",
+        "next_renewal": "$97,000, Q2-2028",
+        "account_url": "https://immuta.lightning.force.com/lightning/r/Account/0011K00002YboRM/view",
+        "customer_central_url": "https://customer-central.immuta.support/customers/0011K00002YboRMQAZ"
+      },
+      "adoption": {
+        "modules": [
+          {
+            "label": "PBAC",
+            "status": "Amber",
+            "colour": "#F59E0B"
+          },
+          {
+            "label": "Comply",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Request",
+            "status": "Red",
+            "colour": "#EF4444"
+          },
+          {
+            "label": "Agentic",
+            "status": "Black",
+            "colour": "#111111"
+          }
+        ],
+        "registered": "169",
+        "licensed": "82",
+        "ratio": "206.1%",
+        "lifecycle_stage": "S3: greater than 75% license consumption"
+      },
+      "performance": {
+        "cases_90d": "0",
+        "cases_360d": "3",
+        "cases_total": "23",
+        "escalations_90d": "0",
+        "escalations_360d": "0",
+        "escalations_open": "0",
+        "deployment": "SaaS",
+        "deployment_color": "#5A7A00",
+        "version": "—"
+      },
+      "engagement": {
+        "last_qbr": "March 26, 2026",
+        "next_qbr": "—",
+        "qbr_note": "Onsite Q1.  No QBR Q2. Met at Summit.  Priority Q3."
+      }
+    },
+    {
+      "slide_ids": {
+        "slide": "s_healthcatalyst_12280",
+        "title": "t_healthcatalyst_12280",
+        "arr": "r_healthcatalyst_12280",
+        "meta": "d_healthcatalyst_12280",
+        "header": [
+          "h1_healthcatalyst_12280",
+          "h2_healthcatalyst_12280",
+          "h3_healthcatalyst_12280"
+        ],
+        "metrics": [
+          "m1_healthcatalyst_12280",
+          "m2_healthcatalyst_12280",
+          "m3_healthcatalyst_12280"
+        ],
+        "comment": [
+          "c1_healthcatalyst_12280",
+          "c2_healthcatalyst_12280",
+          "c3_healthcatalyst_12280"
+        ],
+        "writable": [
+          "t_healthcatalyst_12280",
+          "r_healthcatalyst_12280",
+          "d_healthcatalyst_12280",
+          "h1_healthcatalyst_12280",
+          "h2_healthcatalyst_12280",
+          "h3_healthcatalyst_12280",
+          "m1_healthcatalyst_12280",
+          "m2_healthcatalyst_12280",
+          "m3_healthcatalyst_12280"
+        ],
+        "never_overwrite": [
+          "c1_healthcatalyst_12280",
+          "c2_healthcatalyst_12280",
+          "c3_healthcatalyst_12280"
+        ]
+      },
+      "account": {
+        "name": "Health Catalyst",
+        "region": "US - W",
+        "arr": "$456,000",
+        "ae": "John Timberlake",
+        "csm": "John Timberlake",
+        "fcto": "Samantha Hamernick",
+        "next_renewal": "$456,000, Q4-2027",
+        "account_url": "https://immuta.lightning.force.com/lightning/r/Account/0011K00002A9H9x/view",
+        "customer_central_url": "https://customer-central.immuta.support/customers/0011K00002A9H9xQAF"
+      },
+      "adoption": {
+        "modules": [
+          {
+            "label": "PBAC",
+            "status": "Amber",
+            "colour": "#F59E0B"
+          },
+          {
+            "label": "Comply",
+            "status": "Red",
+            "colour": "#EF4444"
+          },
+          {
+            "label": "Request",
+            "status": "Red",
+            "colour": "#EF4444"
+          },
+          {
+            "label": "Agentic",
+            "status": "Red",
+            "colour": "#EF4444"
+          }
+        ],
+        "registered": "1,792",
+        "licensed": "625",
+        "ratio": "286.7%",
+        "lifecycle_stage": "S3: greater than 75% license consumption"
+      },
+      "performance": {
+        "cases_90d": "5",
+        "cases_360d": "22",
+        "cases_total": "82",
+        "escalations_90d": "2",
+        "escalations_360d": "10",
+        "escalations_open": "2",
+        "deployment": "SaaS",
+        "deployment_color": "#5A7A00",
+        "version": "saas"
+      },
+      "engagement": {
+        "last_qbr": "January 22, 2026",
+        "next_qbr": "—",
+        "qbr_note": "QBR Q4, Roadmap Q1, AI w Touw Q1. Met at Summit.  Q3 Priority"
+      }
+    },
+    {
+      "slide_ids": {
+        "slide": "s_lockton_03039",
+        "title": "t_lockton_03039",
+        "arr": "r_lockton_03039",
+        "meta": "d_lockton_03039",
+        "header": [
+          "h1_lockton_03039",
+          "h2_lockton_03039",
+          "h3_lockton_03039"
+        ],
+        "metrics": [
+          "m1_lockton_03039",
+          "m2_lockton_03039",
+          "m3_lockton_03039"
+        ],
+        "comment": [
+          "c1_lockton_03039",
+          "c2_lockton_03039",
+          "c3_lockton_03039"
+        ],
+        "writable": [
+          "t_lockton_03039",
+          "r_lockton_03039",
+          "d_lockton_03039",
+          "h1_lockton_03039",
+          "h2_lockton_03039",
+          "h3_lockton_03039",
+          "m1_lockton_03039",
+          "m2_lockton_03039",
+          "m3_lockton_03039"
+        ],
+        "never_overwrite": [
+          "c1_lockton_03039",
+          "c2_lockton_03039",
+          "c3_lockton_03039"
+        ]
+      },
+      "account": {
+        "name": "Lockton",
+        "region": "US - W",
+        "arr": "$230,000",
+        "ae": "Matt Sundberg",
+        "csm": "John Timberlake",
+        "fcto": "Samantha Hamernick",
+        "next_renewal": "$230,000, Q2-2029",
+        "account_url": "https://immuta.lightning.force.com/lightning/r/Account/0011K00002EPGgv/view",
+        "customer_central_url": "https://customer-central.immuta.support/customers/0011K00002EPGgvQAH"
+      },
+      "adoption": {
+        "modules": [
+          {
+            "label": "PBAC",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Comply",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Request",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Agentic",
+            "status": "Black",
+            "colour": "#111111"
+          }
+        ],
+        "registered": "0",
+        "licensed": "105",
+        "ratio": "0%",
+        "lifecycle_stage": "S1: Installation and Config."
+      },
+      "performance": {
+        "cases_90d": "—",
+        "cases_360d": "—",
+        "cases_total": "—",
+        "escalations_90d": "—",
+        "escalations_360d": "—",
+        "escalations_open": "—",
+        "deployment": "SaaS",
+        "deployment_color": "#5A7A00",
+        "version": "—"
+      },
+      "engagement": {
+        "last_qbr": "—",
+        "next_qbr": "—",
+        "qbr_note": "8/20 - Still onboarding. May target late Q3 QBR to showcase progress."
+      }
+    },
+    {
+      "slide_ids": {
+        "slide": "s_minimedmedtronic_17300",
+        "title": "t_minimedmedtronic_17300",
+        "arr": "r_minimedmedtronic_17300",
+        "meta": "d_minimedmedtronic_17300",
+        "header": [
+          "h1_minimedmedtronic_17300",
+          "h2_minimedmedtronic_17300",
+          "h3_minimedmedtronic_17300"
+        ],
+        "metrics": [
+          "m1_minimedmedtronic_17300",
+          "m2_minimedmedtronic_17300",
+          "m3_minimedmedtronic_17300"
+        ],
+        "comment": [
+          "c1_minimedmedtronic_17300",
+          "c2_minimedmedtronic_17300",
+          "c3_minimedmedtronic_17300"
+        ],
+        "writable": [
+          "t_minimedmedtronic_17300",
+          "r_minimedmedtronic_17300",
+          "d_minimedmedtronic_17300",
+          "h1_minimedmedtronic_17300",
+          "h2_minimedmedtronic_17300",
+          "h3_minimedmedtronic_17300",
+          "m1_minimedmedtronic_17300",
+          "m2_minimedmedtronic_17300",
+          "m3_minimedmedtronic_17300"
+        ],
+        "never_overwrite": [
+          "c1_minimedmedtronic_17300",
+          "c2_minimedmedtronic_17300",
+          "c3_minimedmedtronic_17300"
+        ]
+      },
+      "account": {
+        "name": "MiniMed (Medtronic)",
+        "region": "US - W",
+        "arr": "$457,000",
+        "ae": "Matt Sundberg",
+        "csm": "Lauren Lorenzo",
+        "fcto": "Kevin Crawford",
+        "next_renewal": "$511,000, Q4-2027",
+        "account_url": "https://immuta.lightning.force.com/lightning/r/Account/0014100000yTLEW/view",
+        "customer_central_url": "https://customer-central.immuta.support/customers/0014100000yTLEWAA4"
+      },
+      "adoption": {
+        "modules": [
+          {
+            "label": "PBAC",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Comply",
+            "status": "Red",
+            "colour": "#EF4444"
+          },
+          {
+            "label": "Request",
+            "status": "Green",
+            "colour": "#22C55E"
+          },
+          {
+            "label": "Agentic",
+            "status": "Red",
+            "colour": "#EF4444"
+          }
+        ],
+        "registered": "609",
+        "licensed": "5,058",
+        "ratio": "12%",
+        "lifecycle_stage": "S2. MVP in prod, use case pipelining."
+      },
+      "performance": {
+        "cases_90d": "1",
+        "cases_360d": "10",
+        "cases_total": "27",
+        "escalations_90d": "1",
+        "escalations_360d": "4",
+        "escalations_open": "0",
+        "deployment": "SaaS",
+        "deployment_color": "#5A7A00",
+        "version": "saas"
+      },
+      "engagement": {
+        "last_qbr": "July 30, 2025",
+        "next_qbr": "—",
+        "qbr_note": "Upcoming focused on getting new Governance leader up to speed, Immuta product roadmap, and Medtronic licensing consumption plan."
+      }
+    },
+    {
+      "slide_ids": {
+        "slide": "s_nvidia_01496",
+        "title": "t_nvidia_01496",
+        "arr": "r_nvidia_01496",
+        "meta": "d_nvidia_01496",
+        "header": [
+          "h1_nvidia_01496",
+          "h2_nvidia_01496",
+          "h3_nvidia_01496"
+        ],
+        "metrics": [
+          "m1_nvidia_01496",
+          "m2_nvidia_01496",
+          "m3_nvidia_01496"
+        ],
+        "comment": [
+          "c1_nvidia_01496",
+          "c2_nvidia_01496",
+          "c3_nvidia_01496"
+        ],
+        "writable": [
+          "t_nvidia_01496",
+          "r_nvidia_01496",
+          "d_nvidia_01496",
+          "h1_nvidia_01496",
+          "h2_nvidia_01496",
+          "h3_nvidia_01496",
+          "m1_nvidia_01496",
+          "m2_nvidia_01496",
+          "m3_nvidia_01496"
+        ],
+        "never_overwrite": [
+          "c1_nvidia_01496",
+          "c2_nvidia_01496",
+          "c3_nvidia_01496"
+        ]
+      },
+      "account": {
+        "name": "NVIDIA",
+        "region": "US - W",
+        "arr": "$250,000",
+        "ae": "Nate Stamper",
+        "csm": "Adam Mangen",
+        "fcto": "Kevin Crawford",
+        "next_renewal": "$250,000, Q1-2029",
+        "account_url": "https://immuta.lightning.force.com/lightning/r/Account/0011K00002A9HPL/view",
+        "customer_central_url": "https://customer-central.immuta.support/customers/0011K00002A9HPLQA3"
+      },
+      "adoption": {
+        "modules": [
+          {
+            "label": "PBAC",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Comply",
+            "status": "Red",
+            "colour": "#EF4444"
+          },
+          {
+            "label": "Request",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Agentic",
+            "status": "Black",
+            "colour": "#111111"
+          }
+        ],
+        "registered": "396",
+        "licensed": "1,205",
+        "ratio": "32.9%",
+        "lifecycle_stage": "S2. MVP in prod, use case pipelining."
+      },
+      "performance": {
+        "cases_90d": "4",
+        "cases_360d": "14",
+        "cases_total": "15",
+        "escalations_90d": "1",
+        "escalations_360d": "5",
+        "escalations_open": "0",
+        "deployment": "SaaS",
+        "deployment_color": "#5A7A00",
+        "version": "—"
+      },
+      "engagement": {
+        "last_qbr": "—",
+        "next_qbr": "—",
+        "qbr_note": "9/1 - Re-establishing regular cadence. Adam and Cory coordinating leadership engagement plan."
+      }
+    },
+    {
+      "slide_ids": {
+        "slide": "s_radar_01534",
+        "title": "t_radar_01534",
+        "arr": "r_radar_01534",
+        "meta": "d_radar_01534",
+        "header": [
+          "h1_radar_01534",
+          "h2_radar_01534",
+          "h3_radar_01534"
+        ],
+        "metrics": [
+          "m1_radar_01534",
+          "m2_radar_01534",
+          "m3_radar_01534"
+        ],
+        "comment": [
+          "c1_radar_01534",
+          "c2_radar_01534",
+          "c3_radar_01534"
+        ],
+        "writable": [
+          "t_radar_01534",
+          "r_radar_01534",
+          "d_radar_01534",
+          "h1_radar_01534",
+          "h2_radar_01534",
+          "h3_radar_01534",
+          "m1_radar_01534",
+          "m2_radar_01534",
+          "m3_radar_01534"
+        ],
+        "never_overwrite": [
+          "c1_radar_01534",
+          "c2_radar_01534",
+          "c3_radar_01534"
+        ]
+      },
+      "account": {
+        "name": "Radar",
+        "region": "US - W",
+        "arr": "$15,000",
+        "ae": "Nate Stamper",
+        "csm": "John Timberlake",
+        "fcto": "Samantha Hamernick",
+        "next_renewal": "$15,000, Q1-2028",
+        "account_url": "https://immuta.lightning.force.com/lightning/r/Account/0011K0000228IPt/view",
+        "customer_central_url": "https://customer-central.immuta.support/customers/0011K0000228IPtQAM"
+      },
+      "adoption": {
+        "modules": [
+          {
+            "label": "PBAC",
+            "status": "Amber",
+            "colour": "#F59E0B"
+          },
+          {
+            "label": "Comply",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Request",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Agentic",
+            "status": "Black",
+            "colour": "#111111"
+          }
+        ],
+        "registered": "15",
+        "licensed": "15",
+        "ratio": "100%",
+        "lifecycle_stage": "S3: greater than 75% license consumption"
+      },
+      "performance": {
+        "cases_90d": "0",
+        "cases_360d": "0",
+        "cases_total": "23",
+        "escalations_90d": "0",
+        "escalations_360d": "0",
+        "escalations_open": "0",
+        "deployment": "SM: Supported",
+        "deployment_color": "#92400E",
+        "version": "—"
+      },
+      "engagement": {
+        "last_qbr": "August 20, 2025",
+        "next_qbr": "—",
+        "qbr_note": "New CTO.  Refuses QBR"
+      }
+    },
+    {
+      "slide_ids": {
+        "slide": "s_technipfmc_04886",
+        "title": "t_technipfmc_04886",
+        "arr": "r_technipfmc_04886",
+        "meta": "d_technipfmc_04886",
+        "header": [
+          "h1_technipfmc_04886",
+          "h2_technipfmc_04886",
+          "h3_technipfmc_04886"
+        ],
+        "metrics": [
+          "m1_technipfmc_04886",
+          "m2_technipfmc_04886",
+          "m3_technipfmc_04886"
+        ],
+        "comment": [
+          "c1_technipfmc_04886",
+          "c2_technipfmc_04886",
+          "c3_technipfmc_04886"
+        ],
+        "writable": [
+          "t_technipfmc_04886",
+          "r_technipfmc_04886",
+          "d_technipfmc_04886",
+          "h1_technipfmc_04886",
+          "h2_technipfmc_04886",
+          "h3_technipfmc_04886",
+          "m1_technipfmc_04886",
+          "m2_technipfmc_04886",
+          "m3_technipfmc_04886"
+        ],
+        "never_overwrite": [
+          "c1_technipfmc_04886",
+          "c2_technipfmc_04886",
+          "c3_technipfmc_04886"
+        ]
+      },
+      "account": {
+        "name": "TechnipFMC",
+        "region": "US - W",
+        "arr": "$277,000",
+        "ae": "Cory Phillips",
+        "csm": "John Timberlake",
+        "fcto": "Kevin Crawford",
+        "next_renewal": "$277,000, Q1-2028",
+        "account_url": "https://immuta.lightning.force.com/lightning/r/Account/0011K00002K0umM/view",
+        "customer_central_url": "https://customer-central.immuta.support/customers/0011K00002K0umMQAR"
+      },
+      "adoption": {
+        "modules": [
+          {
+            "label": "PBAC",
+            "status": "Red",
+            "colour": "#EF4444"
+          },
+          {
+            "label": "Comply",
+            "status": "Red",
+            "colour": "#EF4444"
+          },
+          {
+            "label": "Request",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Agentic",
+            "status": "Black",
+            "colour": "#111111"
+          }
+        ],
+        "registered": "25,382",
+        "licensed": "504",
+        "ratio": "5036.1%",
+        "lifecycle_stage": "S3: greater than 75% license consumption"
+      },
+      "performance": {
+        "cases_90d": "3",
+        "cases_360d": "21",
+        "cases_total": "54",
+        "escalations_90d": "2",
+        "escalations_360d": "3",
+        "escalations_open": "2",
+        "deployment": "SaaS",
+        "deployment_color": "#5A7A00",
+        "version": "—"
+      },
+      "engagement": {
+        "last_qbr": "July 23, 2026",
+        "next_qbr": "—",
+        "qbr_note": "Remote Q1 QBR, Remote Q2 QBR on 7/23."
+      }
+    },
+    {
+      "slide_ids": {
+        "slide": "s_thryv_01708",
+        "title": "t_thryv_01708",
+        "arr": "r_thryv_01708",
+        "meta": "d_thryv_01708",
+        "header": [
+          "h1_thryv_01708",
+          "h2_thryv_01708",
+          "h3_thryv_01708"
+        ],
+        "metrics": [
+          "m1_thryv_01708",
+          "m2_thryv_01708",
+          "m3_thryv_01708"
+        ],
+        "comment": [
+          "c1_thryv_01708",
+          "c2_thryv_01708",
+          "c3_thryv_01708"
+        ],
+        "writable": [
+          "t_thryv_01708",
+          "r_thryv_01708",
+          "d_thryv_01708",
+          "h1_thryv_01708",
+          "h2_thryv_01708",
+          "h3_thryv_01708",
+          "m1_thryv_01708",
+          "m2_thryv_01708",
+          "m3_thryv_01708"
+        ],
+        "never_overwrite": [
+          "c1_thryv_01708",
+          "c2_thryv_01708",
+          "c3_thryv_01708"
+        ]
+      },
+      "account": {
+        "name": "Thryv",
+        "region": "US - W",
+        "arr": "$85,000",
+        "ae": "Nate Stamper",
+        "csm": "John Timberlake",
+        "fcto": "Kevin Crawford",
+        "next_renewal": "$85,000, Q3-2027",
+        "account_url": "https://immuta.lightning.force.com/lightning/r/Account/0011K00002A9GcC/view",
+        "customer_central_url": "https://customer-central.immuta.support/customers/0011K00002A9GcCQAV"
+      },
+      "adoption": {
+        "modules": [
+          {
+            "label": "PBAC",
+            "status": "Amber",
+            "colour": "#F59E0B"
+          },
+          {
+            "label": "Comply",
+            "status": "Red",
+            "colour": "#EF4444"
+          },
+          {
+            "label": "Request",
+            "status": "Amber",
+            "colour": "#F59E0B"
+          },
+          {
+            "label": "Agentic",
+            "status": "Black",
+            "colour": "#111111"
+          }
+        ],
+        "registered": "144",
+        "licensed": "27",
+        "ratio": "533.3%",
+        "lifecycle_stage": "S3: greater than 75% license consumption"
+      },
+      "performance": {
+        "cases_90d": "0",
+        "cases_360d": "0",
+        "cases_total": "7",
+        "escalations_90d": "0",
+        "escalations_360d": "0",
+        "escalations_open": "0",
+        "deployment": "SaaS",
+        "deployment_color": "#5A7A00",
+        "version": "saas"
+      },
+      "engagement": {
+        "last_qbr": "October 16, 2025",
+        "next_qbr": "—",
+        "qbr_note": "10/31 - Churning. Last QBR was remote on 10/16. Previous QBR completed on 6/26. Was not open to 10/16 onsite due to recent office change / busy schedules."
+      }
+    },
+    {
+      "slide_ids": {
+        "slide": "s_vizient_03059",
+        "title": "t_vizient_03059",
+        "arr": "r_vizient_03059",
+        "meta": "d_vizient_03059",
+        "header": [
+          "h1_vizient_03059",
+          "h2_vizient_03059",
+          "h3_vizient_03059"
+        ],
+        "metrics": [
+          "m1_vizient_03059",
+          "m2_vizient_03059",
+          "m3_vizient_03059"
+        ],
+        "comment": [
+          "c1_vizient_03059",
+          "c2_vizient_03059",
+          "c3_vizient_03059"
+        ],
+        "writable": [
+          "t_vizient_03059",
+          "r_vizient_03059",
+          "d_vizient_03059",
+          "h1_vizient_03059",
+          "h2_vizient_03059",
+          "h3_vizient_03059",
+          "m1_vizient_03059",
+          "m2_vizient_03059",
+          "m3_vizient_03059"
+        ],
+        "never_overwrite": [
+          "c1_vizient_03059",
+          "c2_vizient_03059",
+          "c3_vizient_03059"
+        ]
+      },
+      "account": {
+        "name": "Vizient",
+        "region": "US - W",
+        "arr": "$676,000",
+        "ae": "Tyler Ditto",
+        "csm": "Tyler Ditto",
+        "fcto": "Kevin Crawford",
+        "next_renewal": "$676,000, Q1-2028",
+        "account_url": "https://immuta.lightning.force.com/lightning/r/Account/0011K00002A9HWd/view",
+        "customer_central_url": "https://customer-central.immuta.support/customers/0011K00002A9HWdQAN"
+      },
+      "adoption": {
+        "modules": [
+          {
+            "label": "PBAC",
+            "status": "Red",
+            "colour": "#EF4444"
+          },
+          {
+            "label": "Comply",
+            "status": "Red",
+            "colour": "#EF4444"
+          },
+          {
+            "label": "Request",
+            "status": "Red",
+            "colour": "#EF4444"
+          },
+          {
+            "label": "Agentic",
+            "status": "Amber",
+            "colour": "#F59E0B"
+          }
+        ],
+        "registered": "684",
+        "licensed": "1,010",
+        "ratio": "67.7%",
+        "lifecycle_stage": "S3: greater than 75% license consumption"
+      },
+      "performance": {
+        "cases_90d": "7",
+        "cases_360d": "10",
+        "cases_total": "30",
+        "escalations_90d": "6",
+        "escalations_360d": "9",
+        "escalations_open": "2",
+        "deployment": "SaaS",
+        "deployment_color": "#5A7A00",
+        "version": "—"
+      },
+      "engagement": {
+        "last_qbr": "June 12, 2025",
+        "next_qbr": "—",
+        "qbr_note": "—"
+      }
+    }
+  ]
+}

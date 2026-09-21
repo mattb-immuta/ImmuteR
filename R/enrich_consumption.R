@@ -15,6 +15,7 @@
 #' @export
 enrich_consumption <- function(idex = TRUE,
                                idex_path = "data/idex/") {
+  .Deprecated(msg = "enrich_consumption() is deprecated. Looker-based consumption metrics are now pulled via load_op_list_raw() inside enrich_opportunities(looker = TRUE).")
 
   # Normalise: ensure path ends with a separator
   idex_path <- file.path(idex_path, "")

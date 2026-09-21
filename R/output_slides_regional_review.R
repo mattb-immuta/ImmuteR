@@ -187,8 +187,12 @@ output_slides_regional_review <- function(op_list,
                  function(m) paste0(m$label, ": ", m$status),
                  character(1))
 
+  # Platforms and features are the evidence behind the PBAC rating, so they
+  # sit directly under the module line — the same order the HTML card and the
+  # PNG health summary use.
   paste(
     paste(mods, collapse = "   "),
+    paste0("Platforms: ", ad$platforms, "    Features: ", ad$features_text),
     "",
     paste0("Registered: ", ad$registered,
            "    Licensed: ", ad$licensed,

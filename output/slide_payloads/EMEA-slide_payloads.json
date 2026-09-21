@@ -1,0 +1,1041 @@
+{
+  "generated_at": "2026-09-18T17:48:38Z",
+  "region": "EMEA",
+  "account_count": 11,
+  "accounts": [
+    {
+      "slide_ids": {
+        "slide": "s_aon_00457",
+        "title": "t_aon_00457",
+        "arr": "r_aon_00457",
+        "meta": "d_aon_00457",
+        "header": [
+          "h1_aon_00457",
+          "h2_aon_00457",
+          "h3_aon_00457"
+        ],
+        "metrics": [
+          "m1_aon_00457",
+          "m2_aon_00457",
+          "m3_aon_00457"
+        ],
+        "comment": [
+          "c1_aon_00457",
+          "c2_aon_00457",
+          "c3_aon_00457"
+        ],
+        "writable": [
+          "t_aon_00457",
+          "r_aon_00457",
+          "d_aon_00457",
+          "h1_aon_00457",
+          "h2_aon_00457",
+          "h3_aon_00457",
+          "m1_aon_00457",
+          "m2_aon_00457",
+          "m3_aon_00457"
+        ],
+        "never_overwrite": [
+          "c1_aon_00457",
+          "c2_aon_00457",
+          "c3_aon_00457"
+        ]
+      },
+      "account": {
+        "name": "AON",
+        "region": "EMEA",
+        "arr": "$517,000",
+        "ae": "Colin Mitchell",
+        "csm": "Pratyoosh Raizada",
+        "fcto": "Bart Koek",
+        "next_renewal": "$517,000, Q4-2027",
+        "account_url": "https://immuta.lightning.force.com/lightning/r/Account/0014100001OLhsw/view",
+        "customer_central_url": "https://customer-central.immuta.support/customers/0014100001OLhswAAD"
+      },
+      "adoption": {
+        "modules": [
+          {
+            "label": "PBAC",
+            "status": "Amber",
+            "colour": "#F59E0B"
+          },
+          {
+            "label": "Comply",
+            "status": "Red",
+            "colour": "#EF4444"
+          },
+          {
+            "label": "Request",
+            "status": "Red",
+            "colour": "#EF4444"
+          },
+          {
+            "label": "Agentic",
+            "status": "Red",
+            "colour": "#EF4444"
+          }
+        ],
+        "registered": "401",
+        "licensed": "766",
+        "ratio": "52.3%",
+        "lifecycle_stage": "S2. MVP in prod, use case pipelining."
+      },
+      "performance": {
+        "cases_90d": "3",
+        "cases_360d": "15",
+        "cases_total": "207",
+        "escalations_90d": "0",
+        "escalations_360d": "1",
+        "escalations_open": "0",
+        "deployment": "SaaS",
+        "deployment_color": "#5A7A00",
+        "version": "—"
+      },
+      "engagement": {
+        "last_qbr": "May 01, 2026",
+        "next_qbr": "July 30, 2026",
+        "qbr_note": "5/29: Working toward Strategic Data Assets Go Live in Snowflake. Next EBR post Go Live in July."
+      }
+    },
+    {
+      "slide_ids": {
+        "slide": "s_astrazeneca_06677",
+        "title": "t_astrazeneca_06677",
+        "arr": "r_astrazeneca_06677",
+        "meta": "d_astrazeneca_06677",
+        "header": [
+          "h1_astrazeneca_06677",
+          "h2_astrazeneca_06677",
+          "h3_astrazeneca_06677"
+        ],
+        "metrics": [
+          "m1_astrazeneca_06677",
+          "m2_astrazeneca_06677",
+          "m3_astrazeneca_06677"
+        ],
+        "comment": [
+          "c1_astrazeneca_06677",
+          "c2_astrazeneca_06677",
+          "c3_astrazeneca_06677"
+        ],
+        "writable": [
+          "t_astrazeneca_06677",
+          "r_astrazeneca_06677",
+          "d_astrazeneca_06677",
+          "h1_astrazeneca_06677",
+          "h2_astrazeneca_06677",
+          "h3_astrazeneca_06677",
+          "m1_astrazeneca_06677",
+          "m2_astrazeneca_06677",
+          "m3_astrazeneca_06677"
+        ],
+        "never_overwrite": [
+          "c1_astrazeneca_06677",
+          "c2_astrazeneca_06677",
+          "c3_astrazeneca_06677"
+        ]
+      },
+      "account": {
+        "name": "AstraZeneca",
+        "region": "EMEA",
+        "arr": "$1.19M",
+        "ae": "Rey Khan",
+        "csm": "Pratyoosh Raizada",
+        "fcto": "Bart Koek",
+        "next_renewal": "$100,000, Q3-2028",
+        "account_url": "https://immuta.lightning.force.com/lightning/r/Account/0014100000589TM/view",
+        "customer_central_url": "https://customer-central.immuta.support/customers/0014100000589TMAAY"
+      },
+      "adoption": {
+        "modules": [
+          {
+            "label": "PBAC",
+            "status": "Green",
+            "colour": "#22C55E"
+          },
+          {
+            "label": "Comply",
+            "status": "Red",
+            "colour": "#EF4444"
+          },
+          {
+            "label": "Request",
+            "status": "Green",
+            "colour": "#22C55E"
+          },
+          {
+            "label": "Agentic",
+            "status": "Amber",
+            "colour": "#F59E0B"
+          }
+        ],
+        "registered": "5,365",
+        "licensed": "3,532",
+        "ratio": "151.9%",
+        "lifecycle_stage": "S3: greater than 75% license consumption"
+      },
+      "performance": {
+        "cases_90d": "25",
+        "cases_360d": "88",
+        "cases_total": "129",
+        "escalations_90d": "5",
+        "escalations_360d": "32",
+        "escalations_open": "0",
+        "deployment": "SaaS",
+        "deployment_color": "#5A7A00",
+        "version": "—"
+      },
+      "engagement": {
+        "last_qbr": "April 08, 2026",
+        "next_qbr": "—",
+        "qbr_note": "5/29: Re-org in flight & need for dust to settle before we can schedule next EBR."
+      }
+    },
+    {
+      "slide_ids": {
+        "slide": "s_aviva_01573",
+        "title": "t_aviva_01573",
+        "arr": "r_aviva_01573",
+        "meta": "d_aviva_01573",
+        "header": [
+          "h1_aviva_01573",
+          "h2_aviva_01573",
+          "h3_aviva_01573"
+        ],
+        "metrics": [
+          "m1_aviva_01573",
+          "m2_aviva_01573",
+          "m3_aviva_01573"
+        ],
+        "comment": [
+          "c1_aviva_01573",
+          "c2_aviva_01573",
+          "c3_aviva_01573"
+        ],
+        "writable": [
+          "t_aviva_01573",
+          "r_aviva_01573",
+          "d_aviva_01573",
+          "h1_aviva_01573",
+          "h2_aviva_01573",
+          "h3_aviva_01573",
+          "m1_aviva_01573",
+          "m2_aviva_01573",
+          "m3_aviva_01573"
+        ],
+        "never_overwrite": [
+          "c1_aviva_01573",
+          "c2_aviva_01573",
+          "c3_aviva_01573"
+        ]
+      },
+      "account": {
+        "name": "Aviva",
+        "region": "EMEA",
+        "arr": "$658,000",
+        "ae": "Colin Mitchell",
+        "csm": "Noha Badawy",
+        "fcto": "Bart Koek",
+        "next_renewal": "$169,000, Q1-2029",
+        "account_url": "https://immuta.lightning.force.com/lightning/r/Account/0011K00002A9H1v/view",
+        "customer_central_url": "https://customer-central.immuta.support/customers/0011K00002A9H1vQAF"
+      },
+      "adoption": {
+        "modules": [
+          {
+            "label": "PBAC",
+            "status": "Green",
+            "colour": "#22C55E"
+          },
+          {
+            "label": "Comply",
+            "status": "Green",
+            "colour": "#22C55E"
+          },
+          {
+            "label": "Request",
+            "status": "Red",
+            "colour": "#EF4444"
+          },
+          {
+            "label": "Agentic",
+            "status": "Black",
+            "colour": "#111111"
+          }
+        ],
+        "registered": "248",
+        "licensed": "1,035",
+        "ratio": "24%",
+        "lifecycle_stage": "S2. MVP in prod, use case pipelining."
+      },
+      "performance": {
+        "cases_90d": "9",
+        "cases_360d": "34",
+        "cases_total": "42",
+        "escalations_90d": "7",
+        "escalations_360d": "11",
+        "escalations_open": "2",
+        "deployment": "SaaS",
+        "deployment_color": "#5A7A00",
+        "version": "—"
+      },
+      "engagement": {
+        "last_qbr": "April 30, 2025",
+        "next_qbr": "—",
+        "qbr_note": "10/13: Use case workshop now virtual (Nov 4) upon request from Aviva. Aviva have asked to move EBR until November when a new exec aligned to Immuta starts.  Last EBR date reflects customer onboarding workshop."
+      }
+    },
+    {
+      "slide_ids": {
+        "slide": "s_barclays_03887",
+        "title": "t_barclays_03887",
+        "arr": "r_barclays_03887",
+        "meta": "d_barclays_03887",
+        "header": [
+          "h1_barclays_03887",
+          "h2_barclays_03887",
+          "h3_barclays_03887"
+        ],
+        "metrics": [
+          "m1_barclays_03887",
+          "m2_barclays_03887",
+          "m3_barclays_03887"
+        ],
+        "comment": [
+          "c1_barclays_03887",
+          "c2_barclays_03887",
+          "c3_barclays_03887"
+        ],
+        "writable": [
+          "t_barclays_03887",
+          "r_barclays_03887",
+          "d_barclays_03887",
+          "h1_barclays_03887",
+          "h2_barclays_03887",
+          "h3_barclays_03887",
+          "m1_barclays_03887",
+          "m2_barclays_03887",
+          "m3_barclays_03887"
+        ],
+        "never_overwrite": [
+          "c1_barclays_03887",
+          "c2_barclays_03887",
+          "c3_barclays_03887"
+        ]
+      },
+      "account": {
+        "name": "Barclays",
+        "region": "EMEA",
+        "arr": "$1.30M",
+        "ae": "Rey Khan",
+        "csm": "Noha Badawy",
+        "fcto": "Bart Koek",
+        "next_renewal": "$1,110,000, Q3-2028",
+        "account_url": "https://immuta.lightning.force.com/lightning/r/Account/0011K00002A9Gdl/view",
+        "customer_central_url": "https://customer-central.immuta.support/customers/0011K00002A9GdlQAF"
+      },
+      "adoption": {
+        "modules": [
+          {
+            "label": "PBAC",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Comply",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Request",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Agentic",
+            "status": "Black",
+            "colour": "#111111"
+          }
+        ],
+        "registered": "1,428",
+        "licensed": "2,300",
+        "ratio": "62.1%",
+        "lifecycle_stage": "S2. MVP in prod, use case pipelining."
+      },
+      "performance": {
+        "cases_90d": "9",
+        "cases_360d": "29",
+        "cases_total": "339",
+        "escalations_90d": "3",
+        "escalations_360d": "11",
+        "escalations_open": "2",
+        "deployment": "SM: Unsupported",
+        "deployment_color": "#991B1B",
+        "version": "—"
+      },
+      "engagement": {
+        "last_qbr": "April 03, 2025",
+        "next_qbr": "—",
+        "qbr_note": "10/13: Glasgow meeting on Oct 2. Combining with RSA tech session and meeting CDS BU and Markets."
+      }
+    },
+    {
+      "slide_ids": {
+        "slide": "s_bookingcom_06523",
+        "title": "t_bookingcom_06523",
+        "arr": "r_bookingcom_06523",
+        "meta": "d_bookingcom_06523",
+        "header": [
+          "h1_bookingcom_06523",
+          "h2_bookingcom_06523",
+          "h3_bookingcom_06523"
+        ],
+        "metrics": [
+          "m1_bookingcom_06523",
+          "m2_bookingcom_06523",
+          "m3_bookingcom_06523"
+        ],
+        "comment": [
+          "c1_bookingcom_06523",
+          "c2_bookingcom_06523",
+          "c3_bookingcom_06523"
+        ],
+        "writable": [
+          "t_bookingcom_06523",
+          "r_bookingcom_06523",
+          "d_bookingcom_06523",
+          "h1_bookingcom_06523",
+          "h2_bookingcom_06523",
+          "h3_bookingcom_06523",
+          "m1_bookingcom_06523",
+          "m2_bookingcom_06523",
+          "m3_bookingcom_06523"
+        ],
+        "never_overwrite": [
+          "c1_bookingcom_06523",
+          "c2_bookingcom_06523",
+          "c3_bookingcom_06523"
+        ]
+      },
+      "account": {
+        "name": "Booking.com",
+        "region": "EMEA",
+        "arr": "$1.97M",
+        "ae": "Lisette van Gent",
+        "csm": "Pratyoosh Raizada",
+        "fcto": "Bart Koek",
+        "next_renewal": "$121,000, Q2-2028",
+        "account_url": "https://immuta.lightning.force.com/lightning/r/Account/0011K00002HDNsR/view",
+        "customer_central_url": "https://customer-central.immuta.support/customers/0011K00002HDNsRQAX"
+      },
+      "adoption": {
+        "modules": [
+          {
+            "label": "PBAC",
+            "status": "Green",
+            "colour": "#22C55E"
+          },
+          {
+            "label": "Comply",
+            "status": "Red",
+            "colour": "#EF4444"
+          },
+          {
+            "label": "Request",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Agentic",
+            "status": "Amber",
+            "colour": "#F59E0B"
+          }
+        ],
+        "registered": "21,061",
+        "licensed": "25,200",
+        "ratio": "83.6%",
+        "lifecycle_stage": "S3: greater than 75% license consumption"
+      },
+      "performance": {
+        "cases_90d": "17",
+        "cases_360d": "66",
+        "cases_total": "185",
+        "escalations_90d": "6",
+        "escalations_360d": "32",
+        "escalations_open": "1",
+        "deployment": "SaaS",
+        "deployment_color": "#5A7A00",
+        "version": "—"
+      },
+      "engagement": {
+        "last_qbr": "February 20, 2026",
+        "next_qbr": "July 29, 2026",
+        "qbr_note": "5/29: Next EBR post Connections upgrade. In weekly contact with Tech team & monthly with EB."
+      }
+    },
+    {
+      "slide_ids": {
+        "slide": "s_freshfieldsservicecompan_37170",
+        "title": "t_freshfieldsservicecompan_37170",
+        "arr": "r_freshfieldsservicecompan_37170",
+        "meta": "d_freshfieldsservicecompan_37170",
+        "header": [
+          "h1_freshfieldsservicecompan_37170",
+          "h2_freshfieldsservicecompan_37170",
+          "h3_freshfieldsservicecompan_37170"
+        ],
+        "metrics": [
+          "m1_freshfieldsservicecompan_37170",
+          "m2_freshfieldsservicecompan_37170",
+          "m3_freshfieldsservicecompan_37170"
+        ],
+        "comment": [
+          "c1_freshfieldsservicecompan_37170",
+          "c2_freshfieldsservicecompan_37170",
+          "c3_freshfieldsservicecompan_37170"
+        ],
+        "writable": [
+          "t_freshfieldsservicecompan_37170",
+          "r_freshfieldsservicecompan_37170",
+          "d_freshfieldsservicecompan_37170",
+          "h1_freshfieldsservicecompan_37170",
+          "h2_freshfieldsservicecompan_37170",
+          "h3_freshfieldsservicecompan_37170",
+          "m1_freshfieldsservicecompan_37170",
+          "m2_freshfieldsservicecompan_37170",
+          "m3_freshfieldsservicecompan_37170"
+        ],
+        "never_overwrite": [
+          "c1_freshfieldsservicecompan_37170",
+          "c2_freshfieldsservicecompan_37170",
+          "c3_freshfieldsservicecompan_37170"
+        ]
+      },
+      "account": {
+        "name": "Freshfields Service Company",
+        "region": "EMEA",
+        "arr": "$135,000",
+        "ae": "Rey Khan",
+        "csm": "Noha Badawy",
+        "fcto": "Bart Koek",
+        "next_renewal": "$135,000, Q1-2029",
+        "account_url": "https://immuta.lightning.force.com/lightning/r/Account/0011K00002IKr6Y/view",
+        "customer_central_url": "https://customer-central.immuta.support/customers/0011K00002IKr6YQAT"
+      },
+      "adoption": {
+        "modules": [
+          {
+            "label": "PBAC",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Comply",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Request",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Agentic",
+            "status": "Black",
+            "colour": "#111111"
+          }
+        ],
+        "registered": "7",
+        "licensed": "64",
+        "ratio": "10.9%",
+        "lifecycle_stage": "S1: Installation and Config."
+      },
+      "performance": {
+        "cases_90d": "0",
+        "cases_360d": "3",
+        "cases_total": "4",
+        "escalations_90d": "0",
+        "escalations_360d": "0",
+        "escalations_open": "0",
+        "deployment": "SaaS",
+        "deployment_color": "#5A7A00",
+        "version": "—"
+      },
+      "engagement": {
+        "last_qbr": "April 30, 2025",
+        "next_qbr": "—",
+        "qbr_note": "10/13: Implementation for MVP underway. EBR in November with Colin around launch date, possibly combining with trip to Aviva. Last EBR date reflects customer onboarding date."
+      }
+    },
+    {
+      "slide_ids": {
+        "slide": "s_rimestechnologies_17629",
+        "title": "t_rimestechnologies_17629",
+        "arr": "r_rimestechnologies_17629",
+        "meta": "d_rimestechnologies_17629",
+        "header": [
+          "h1_rimestechnologies_17629",
+          "h2_rimestechnologies_17629",
+          "h3_rimestechnologies_17629"
+        ],
+        "metrics": [
+          "m1_rimestechnologies_17629",
+          "m2_rimestechnologies_17629",
+          "m3_rimestechnologies_17629"
+        ],
+        "comment": [
+          "c1_rimestechnologies_17629",
+          "c2_rimestechnologies_17629",
+          "c3_rimestechnologies_17629"
+        ],
+        "writable": [
+          "t_rimestechnologies_17629",
+          "r_rimestechnologies_17629",
+          "d_rimestechnologies_17629",
+          "h1_rimestechnologies_17629",
+          "h2_rimestechnologies_17629",
+          "h3_rimestechnologies_17629",
+          "m1_rimestechnologies_17629",
+          "m2_rimestechnologies_17629",
+          "m3_rimestechnologies_17629"
+        ],
+        "never_overwrite": [
+          "c1_rimestechnologies_17629",
+          "c2_rimestechnologies_17629",
+          "c3_rimestechnologies_17629"
+        ]
+      },
+      "account": {
+        "name": "Rimes Technologies",
+        "region": "EMEA",
+        "arr": "$188,000",
+        "ae": "Rey Khan",
+        "csm": "Noha Badawy",
+        "fcto": "Bart Koek",
+        "next_renewal": "$188,000, Q4-2029",
+        "account_url": "https://immuta.lightning.force.com/lightning/r/Account/001VH00000Wgujq/view",
+        "customer_central_url": "https://customer-central.immuta.support/customers/001VH00000WgujqYAB"
+      },
+      "adoption": {
+        "modules": [
+          {
+            "label": "PBAC",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Comply",
+            "status": "Red",
+            "colour": "#EF4444"
+          },
+          {
+            "label": "Request",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Agentic",
+            "status": "Black",
+            "colour": "#111111"
+          }
+        ],
+        "registered": "6",
+        "licensed": "1,010",
+        "ratio": "0.6%",
+        "lifecycle_stage": "S1: Installation and Config."
+      },
+      "performance": {
+        "cases_90d": "—",
+        "cases_360d": "—",
+        "cases_total": "—",
+        "escalations_90d": "—",
+        "escalations_360d": "—",
+        "escalations_open": "—",
+        "deployment": "SaaS",
+        "deployment_color": "#5A7A00",
+        "version": "—"
+      },
+      "engagement": {
+        "last_qbr": "—",
+        "next_qbr": "—",
+        "qbr_note": "—"
+      }
+    },
+    {
+      "slide_ids": {
+        "slide": "s_roche_01522",
+        "title": "t_roche_01522",
+        "arr": "r_roche_01522",
+        "meta": "d_roche_01522",
+        "header": [
+          "h1_roche_01522",
+          "h2_roche_01522",
+          "h3_roche_01522"
+        ],
+        "metrics": [
+          "m1_roche_01522",
+          "m2_roche_01522",
+          "m3_roche_01522"
+        ],
+        "comment": [
+          "c1_roche_01522",
+          "c2_roche_01522",
+          "c3_roche_01522"
+        ],
+        "writable": [
+          "t_roche_01522",
+          "r_roche_01522",
+          "d_roche_01522",
+          "h1_roche_01522",
+          "h2_roche_01522",
+          "h3_roche_01522",
+          "m1_roche_01522",
+          "m2_roche_01522",
+          "m3_roche_01522"
+        ],
+        "never_overwrite": [
+          "c1_roche_01522",
+          "c2_roche_01522",
+          "c3_roche_01522"
+        ]
+      },
+      "account": {
+        "name": "Roche",
+        "region": "EMEA",
+        "arr": "$1.58M",
+        "ae": "Lisette van Gent",
+        "csm": "Noha Badawy",
+        "fcto": "Bart Koek",
+        "next_renewal": "$1,578,000, Q1-2029",
+        "account_url": "https://immuta.lightning.force.com/lightning/r/Account/0011K000023Fahe/view",
+        "customer_central_url": "https://customer-central.immuta.support/customers/0011K000023FaheQAC"
+      },
+      "adoption": {
+        "modules": [
+          {
+            "label": "PBAC",
+            "status": "Amber",
+            "colour": "#F59E0B"
+          },
+          {
+            "label": "Comply",
+            "status": "Red",
+            "colour": "#EF4444"
+          },
+          {
+            "label": "Request",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Agentic",
+            "status": "Black",
+            "colour": "#111111"
+          }
+        ],
+        "registered": "22,130",
+        "licensed": "5,130",
+        "ratio": "431.4%",
+        "lifecycle_stage": "S3: greater than 75% license consumption"
+      },
+      "performance": {
+        "cases_90d": "5",
+        "cases_360d": "16",
+        "cases_total": "100",
+        "escalations_90d": "0",
+        "escalations_360d": "7",
+        "escalations_open": "0",
+        "deployment": "SaaS",
+        "deployment_color": "#5A7A00",
+        "version": "—"
+      },
+      "engagement": {
+        "last_qbr": "December 04, 2025",
+        "next_qbr": "June 30, 2026",
+        "qbr_note": "5/29: Roche was distracted with reorg in H1. Verbal agreement for next EBR June end, working on logistics."
+      }
+    },
+    {
+      "slide_ids": {
+        "slide": "s_shell_01566",
+        "title": "t_shell_01566",
+        "arr": "r_shell_01566",
+        "meta": "d_shell_01566",
+        "header": [
+          "h1_shell_01566",
+          "h2_shell_01566",
+          "h3_shell_01566"
+        ],
+        "metrics": [
+          "m1_shell_01566",
+          "m2_shell_01566",
+          "m3_shell_01566"
+        ],
+        "comment": [
+          "c1_shell_01566",
+          "c2_shell_01566",
+          "c3_shell_01566"
+        ],
+        "writable": [
+          "t_shell_01566",
+          "r_shell_01566",
+          "d_shell_01566",
+          "h1_shell_01566",
+          "h2_shell_01566",
+          "h3_shell_01566",
+          "m1_shell_01566",
+          "m2_shell_01566",
+          "m3_shell_01566"
+        ],
+        "never_overwrite": [
+          "c1_shell_01566",
+          "c2_shell_01566",
+          "c3_shell_01566"
+        ]
+      },
+      "account": {
+        "name": "Shell",
+        "region": "EMEA",
+        "arr": "$465,000",
+        "ae": "Lisette van Gent",
+        "csm": "Noha Badawy",
+        "fcto": "Bart Koek",
+        "next_renewal": "$465,000, Q2-2028",
+        "account_url": "https://immuta.lightning.force.com/lightning/r/Account/00141000017zfVH/view",
+        "customer_central_url": "https://customer-central.immuta.support/customers/00141000017zfVHAAY"
+      },
+      "adoption": {
+        "modules": [
+          {
+            "label": "PBAC",
+            "status": "Red",
+            "colour": "#EF4444"
+          },
+          {
+            "label": "Comply",
+            "status": "Red",
+            "colour": "#EF4444"
+          },
+          {
+            "label": "Request",
+            "status": "Red",
+            "colour": "#EF4444"
+          },
+          {
+            "label": "Agentic",
+            "status": "Black",
+            "colour": "#111111"
+          }
+        ],
+        "registered": "102,429",
+        "licensed": "1,010",
+        "ratio": "10141.5%",
+        "lifecycle_stage": "S3: greater than 75% license consumption"
+      },
+      "performance": {
+        "cases_90d": "5",
+        "cases_360d": "20",
+        "cases_total": "59",
+        "escalations_90d": "0",
+        "escalations_360d": "3",
+        "escalations_open": "1",
+        "deployment": "SaaS",
+        "deployment_color": "#5A7A00",
+        "version": "—"
+      },
+      "engagement": {
+        "last_qbr": "April 01, 2026",
+        "next_qbr": "—",
+        "qbr_note": "5/20: Will look at next EBR post completion of renewal (in flight)"
+      }
+    },
+    {
+      "slide_ids": {
+        "slide": "s_stellantis_05965",
+        "title": "t_stellantis_05965",
+        "arr": "r_stellantis_05965",
+        "meta": "d_stellantis_05965",
+        "header": [
+          "h1_stellantis_05965",
+          "h2_stellantis_05965",
+          "h3_stellantis_05965"
+        ],
+        "metrics": [
+          "m1_stellantis_05965",
+          "m2_stellantis_05965",
+          "m3_stellantis_05965"
+        ],
+        "comment": [
+          "c1_stellantis_05965",
+          "c2_stellantis_05965",
+          "c3_stellantis_05965"
+        ],
+        "writable": [
+          "t_stellantis_05965",
+          "r_stellantis_05965",
+          "d_stellantis_05965",
+          "h1_stellantis_05965",
+          "h2_stellantis_05965",
+          "h3_stellantis_05965",
+          "m1_stellantis_05965",
+          "m2_stellantis_05965",
+          "m3_stellantis_05965"
+        ],
+        "never_overwrite": [
+          "c1_stellantis_05965",
+          "c2_stellantis_05965",
+          "c3_stellantis_05965"
+        ]
+      },
+      "account": {
+        "name": "Stellantis",
+        "region": "EMEA",
+        "arr": "$460,000",
+        "ae": "Rey Khan",
+        "csm": "Pratyoosh Raizada",
+        "fcto": "Bart Koek",
+        "next_renewal": "$475,000, Q1-2028",
+        "account_url": "https://immuta.lightning.force.com/lightning/r/Account/0011K00002WC0CY/view",
+        "customer_central_url": "https://customer-central.immuta.support/customers/0011K00002WC0CYQA1"
+      },
+      "adoption": {
+        "modules": [
+          {
+            "label": "PBAC",
+            "status": "Amber",
+            "colour": "#F59E0B"
+          },
+          {
+            "label": "Comply",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Request",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Agentic",
+            "status": "Red",
+            "colour": "#EF4444"
+          }
+        ],
+        "registered": "1,026",
+        "licensed": "841",
+        "ratio": "122%",
+        "lifecycle_stage": "S3: greater than 75% license consumption"
+      },
+      "performance": {
+        "cases_90d": "3",
+        "cases_360d": "12",
+        "cases_total": "19",
+        "escalations_90d": "2",
+        "escalations_360d": "10",
+        "escalations_open": "1",
+        "deployment": "SaaS",
+        "deployment_color": "#5A7A00",
+        "version": "—"
+      },
+      "engagement": {
+        "last_qbr": "April 22, 2026",
+        "next_qbr": "—",
+        "qbr_note": "5/29: Scheduling onsite strategy sync with EB + Technical team late June."
+      }
+    },
+    {
+      "slide_ids": {
+        "slide": "s_swedbank_03722",
+        "title": "t_swedbank_03722",
+        "arr": "r_swedbank_03722",
+        "meta": "d_swedbank_03722",
+        "header": [
+          "h1_swedbank_03722",
+          "h2_swedbank_03722",
+          "h3_swedbank_03722"
+        ],
+        "metrics": [
+          "m1_swedbank_03722",
+          "m2_swedbank_03722",
+          "m3_swedbank_03722"
+        ],
+        "comment": [
+          "c1_swedbank_03722",
+          "c2_swedbank_03722",
+          "c3_swedbank_03722"
+        ],
+        "writable": [
+          "t_swedbank_03722",
+          "r_swedbank_03722",
+          "d_swedbank_03722",
+          "h1_swedbank_03722",
+          "h2_swedbank_03722",
+          "h3_swedbank_03722",
+          "m1_swedbank_03722",
+          "m2_swedbank_03722",
+          "m3_swedbank_03722"
+        ],
+        "never_overwrite": [
+          "c1_swedbank_03722",
+          "c2_swedbank_03722",
+          "c3_swedbank_03722"
+        ]
+      },
+      "account": {
+        "name": "Swedbank",
+        "region": "EMEA",
+        "arr": "$435,000",
+        "ae": "Colin Mitchell",
+        "csm": "Pratyoosh Raizada",
+        "fcto": "Bart Koek",
+        "next_renewal": "$435,000, Q4-2027",
+        "account_url": "https://immuta.lightning.force.com/lightning/r/Account/0011K00002A9HMO/view",
+        "customer_central_url": "https://customer-central.immuta.support/customers/0011K00002A9HMOQA3"
+      },
+      "adoption": {
+        "modules": [
+          {
+            "label": "PBAC",
+            "status": "Amber",
+            "colour": "#F59E0B"
+          },
+          {
+            "label": "Comply",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Request",
+            "status": "Black",
+            "colour": "#111111"
+          },
+          {
+            "label": "Agentic",
+            "status": "Black",
+            "colour": "#111111"
+          }
+        ],
+        "registered": "216",
+        "licensed": "255",
+        "ratio": "84.7%",
+        "lifecycle_stage": "S3: greater than 75% license consumption"
+      },
+      "performance": {
+        "cases_90d": "2",
+        "cases_360d": "11",
+        "cases_total": "131",
+        "escalations_90d": "1",
+        "escalations_360d": "1",
+        "escalations_open": "0",
+        "deployment": "SM: Unsupported",
+        "deployment_color": "#991B1B",
+        "version": "—"
+      },
+      "engagement": {
+        "last_qbr": "May 19, 2026",
+        "next_qbr": "—",
+        "qbr_note": "5/29: SB engaged with technical transformation program & Immuta is lower down priority order. We're continue to progress SF + TD leads. EB engagement at DIS & Gartner events in May 2026."
+      }
+    }
+  ]
+}

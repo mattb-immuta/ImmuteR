@@ -18,7 +18,7 @@
 #' \describe{
 #'   \item{changes}{Data frame summarising detected changes across all
 #'     op_list components (accounts, renewals, expansions, csm_table,
-#'     saas_pipeline, consumption). One row per component with columns
+#'     saas_pipeline, consumption, forecast). One row per component with columns
 #'     \code{Component}, \code{Added}, \code{Removed}, \code{Changed},
 #'     and \code{Total_Moves}.}
 #'   \item{changes_detail}{Named list with the full diff for each component,
@@ -31,7 +31,13 @@
 #'     \code{all_deltas} (Changes in Data Sources Count / Changes in Active
 #'     Policies for every account present in both snapshots, not just the
 #'     flagged ones) — see \code{op_list_consumption()} for how those columns
-#'     are derived.}
+#'     are derived. The \code{forecast} component (from
+#'     \code{\link{op_list_forecast}}, keyed by Opportunity ID) has
+#'     \code{added}, \code{removed} and \code{field_changes}; the latter
+#'     carries \code{.new}/\code{.old} pairs for Churn Quarter, Churn Forecast,
+#'     Account Risk, Amount, Stage and the close dates, a matching
+#'     \code{*_changed} boolean per field, and \code{forecast_delta} (new minus
+#'     old forecast dollars).}
 #'   \item{renewal_changes}{Data frame of renewals where Account Risk or Churn
 #'     Forecast changed (retained for backward compatibility).}
 #'   \item{customer_ops_tracker}{Joined renewal + expansion table for use in
@@ -86,6 +92,11 @@ enrich_list_object <- function(new_list, diff_date, data_dir = "data/") {
   changes$consumption <- .diff_consumption(new_list$consumption$low_consumption,
                                            old_list$consumption$low_consumption)
 
+  # ── 7. Renewal churn forecast ────────────────────────────────────────────────
+  # Snapshots saved before op_list$forecast existed simply have no forecast
+  # element, and .diff_forecast() returns an empty list for that case.
+  changes$forecast <- .diff_forecast(new_list$forecast, old_list$forecast)
+
   # Surface the compact summary as $changes; full diff detail at $changes_detail
   change_summary               <- .build_change_summary(changes)
   new_list[["changes"]]        <- change_summary
@@ -120,23 +131,33 @@ enrich_list_object <- function(new_list, diff_date, data_dir = "data/") {
   both <- merge(
     new_df[, intersect(c("Account ID", "Account Name", "Contract ARR Rollup",
                           "Customer Success Manager", "Account Owner",
-                          "Field CTO", "Region", "Adoption Phase"), names(new_df))],
+                          "Field CTO", "Region", "Adoption Phase",
+                          "request_adoption_looker_stage"), names(new_df))],
     old_df[, intersect(c("Account ID", "Contract ARR Rollup",
                           "Customer Success Manager", "Account Owner",
-                          "Field CTO", "Region", "Adoption Phase"), names(old_df))],
+                          "Field CTO", "Region", "Adoption Phase",
+                          "request_adoption_looker_stage"), names(old_df))],
     by = "Account ID", suffixes = c(".new", ".old")
   )
 
+  # The Looker stage is watched on the stage value, not the full picklist
+  # sentence, so a reworded picklist string can't register as a change.
   watch_fields <- c("Contract ARR Rollup", "Customer Success Manager",
-                    "Account Owner", "Field CTO", "Region", "Adoption Phase")
-  watch_fields <- watch_fields[watch_fields %in% gsub("\\.new$|\\.old$", "",
-                                                       names(both))]
+                    "Account Owner", "Field CTO", "Region", "Adoption Phase",
+                    "request_adoption_looker_stage")
 
-  change_rows <- Reduce(`|`, lapply(watch_fields, function(f) {
-    n <- both[[paste0(f, ".new")]]
-    o <- both[[paste0(f, ".old")]]
-    !is.na(n) & !is.na(o) & as.character(n) != as.character(o)
-  }))
+  # .field_changed() returns all-FALSE for a field that isn't on both sides,
+  # which is the case for request_adoption_looker_stage against any snapshot
+  # taken before it existed (or from a looker = FALSE run). That matters: a
+  # one-sided column is NOT suffixed by merge(), so a name-based filter would
+  # keep it, both suffixed lookups would be NULL, and the resulting logical(0)
+  # would collapse the whole Reduce() to logical(0) — silently reporting zero
+  # account field changes. The `init` covers watch_fields being empty too.
+  change_rows <- Reduce(
+    `|`,
+    lapply(watch_fields, function(f) .field_changed(both, f)),
+    init = rep(FALSE, nrow(both))
+  )
 
   field_changes <- both[change_rows, , drop = FALSE]
 
@@ -408,11 +429,106 @@ enrich_list_object <- function(new_list, diff_date, data_dir = "data/") {
 }
 
 
+.diff_forecast <- function(new_df, old_df) {
+  # NULL, not list(): a snapshot predating op_list$forecast has nothing to diff,
+  # and .build_change_summary() drops NULL components rather than emitting a
+  # phantom "forecast 0 0 0 0" row and a dead stat on the dashboard header.
+  if (is.null(new_df) || is.null(old_df))               return(NULL)
+  if (!is.data.frame(new_df) || !is.data.frame(old_df)) return(NULL)
+
+  key <- "Opportunity ID"
+  if (!key %in% names(new_df) || !key %in% names(old_df)) return(NULL)
+
+  new_ids <- as.character(new_df[[key]])
+  old_ids <- as.character(old_df[[key]])
+
+  added   <- new_df[new_ids %in% setdiff(new_ids, old_ids), , drop = FALSE]
+  removed <- old_df[old_ids %in% setdiff(old_ids, new_ids), , drop = FALSE]
+
+  # Blank forecast == zero forecast churn (op_list_forecast() already does this,
+  # but older snapshots may predate that, so normalise both sides here too).
+  norm_num <- function(df, col) {
+    if (!col %in% names(df)) return(df)
+    df[[col]] <- suppressWarnings(as.numeric(gsub("[$,]", "", as.character(df[[col]]))))
+    df[[col]][is.na(df[[col]])] <- 0
+    df
+  }
+  new_df <- norm_num(new_df, "Churn Forecast")
+  old_df <- norm_num(old_df, "Churn Forecast")
+
+  # Identity columns come from the new side only; watched fields come from both
+  # and get .new/.old suffixes via merge().
+  #
+  # Every field listed here must also be rendered by renderForecastChanges() in
+  # report_all_accounts_html.R — a field that counts toward any_changed but has
+  # no column produces a row on the dashboard with every cell dashed out. That
+  # rules out Customer Success Manager (already reported under CSM Assignments)
+  # and Close Date Current Contract (Close Date already covers date slippage).
+  watched <- c("Churn Quarter", "Churn Forecast", "Account Risk", "Amount",
+               "Stage", "Close Date")
+  watched <- intersect(intersect(watched, names(new_df)), names(old_df))
+  if (length(watched) == 0) return(NULL)
+
+  ident <- intersect(c(key, "Opportunity Name", "Account Name", "Account ID",
+                       "Region", "Next Step", "opportunity_url"),
+                     names(new_df))
+
+  both <- merge(new_df[, unique(c(ident, watched)), drop = FALSE],
+                old_df[, unique(c(key, watched)), drop = FALSE],
+                by = key, suffixes = c(".new", ".old"))
+
+  # .fc_changed(), not the shared .field_changed(): most of this report's rows
+  # have no Churn Quarter set, and .field_changed() ignores any comparison
+  # where either side is NA — so a quarter being *assigned* (blank -> Q3-2027),
+  # which is precisely the forecast move worth seeing, would go unreported.
+  flags <- stats::setNames(
+    lapply(watched, function(f) .fc_changed(both, f)),
+    watched
+  )
+  any_changed <- Reduce(`|`, flags)
+
+  field_changes <- both[any_changed, , drop = FALSE]
+
+  # One boolean per watched field, named the way the dashboard expects
+  # (quarter_changed, forecast_changed, risk_changed, ...) so a column can be
+  # blanked out when that particular field didn't move.
+  flag_names <- c("Churn Quarter"  = "quarter_changed",
+                  "Churn Forecast" = "forecast_changed",
+                  "Account Risk"   = "risk_changed",
+                  "Amount"         = "amount_changed",
+                  "Stage"          = "stage_changed",
+                  "Close Date"     = "date_changed")
+  for (f in watched) {
+    field_changes[[unname(flag_names[f])]] <- flags[[f]][any_changed]
+  }
+
+  if (all(c("Churn Forecast.new", "Churn Forecast.old") %in% names(field_changes))) {
+    field_changes$forecast_delta <-
+      suppressWarnings(as.numeric(field_changes$`Churn Forecast.new`)) -
+      suppressWarnings(as.numeric(field_changes$`Churn Forecast.old`))
+  }
+
+  msg_parts <- c(
+    if (nrow(added) > 0)   paste(nrow(added),   "new forecast row(s)"),
+    if (nrow(removed) > 0) paste(nrow(removed), "removed forecast row(s)"),
+    if (!is.null(flags[["Churn Forecast"]]) && sum(flags[["Churn Forecast"]]) > 0)
+      paste(sum(flags[["Churn Forecast"]]), "forecast change(s)"),
+    if (!is.null(flags[["Churn Quarter"]]) && sum(flags[["Churn Quarter"]]) > 0)
+      paste(sum(flags[["Churn Quarter"]]), "churn quarter move(s)"),
+    if (!is.null(flags[["Account Risk"]]) && sum(flags[["Account Risk"]]) > 0)
+      paste(sum(flags[["Account Risk"]]), "risk change(s)")
+  )
+  if (length(msg_parts)) message("  forecast: ", paste(msg_parts, collapse = ", "))
+
+  list(added = added, removed = removed, field_changes = field_changes)
+}
+
+
 # ── Summary table ─────────────────────────────────────────────────────────────
 
 .build_change_summary <- function(changes) {
   components <- c("accounts", "renewals", "expansions", "csm_table", "saas_pipeline",
-                   "consumption")
+                   "consumption", "forecast")
 
   rows <- lapply(components, function(comp) {
     ch <- changes[[comp]]
@@ -507,4 +623,22 @@ enrich_list_object <- function(new_list, diff_date, data_dir = "data/") {
   n <- as.character(df[[new_col]])
   o <- as.character(df[[old_col]])
   !is.na(n) & !is.na(o) & n != o
+}
+
+
+# Like .field_changed(), but treats NA and "" as the same empty value and does
+# compare against it — so a field being filled in or cleared counts as a
+# change. Used by .diff_forecast(), where blank is the common starting state.
+.fc_changed <- function(df, field) {
+  new_col <- paste0(field, ".new")
+  old_col <- paste0(field, ".old")
+  if (!new_col %in% names(df) || !old_col %in% names(df)) {
+    return(rep(FALSE, nrow(df)))
+  }
+  norm <- function(v) {
+    v <- trimws(as.character(v))
+    v[is.na(v) | v == "NA"] <- ""
+    v
+  }
+  norm(df[[new_col]]) != norm(df[[old_col]])
 }
