@@ -14,6 +14,8 @@ loaded from a saved snapshot in \code{data/}), expected to contain an
 \value{
 A data frame with columns \code{Account Name}, \code{Region},
   \code{Lifecycle Stage}, \code{PBAC Adoption}, \code{Request Adoption},
+  \code{request_adoption_looker} (the tier derived from Looker dashboard
+  1009 — see \code{\link{op_list_request_adoption}}),
   \code{Comply Adoption}, \code{Agentic Governance Adoption}, and
   \code{Is SaaS Customer}, sorted alphabetically by account name. Any of
   these columns missing from \code{op_list$accounts} (e.g. an older

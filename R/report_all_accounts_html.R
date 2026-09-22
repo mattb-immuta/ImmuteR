@@ -70,10 +70,12 @@ report_all_accounts_html <- function(op_list,
   # Changes diff JSON ----------------------------------------------------------
   changes_json     <- .build_changes_json(op_list)
   consumption_json <- .build_consumption_json(op_list)
+  saas_json        <- .build_saas_json(op_list)
+  escalations_json <- .build_escalations_json(op_list)
 
   # Build HTML -----------------------------------------------------------------
   html <- .rah_html(json_data, regions, csms, snap_dates, changes_json, consumption_json,
-                    lifecycle_stages)
+                    lifecycle_stages, saas_json, escalations_json)
 
   writeLines(html, output_path, useBytes = FALSE)
   message(".. wrote account HTML dashboard to ", output_path)
@@ -548,9 +550,40 @@ report_all_accounts_html <- function(op_list,
   ))
 }
 
+.build_escalations_json <- function(op_list) {
+  es <- op_list$escalations
+  if (is.null(es) || !is.data.frame(es) || nrow(es) == 0) {
+    return(.to_json(list(has_data = FALSE, rows = list())))
+  }
+  # op_list_escalations() already joined Region and CSM and computed age_days
+  # and severity_rank, so this is a straight pass-through.
+  .to_json(list(has_data = TRUE, rows = .df_to_rows(es)))
+}
+
+.build_saas_json <- function(op_list) {
+  sp <- op_list$saas_pipeline
+  if (is.null(sp) || !is.data.frame(sp) || nrow(sp) == 0) {
+    return(.to_json(list(has_data = FALSE, rows = list())))
+  }
+
+  # The report carries Region but not CSM, so join it from accounts. Without it
+  # the CSM facet would silently show nothing on this tab while working on every
+  # other one — worse than not offering the facet at all.
+  accts <- op_list$accounts
+  if (!is.null(accts) && all(c("Account Name", "Customer Success Manager") %in% names(accts))) {
+    idx <- match(trimws(as.character(sp$`Account Name`)),
+                 trimws(as.character(accts$`Account Name`)))
+    sp$csm <- as.character(accts$`Customer Success Manager`)[idx]
+  } else {
+    sp$csm <- NA_character_
+  }
+
+  .to_json(list(has_data = TRUE, rows = .df_to_rows(sp)))
+}
+
 # ---- Internal: full HTML page template -------------------------------------
 
-.rah_html <- function(json_data, regions, csms = character(0), snap_dates = character(0), changes_json = "null", consumption_json = "null", lifecycle_stages = character(0)) {
+.rah_html <- function(json_data, regions, csms = character(0), snap_dates = character(0), changes_json = "null", consumption_json = "null", lifecycle_stages = character(0), saas_json = "null", escalations_json = "null") {
 
   region_pills <- paste(
     vapply(regions, function(r) {
@@ -1382,34 +1415,38 @@ report_all_accounts_html <- function(op_list,
   /* ── Page panels ──────────────────────────────────────────────────────── */
   .page { display: none; flex: 1; }
   .page.active { display: flex; }
-  #page-accounts.active { flex-direction: row; }
-  #page-renewals.active,
-  #page-expansions.active,
-  #page-changes.active,
-  #page-adoption.active { flex-direction: column; }
+  /* Every page is now a sub-tab bar stacked above its panels. */
+  #page-engagement.active,
+  #page-adoption.active,
+  #page-performance.active { flex-direction: column; }
 
-  /* ── Adoption page ────────────────────────────────────────────────────── */
-  .adoption-page { flex: 1; display: flex; flex-direction: column; min-height: 0; }
-  .adopt-sub-tabs {
+  /* ── Sub-tabs, shared by all three pages ──────────────────────────────── */
+  .subpage { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  .sub-tabs {
     background: var(--im-white); border-bottom: 1px solid var(--border);
-    padding: 0 24px; display: flex; flex-shrink: 0;
+    padding: 0 24px; display: flex; flex-shrink: 0; overflow-x: auto;
   }
-  .asub-btn {
+  .sub-btn {
     padding: 10px 18px; border: none; background: none; font-size: 13px;
     font-weight: 500; font-family: var(--font); color: var(--text-3);
     cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px;
     transition: color .12s; white-space: nowrap;
     display: flex; align-items: center; gap: 7px;
   }
-  .asub-btn:hover { color: var(--text-1); }
-  .asub-btn.active { color: var(--text-1); border-bottom-color: var(--im-lime); font-weight: 600; }
-  .asub-count {
+  .sub-btn:hover { color: var(--text-1); }
+  .sub-btn.active { color: var(--text-1); border-bottom-color: var(--im-lime); font-weight: 600; }
+  .sub-count {
     font-size: 10.5px; font-weight: 700; background: var(--surface-2);
     color: var(--text-3); padding: 1px 6px; border-radius: 9px;
   }
-  .asub-btn.active .asub-count { background: var(--im-lime); color: var(--im-black); }
-  .adoption-panel { display: none; flex: 1; flex-direction: column; min-height: 0; overflow-y: auto; }
-  .adoption-panel.active { display: flex; }
+  .sub-btn.active .sub-count { background: var(--im-lime); color: var(--im-black); }
+
+  .subpanel { display: none; flex: 1; flex-direction: column; min-height: 0; overflow-y: auto; }
+  .subpanel.active { display: flex; }
+  /* Accounts is the one panel laid out as sidebar + main rather than stacked,
+     and it scrolls inside .main, not at the panel level. */
+  .subpanel-row.active { flex-direction: row; overflow-y: hidden; }
+  .subpanel-row > .layout { flex: 1; min-height: 0; }
 
   /* ── PBAC panel: scatter + write-up ───────────────────────────────────── */
   .pbac-scatter-wrap { display: flex; gap: 18px; padding: 20px 24px; align-items: flex-start; }
@@ -1472,6 +1509,103 @@ report_all_accounts_html <- function(op_list,
     padding: 14px 24px; display: flex; gap: 32px; border-bottom: 1px solid var(--border);
     background: var(--surface); flex-wrap: wrap; flex-shrink: 0;
   }
+
+  /* ── SaaS migration board ─────────────────────────────────────────────── */
+  .saas-board-wrap { flex: 1; overflow: auto; padding: 18px 24px 40px; min-height: 0; }
+  .saas-board { display: flex; gap: 14px; align-items: flex-start; min-width: min-content; }
+  .saas-col {
+    flex: 0 0 258px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); display: flex; flex-direction: column;
+  }
+  /* The quarter that has already started reads differently from the ones that
+     have not: it is the one that can still slip. */
+  .saas-col.current { border-color: var(--im-lime-dk); background: var(--im-lime-lt); }
+  .saas-col-head {
+    padding: 10px 12px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+  }
+  .saas-q { font-size: 13px; font-weight: 700; color: var(--text-1); }
+  .saas-q-sub { font-size: 10.5px; color: var(--text-3); }
+  .saas-q-n {
+    font-size: 10.5px; font-weight: 700; background: var(--im-black); color: var(--im-lime);
+    padding: 1px 7px; border-radius: 9px;
+  }
+  .saas-col-body { padding: 8px; display: flex; flex-direction: column; gap: 8px; }
+
+  .saas-card {
+    background: var(--im-white); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 9px 10px; cursor: pointer;
+    border-left: 3px solid var(--text-3); transition: box-shadow .12s, border-color .12s;
+  }
+  .saas-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+  .saas-card.open { box-shadow: 0 2px 10px rgba(0,0,0,.1); }
+  .saas-card-name { font-size: 12.5px; font-weight: 700; line-height: 1.3; }
+  .saas-card-meta {
+    font-size: 10.5px; color: var(--text-3); margin-top: 3px;
+    display: flex; flex-wrap: wrap; gap: 4px 8px;
+  }
+  .saas-stage {
+    display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .03em;
+    padding: 1px 7px; border-radius: 9px; margin-top: 6px;
+  }
+  .saas-note {
+    display: none; margin-top: 7px; padding-top: 7px; border-top: 1px solid var(--border);
+    font-size: 11.5px; line-height: 1.5; color: var(--text-2); white-space: pre-wrap;
+  }
+  .saas-card.open .saas-note { display: block; }
+  .saas-note-hint { font-size: 10.5px; color: var(--text-3); margin-top: 5px; font-style: italic; }
+  .saas-card.open .saas-note-hint { display: none; }
+
+  /* Stage colours: grey while it is only a conversation, amber once someone has
+     committed, lime once the migration is actually running. */
+  .saas-s-pipeline  { background: var(--surface-2); color: var(--text-2); }
+  .saas-s-talking   { background: #E8EEF6; color: #33507A; }
+  .saas-s-committed { background: var(--amber-lt); color: #92400E; }
+  .saas-s-running   { background: var(--im-lime); color: var(--im-black); }
+  .saas-card.st-pipeline  { border-left-color: #C3CBD6; }
+  .saas-card.st-talking   { border-left-color: #6C8FC7; }
+  .saas-card.st-committed { border-left-color: var(--amber); }
+  .saas-card.st-running   { border-left-color: var(--im-lime-dk); }
+
+  .saas-overdue { color: #991B1B; font-weight: 700; }
+
+  /* ── Escalations ──────────────────────────────────────────────────────── */
+  .esc-list-wrap { flex: 1; overflow-y: auto; padding: 14px 24px 40px; min-height: 0; }
+  .esc-list { display: flex; flex-direction: column; gap: 8px; max-width: 1100px; }
+  .esc-row {
+    background: var(--im-white); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 10px 12px;
+    border-left: 3px solid var(--text-3);
+    display: grid; grid-template-columns: 86px 1fr auto; gap: 4px 14px; align-items: start;
+  }
+  .esc-row.sev-1 { border-left-color: #EF4444; }
+  .esc-row.sev-2 { border-left-color: var(--amber); }
+  .esc-row.sev-3 { border-left-color: #6C8FC7; }
+  .esc-row.sev-4 { border-left-color: #C3CBD6; }
+  .esc-key {
+    font-size: 11.5px; font-weight: 700; font-variant-numeric: tabular-nums;
+    color: var(--text-1); text-decoration: none; white-space: nowrap;
+  }
+  .esc-key:hover { text-decoration: underline; }
+  .esc-key::after { content: " \\2197"; font-weight: 400; color: var(--text-3); }
+  .esc-summary { font-size: 12.5px; line-height: 1.45; color: var(--text-1); }
+  .esc-meta {
+    grid-column: 2 / 4; font-size: 10.5px; color: var(--text-3);
+    display: flex; flex-wrap: wrap; gap: 3px 10px; margin-top: 2px;
+  }
+  .esc-meta b { color: var(--text-2); font-weight: 600; }
+  .esc-sev {
+    font-size: 10px; font-weight: 700; letter-spacing: .04em; padding: 2px 8px;
+    border-radius: 9px; white-space: nowrap; justify-self: start;
+  }
+  .esc-sev-1 { background: var(--red-lt);   color: #991B1B; }
+  .esc-sev-2 { background: var(--amber-lt); color: #92400E; }
+  .esc-sev-3 { background: #E8EEF6;         color: #33507A; }
+  .esc-sev-4 { background: var(--surface-2); color: var(--text-2); }
+  .esc-age { font-size: 10.5px; color: var(--text-3); white-space: nowrap; text-align: right; }
+  /* Anything open for a quarter is the tail that stops getting looked at. */
+  .esc-age.stale { color: #991B1B; font-weight: 700; }
+  .esc-unmatched { color: #92400E; font-style: italic; }
   .pct-high { color: #166534; font-weight: 700; }
   .pct-med  { color: #92400E; font-weight: 700; }
   .pct-low  { color: #991B1B; font-weight: 700; }
@@ -1635,103 +1769,116 @@ report_all_accounts_html <- function(op_list,
 </div>
 
 <!-- PAGE TABS -->
+<!-- Three pages, each a set of sub-tabs. The grouping is by question asked:
+     who are they and what is moving (Engagement), what are they using
+     (Adoption), how is it running (Performance). -->
 <div class="page-tabs">
-  <button class="page-tab active" data-page="accounts" onclick="switchPage(\'accounts\')">
-    Accounts <span class="page-tab-count" id="tab-count-accounts">0</span>
-  </button>
-  <button class="page-tab" data-page="renewals" onclick="switchPage(\'renewals\')">
-    Renewals <span class="page-tab-count" id="tab-count-renewals">0</span>
-  </button>
-  <button class="page-tab" data-page="expansions" onclick="switchPage(\'expansions\')">
-    Expansions <span class="page-tab-count" id="tab-count-expansions">0</span>
-  </button>
-  <button class="page-tab" data-page="changes" onclick="switchPage(\'changes\')">
-    Changes <span class="page-tab-count" id="tab-count-changes">0</span>
+  <button class="page-tab active" data-page="engagement" onclick="switchPage(\'engagement\')">
+    Accounts and Engagement <span class="page-tab-count" id="tab-count-engagement">0</span>
   </button>
   <button class="page-tab" data-page="adoption" onclick="switchPage(\'adoption\')">
     Adoption <span class="page-tab-count" id="tab-count-adoption">—</span>
   </button>
-  <button class="page-tab" data-page="self_managed" onclick="switchPage(\'self_managed\')">
-    Self-Managed <span class="page-tab-count" id="tab-count-self-managed">—</span>
+  <button class="page-tab" data-page="performance" onclick="switchPage(\'performance\')">
+    Performance <span class="page-tab-count" id="tab-count-performance">—</span>
   </button>
 </div>
 
-<!-- ACCOUNTS PAGE -->
-<div id="page-accounts" class="page active">
-  <div class="layout">
-    <aside class="sidebar">
-      <div class="sidebar-section">
-        <div class="sidebar-label">Filter by Region</div>
-        <div class="region-filters">
-          <button class="pill active" data-region="all">All Regions</button>
-          {{REGION_PILLS}}
-        </div>
+<!-- ACCOUNTS AND ENGAGEMENT -->
+<div id="page-engagement" class="page active">
+  <div class="subpage">
+    <div class="sub-tabs">
+      <button class="sub-btn active" data-sub="accounts" onclick="switchSub(\'accounts\')">
+        Accounts <span class="sub-count" id="sub-count-accounts">0</span>
+      </button>
+      <button class="sub-btn" data-sub="renewals" onclick="switchSub(\'renewals\')">
+        Renewals <span class="sub-count" id="sub-count-renewals">0</span>
+      </button>
+      <button class="sub-btn" data-sub="expansions" onclick="switchSub(\'expansions\')">
+        Expansions <span class="sub-count" id="sub-count-expansions">0</span>
+      </button>
+      <button class="sub-btn" data-sub="changes" onclick="switchSub(\'changes\')">
+        Changes <span class="sub-count" id="sub-count-changes">0</span>
+      </button>
+    </div>
+
+    <!-- Accounts keeps its own sidebar rather than the pill rows the other
+         panels use: it is the only view with the A-Z jump bar, which needs the
+         vertical space. -->
+    <div class="subpanel subpanel-row active" id="sub-panel-accounts">
+      <div class="layout">
+        <aside class="sidebar">
+          <div class="sidebar-section">
+            <div class="sidebar-label">Filter by Region</div>
+            <div class="region-filters">
+              <button class="pill active" data-region="all">All Regions</button>
+              {{REGION_PILLS}}
+            </div>
+          </div>
+          <div class="sidebar-section">
+            <div class="sidebar-label">Filter by CSM</div>
+            <div class="region-filters" id="csm-filters">
+              <button class="pill active" data-csm="all">All CSMs</button>
+              {{CSM_PILLS}}
+            </div>
+          </div>
+          <div class="sidebar-section">
+            <div class="sidebar-label">Jump to Letter</div>
+            <div class="alpha-jump" id="alpha-jump"></div>
+          </div>
+        </aside>
+        <main class="main" id="main-content">
+          <div id="account-list"></div>
+          <div id="no-results">No accounts match your search.</div>
+        </main>
       </div>
-      <div class="sidebar-section">
-        <div class="sidebar-label">Filter by CSM</div>
-        <div class="region-filters" id="csm-filters">
-          <button class="pill active" data-csm="all">All CSMs</button>
-          {{CSM_PILLS}}
-        </div>
+    </div>
+
+    <div class="subpanel" id="sub-panel-renewals">
+      <div class="flat-page">
+        <div class="flat-filters" id="renewal-filters"></div>
+        <div class="flat-filters flat-filters-csm" id="renewal-csm-filters"></div>
+        <div class="flat-stats" id="renewal-stats"></div>
+        <div class="flat-table-wrap" id="renewal-table"></div>
       </div>
-      <div class="sidebar-section">
-        <div class="sidebar-label">Jump to Letter</div>
-        <div class="alpha-jump" id="alpha-jump"></div>
+    </div>
+
+    <div class="subpanel" id="sub-panel-expansions">
+      <div class="flat-page">
+        <div class="flat-filters" id="expansion-filters"></div>
+        <div class="flat-filters flat-filters-csm" id="expansion-csm-filters"></div>
+        <div class="flat-stats" id="expansion-stats"></div>
+        <div class="flat-table-wrap" id="expansion-table"></div>
       </div>
-    </aside>
-    <main class="main" id="main-content">
-      <div id="account-list"></div>
-      <div id="no-results">No accounts match your search.</div>
-    </main>
+    </div>
+
+    <div class="subpanel" id="sub-panel-changes">
+      <div class="flat-page">
+        <div class="changes-header" id="changes-header"></div>
+        <div class="changes-body"   id="changes-content"></div>
+      </div>
+    </div>
   </div>
 </div>
 
-<!-- RENEWALS PAGE -->
-<div id="page-renewals" class="page">
-  <div class="flat-page">
-    <div class="flat-filters" id="renewal-filters"></div>
-    <div class="flat-filters flat-filters-csm" id="renewal-csm-filters"></div>
-    <div class="flat-stats" id="renewal-stats"></div>
-    <div class="flat-table-wrap" id="renewal-table"></div>
-  </div>
-</div>
-
-<!-- EXPANSIONS PAGE -->
-<div id="page-expansions" class="page">
-  <div class="flat-page">
-    <div class="flat-filters" id="expansion-filters"></div>
-    <div class="flat-filters flat-filters-csm" id="expansion-csm-filters"></div>
-    <div class="flat-stats" id="expansion-stats"></div>
-    <div class="flat-table-wrap" id="expansion-table"></div>
-  </div>
-</div>
-
-<!-- CHANGES PAGE -->
-<div id="page-changes" class="page">
-  <div class="flat-page">
-    <div class="changes-header" id="changes-header"></div>
-    <div class="changes-body"   id="changes-content"></div>
-  </div>
-</div>
-
-<!-- ADOPTION PAGE -->
+<!-- ADOPTION -->
 <!-- One sub-tab per module. PBAC gets the scatter plot plus the write-up of how
      the rating is derived; the other three are tables, since their rating is a
      single value with no second axis behind it. -->
 <div id="page-adoption" class="page">
-  <div class="adoption-page">
-    <div class="adopt-sub-tabs">
-      <button class="asub-btn active" data-asub="pbac" onclick="switchAdoptSub(\'pbac\')">
-        PBAC <span class="asub-count" id="asub-count-pbac">—</span>
+  <div class="subpage">
+    <div class="sub-tabs">
+      <button class="sub-btn active" data-sub="pbac" onclick="switchSub(\'pbac\')">
+        PBAC <span class="sub-count" id="sub-count-pbac">—</span>
       </button>
-      <button class="asub-btn" data-asub="request" onclick="switchAdoptSub(\'request\')">
-        Request <span class="asub-count" id="asub-count-request">—</span>
+      <button class="sub-btn" data-sub="request" onclick="switchSub(\'request\')">
+        Request <span class="sub-count" id="sub-count-request">—</span>
       </button>
-      <button class="asub-btn" data-asub="comply" onclick="switchAdoptSub(\'comply\')">
-        Comply <span class="asub-count" id="asub-count-comply">—</span>
+      <button class="sub-btn" data-sub="comply" onclick="switchSub(\'comply\')">
+        Comply <span class="sub-count" id="sub-count-comply">—</span>
       </button>
-      <button class="asub-btn" data-asub="agentic" onclick="switchAdoptSub(\'agentic\')">
-        Agentic <span class="asub-count" id="asub-count-agentic">—</span>
+      <button class="sub-btn" data-sub="agentic" onclick="switchSub(\'agentic\')">
+        Agentic <span class="sub-count" id="sub-count-agentic">—</span>
       </button>
     </div>
 
@@ -1741,7 +1888,7 @@ report_all_accounts_html <- function(op_list,
     <div class="flat-filters" id="adopt-region-filters"></div>
     <div class="flat-filters flat-filters-csm" id="adopt-csm-filters"></div>
 
-    <div class="adoption-panel active" id="adopt-panel-pbac">
+    <div class="subpanel active" id="sub-panel-pbac">
       <div class="pbac-scatter-wrap">
         <div class="pbac-plot">
           <svg id="pbac-plot" viewBox="0 0 880 520" role="img"
@@ -1753,36 +1900,73 @@ report_all_accounts_html <- function(op_list,
       <div class="pbac-writeup" id="pbac-writeup"></div>
     </div>
 
-    <div class="adoption-panel" id="adopt-panel-request">
+    <div class="subpanel" id="sub-panel-request">
       <div class="adopt-stats" id="adopt-stats-request"></div>
       <div class="flat-table-wrap" id="adopt-table-request"></div>
     </div>
-    <div class="adoption-panel" id="adopt-panel-comply">
+    <div class="subpanel" id="sub-panel-comply">
       <div class="adopt-stats" id="adopt-stats-comply"></div>
       <div class="flat-table-wrap" id="adopt-table-comply"></div>
     </div>
-    <div class="adoption-panel" id="adopt-panel-agentic">
+    <div class="subpanel" id="sub-panel-agentic">
       <div class="adopt-stats" id="adopt-stats-agentic"></div>
       <div class="flat-table-wrap" id="adopt-table-agentic"></div>
     </div>
   </div>
 </div>
 
-<!-- SELF-MANAGED PAGE -->
-<div id="page-self_managed" class="page">
-  <div class="flat-page">
-    <div class="flat-filters" id="sm-support-filters">
-      <button class="flat-pill active" data-sm-support="all" onclick="setSMSupport(\'all\')">All Support Statuses</button>
-      <button class="flat-pill" data-sm-support="Supported" onclick="setSMSupport(\'Supported\')">Supported</button>
-      <button class="flat-pill" data-sm-support="Unsupported" onclick="setSMSupport(\'Unsupported\')">Unsupported</button>
-      <button class="flat-pill" data-sm-support="Unknown" onclick="setSMSupport(\'Unknown\')">Unknown</button>
+<!-- PERFORMANCE -->
+<div id="page-performance" class="page">
+  <div class="subpage">
+    <div class="sub-tabs">
+      <button class="sub-btn active" data-sub="self_managed" onclick="switchSub(\'self_managed\')">
+        Self-Managed <span class="sub-count" id="sub-count-self_managed">—</span>
+      </button>
+      <button class="sub-btn" data-sub="saas_migration" onclick="switchSub(\'saas_migration\')">
+        SaaS Migration <span class="sub-count" id="sub-count-saas_migration">—</span>
+      </button>
+      <button class="sub-btn" data-sub="escalations" onclick="switchSub(\'escalations\')">
+        Escalations <span class="sub-count" id="sub-count-escalations">—</span>
+      </button>
     </div>
-    <div class="flat-filters flat-filters-csm" id="sm-lifecycle-filters">
-      <button class="flat-pill active" data-sm-lifecycle="all" onclick="setSMLifecycle(\'all\')">All Lifecycle Stages</button>
-      {{SM_LIFECYCLE_PILLS}}
+
+    <!-- Open CUSTX Jira issues. Severity pills first because that is the axis
+         people triage on; customer and status narrow from there. -->
+    <div class="subpanel" id="sub-panel-escalations">
+      <div class="flat-filters" id="esc-sev-filters"></div>
+      <div class="flat-filters flat-filters-csm" id="esc-status-filters"></div>
+      <div class="flat-filters flat-filters-csm" id="esc-region-filters"></div>
+      <div class="flat-filters flat-filters-csm" id="esc-csm-filters"></div>
+      <div class="flat-stats" id="esc-stats"></div>
+      <div class="esc-list-wrap"><div class="esc-list" id="esc-list"></div></div>
     </div>
-    <div class="flat-stats" id="sm-stats"></div>
-    <div class="flat-table-wrap" id="sm-table"></div>
+
+    <!-- Migrations laid out as one column per estimated quarter. The question
+         this answers is "what lands when", so the quarter is the axis and the
+         stage is what a card carries, not the other way round. -->
+    <div class="subpanel" id="sub-panel-saas_migration">
+      <div class="flat-filters" id="saas-region-filters"></div>
+      <div class="flat-filters flat-filters-csm" id="saas-csm-filters"></div>
+      <div class="flat-stats" id="saas-stats"></div>
+      <div class="saas-board-wrap"><div class="saas-board" id="saas-board"></div></div>
+    </div>
+
+    <div class="subpanel active" id="sub-panel-self_managed">
+      <div class="flat-page">
+        <div class="flat-filters" id="sm-support-filters">
+          <button class="flat-pill active" data-sm-support="all" onclick="setSMSupport(\'all\')">All Support Statuses</button>
+          <button class="flat-pill" data-sm-support="Supported" onclick="setSMSupport(\'Supported\')">Supported</button>
+          <button class="flat-pill" data-sm-support="Unsupported" onclick="setSMSupport(\'Unsupported\')">Unsupported</button>
+          <button class="flat-pill" data-sm-support="Unknown" onclick="setSMSupport(\'Unknown\')">Unknown</button>
+        </div>
+        <div class="flat-filters flat-filters-csm" id="sm-lifecycle-filters">
+          <button class="flat-pill active" data-sm-lifecycle="all" onclick="setSMLifecycle(\'all\')">All Lifecycle Stages</button>
+          {{SM_LIFECYCLE_PILLS}}
+        </div>
+        <div class="flat-stats" id="sm-stats"></div>
+        <div class="flat-table-wrap" id="sm-table"></div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1791,15 +1975,16 @@ const ACCOUNTS          = {{JSON_DATA}};
 const SNAP_DATES        = {{SNAP_DATES}};
 const CHANGES_DATA      = {{CHANGES}};
 const CONSUMPTION_DATA  = {{CONSUMPTION}};
+const SAAS_DATA         = {{SAAS}};
+const ESCALATIONS_DATA  = {{ESCALATIONS}};
 
 // ── State ──────────────────────────────────────────────────────────────────
 let activeRegion    = "all";
 let activeCSM       = "all";
 let searchTerm      = "";
-let activePage      = "accounts";
+let activePage      = "engagement";
 let renewalSort         = { col: "end_date_raw", dir: 1 };
 let expansionSort       = { col: "close_date_raw", dir: 1 };
-let adoptSubTab         = "pbac";
 let adoptSort           = { col: null, dir: 1 };
 let smSort              = { col: null, dir: 1 };
 let activeSMSupport     = "all";
@@ -1854,16 +2039,26 @@ ACCOUNTS.forEach(a => {
 });
 
 // Update global tab counts once
-document.getElementById("tab-count-accounts").textContent   = ACCOUNTS.length;
-document.getElementById("tab-count-renewals").textContent    = ALL_RENEWALS.length;
-document.getElementById("tab-count-expansions").textContent  = ALL_EXPANSIONS.length;
-document.getElementById("tab-count-changes").textContent     =
+setCount("tab-count-engagement", ACCOUNTS.length);
+setCount("sub-count-accounts",   ACCOUNTS.length);
+setCount("sub-count-renewals",   ALL_RENEWALS.length);
+setCount("sub-count-expansions", ALL_EXPANSIONS.length);
+setCount("sub-count-changes",
   (CHANGES_DATA && CHANGES_DATA.has_data && CHANGES_DATA.summary)
     ? CHANGES_DATA.summary.reduce((s, r) => s + (r.Total_Moves || 0), 0)
-    : 0;
-// Adoption covers every account, so its count is known up front rather than
-// showing an em-dash until the tab is first opened.
-document.getElementById("tab-count-adoption").textContent    = ACCOUNTS.length;
+    : 0);
+// Adoption and Performance don\'t depend on a render pass to be countable, so
+// fill their badges up front rather than leaving an em-dash until first visit.
+setCount("tab-count-adoption", ACCOUNTS.length);
+{
+  const sm = ((CONSUMPTION_DATA && CONSUMPTION_DATA.rows) || []).filter(r =>
+    !(r["Is SaaS Customer"] === true || r["Is SaaS Customer"] === "TRUE")
+  ).length;
+  setCount("tab-count-performance",  sm);
+  setCount("sub-count-self_managed", sm);
+  setCount("sub-count-saas_migration", ((SAAS_DATA && SAAS_DATA.rows) || []).length);
+  setCount("sub-count-escalations", ((ESCALATIONS_DATA && ESCALATIONS_DATA.rows) || []).length);
+}
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 function esc(s) {
@@ -2164,33 +2359,65 @@ function buildCard(a) {
 </div>`;
 }
 
-// ── Page switching ─────────────────────────────────────────────────────────
+// ── Page and sub-tab switching ─────────────────────────────────────────────
+// Each page remembers which sub-tab it was on, so coming back to Engagement
+// lands you where you left rather than resetting to Accounts.
+const PAGES = {
+  engagement:  { subs: ["accounts", "renewals", "expansions", "changes"], active: "accounts" },
+  adoption:    { subs: ["pbac", "request", "comply", "agentic"],          active: "pbac" },
+  performance: { subs: ["self_managed", "saas_migration", "escalations"],  active: "self_managed" }
+};
+
 function switchPage(name) {
   activePage = name;
   document.querySelectorAll(".page").forEach(p => p.classList.toggle("active", p.id === "page-" + name));
   document.querySelectorAll(".page-tab").forEach(b => b.classList.toggle("active", b.dataset.page === name));
-  document.getElementById("search").placeholder =
-    name === "accounts" ? "Search accounts..." : "Filter by account name...";
+  syncSubTabs();
   render();
+}
+
+function switchSub(sub) {
+  PAGES[activePage].active = sub;
+  // Each adoption table sorts on its own terms; carrying a column over from the
+  // previous one sorts on a field that table may not even have.
+  if (activePage === "adoption") adoptSort = { col: null, dir: 1 };
+  syncSubTabs();
+  render();
+}
+
+// Scoped to the active page: sub-tab ids are unique across pages, but querying
+// globally would still fight with the other pages\' buttons on every switch.
+function syncSubTabs() {
+  const sub  = PAGES[activePage].active;
+  const page = document.getElementById("page-" + activePage);
+  if (!page) return;
+  page.querySelectorAll(".sub-btn").forEach(b => b.classList.toggle("active", b.dataset.sub === sub));
+  page.querySelectorAll(".subpanel").forEach(p => p.classList.toggle("active", p.id === "sub-panel-" + sub));
+  document.getElementById("search").placeholder =
+    sub === "accounts" ? "Search accounts..." : "Filter by account name...";
 }
 
 // ── Render dispatcher ──────────────────────────────────────────────────────
 function render() {
-  if      (activePage === "accounts")    renderAccounts();
-  else if (activePage === "renewals")    renderRenewals();
-  else if (activePage === "expansions")  renderExpansions();
-  else if (activePage === "changes")     renderChanges();
-  else if (activePage === "adoption")    renderAdoption();
-  else if (activePage === "self_managed") renderSelfManaged();
+  const sub = PAGES[activePage].active;
+  if (activePage === "engagement") {
+    if      (sub === "accounts")   renderAccounts();
+    else if (sub === "renewals")   renderRenewals();
+    else if (sub === "expansions") renderExpansions();
+    else if (sub === "changes")    renderChanges();
+  } else if (activePage === "adoption") {
+    renderAdoption();
+  } else if (activePage === "performance") {
+    if      (sub === "saas_migration") renderSaaSMigration();
+    else if (sub === "escalations")    renderEscalations();
+    else                               renderSelfManaged();
+  }
 }
 
-// ── Adoption ───────────────────────────────────────────────────────────────
-function switchAdoptSub(name) {
-  adoptSubTab = name;
-  adoptSort = { col: null, dir: 1 };   // each table sorts on its own terms
-  document.querySelectorAll(".asub-btn").forEach(b => b.classList.toggle("active", b.dataset.asub === name));
-  document.querySelectorAll(".adoption-panel").forEach(p => p.classList.toggle("active", p.id === "adopt-panel-" + name));
-  renderAdoption();
+// Writes a count badge, tolerating an id that isn\'t on the page.
+function setCount(id, n) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = n;
 }
 
 function sortAdopt(col) {
@@ -2235,19 +2462,19 @@ function renderAdoption() {
   buildFlatCSMPills("adopt-csm-filters");
 
   const faceted = ACCOUNTS.filter(adoptFacet);
-  document.getElementById("tab-count-adoption").textContent = faceted.length;
+  setCount("tab-count-adoption", faceted.length);
 
   // Counts follow the facet, so the badges always describe what the panel is
   // about to show. PBAC counts the accounts the Looker-derived rating covers;
   // the other three count non-blank values in their own column.
-  document.getElementById("asub-count-pbac").textContent = faceted.filter(hasPbac).length;
+  setCount("sub-count-pbac", faceted.filter(hasPbac).length);
   Object.keys(ADOPT_TABS).forEach(k => {
-    document.getElementById("asub-count-" + k).textContent =
-      faceted.filter(a => !adoptBlank(a[ADOPT_TABS[k].rating])).length;
+    setCount("sub-count-" + k, faceted.filter(a => !adoptBlank(a[ADOPT_TABS[k].rating])).length);
   });
 
-  if (adoptSubTab === "pbac") renderPbacPanel(ACCOUNTS.filter(hasPbac));
-  else                        renderAdoptTable(adoptSubTab);
+  const sub = PAGES.adoption.active;
+  if (sub === "pbac") renderPbacPanel(ACCOUNTS.filter(hasPbac));
+  else                renderAdoptTable(sub);
 }
 
 // ── Adoption tables (Request / Comply / Agentic) ───────────────────────────
@@ -2607,6 +2834,274 @@ function pbacWriteupHtml() {
     <p>The colour gives severity; the pair behind it gives the play. Red with a high score and a thin ratio is an enablement problem — the platform work is done, the users are not there. Red with a low score and a healthy ratio is a depth problem — plenty of people, nothing hard being asked of the product. Same colour, opposite conversations. Black should move fastest: neither axis has cleared its floor, and there is no adoption story to tell at renewal.</p>`;
 }
 
+// ── Escalations ────────────────────────────────────────────────────────────
+// op_list$escalations, one row per open CUSTX Jira issue. Severity, status and
+// customer are facets of their own; region and CSM reuse the global pills.
+let escSev = "all", escStatus = "all", escCustomer = "all";
+
+function setEscSev(v)      { escSev      = v; renderEscalations(); }
+function setEscStatus(v)   { escStatus   = v; renderEscalations(); }
+function setEscCustomer(v) { escCustomer = v; renderEscalations(); }
+
+// Pill row from the distinct values present, built from the rows the OTHER
+// facets already allow — so a status pill never offers a combination that
+// yields nothing.
+function escPills(containerId, values, active, fn, allLabel) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.innerHTML = [`<button class="flat-pill${active === "all" ? " active" : ""}" onclick="${fn}(\'all\')">${allLabel}</button>`]
+    .concat(values.map(v =>
+      `<button class="flat-pill${active === v ? " active" : ""}" onclick="${fn}(\'${esc(String(v).replace(/\\\\/g, "\\\\\\\\").replace(/\'/g, "\\\\\'"))}\')">${esc(v)}</button>`
+    )).join("");
+}
+
+function renderEscalations() {
+  const statsEl = document.getElementById("esc-stats");
+  const listEl  = document.getElementById("esc-list");
+  const all     = (ESCALATIONS_DATA && ESCALATIONS_DATA.rows) || [];
+
+  // Region and CSM come from the global pills; severity, status and customer
+  // are local to this tab.
+  const inFacet = r => (activeRegion === "all" || r.Region === activeRegion) &&
+                       (activeCSM    === "all" || r.csm    === activeCSM);
+
+  const base = all.filter(inFacet);
+  setCount("sub-count-escalations", base.length);
+
+  // Pill options come from `base`, so they narrow with the global facets.
+  const uniq = (arr, k) => [...new Set(arr.map(r => r[k]).filter(Boolean))];
+  escPills("esc-sev-filters",
+           uniq(base, "severity").sort((a, b) => escRank(a, base) - escRank(b, base)),
+           escSev, "setEscSev", "All severities");
+  escPills("esc-status-filters", uniq(base, "status").sort(), escStatus, "setEscStatus", "All statuses");
+  buildFlatPills("esc-region-filters", "esc");
+  buildFlatCSMPills("esc-csm-filters");
+
+  let rows = base;
+  if (escSev      !== "all") rows = rows.filter(r => r.severity === escSev);
+  if (escStatus   !== "all") rows = rows.filter(r => r.status   === escStatus);
+  if (escCustomer !== "all") rows = rows.filter(r => r["Account Name"] === escCustomer);
+  if (searchTerm) {
+    rows = rows.filter(r =>
+      String(r["Account Name"] || "").toLowerCase().includes(searchTerm) ||
+      String(r.summary || "").toLowerCase().includes(searchTerm) ||
+      String(r.key || "").toLowerCase().includes(searchTerm));
+  }
+
+  if (!rows.length) {
+    statsEl.innerHTML = "";
+    listEl.innerHTML = `<p class="empty-msg" style="padding:40px">${
+      all.length
+        ? "No open escalations match the current filters."
+        : "No escalation data \\u2014 set JIRA_EMAIL and JIRA_TOKEN in .Renviron and re-run the pipeline."}</p>`;
+    return;
+  }
+
+  const bySev = {};
+  rows.forEach(r => { bySev[r.severity] = (bySev[r.severity] || 0) + 1; });
+  const sevOrder = Object.keys(bySev).sort((a, b) => escRank(a, rows) - escRank(b, rows));
+  const customers = new Set(rows.map(r => r["Account Name"]).filter(Boolean));
+  const oldest = Math.max.apply(null, rows.map(r => r.age_days || 0));
+
+  statsEl.innerHTML =
+    `<div class="stat-item"><div class="stat-label">Open</div><div class="stat-value">${rows.length}</div></div>` +
+    `<div class="stat-item"><div class="stat-label">Customers</div><div class="stat-value">${customers.size}</div></div>` +
+    `<div class="stat-item"><div class="stat-label">Oldest</div><div class="stat-value">${oldest}d</div></div>` +
+    sevOrder.map(s =>
+      `<div class="stat-item"><div class="stat-label">${esc(s)}</div><div class="stat-value">${bySev[s]}</div></div>`
+    ).join("");
+
+  // Already sorted by severity then age in op_list_escalations(); re-sorting
+  // here keeps that true after filtering.
+  const sorted = rows.slice().sort((a, b) =>
+    (a.severity_rank - b.severity_rank) || ((b.age_days || 0) - (a.age_days || 0)));
+
+  listEl.innerHTML = sorted.map(r => {
+    const rank = Math.min(Math.max(r.severity_rank || 4, 1), 4);
+    const acct = r["Account Name"];
+    return `<div class="esc-row sev-${rank}">
+      <span class="esc-sev esc-sev-${rank}">${esc(r.severity || "\\u2014")}</span>
+      <div class="esc-summary">${esc(r.summary || "\\u2014")}</div>
+      <div class="esc-age${(r.age_days || 0) >= 90 ? " stale" : ""}">${r.age_days != null ? r.age_days + "d open" : ""}</div>
+      <div class="esc-meta">
+        <a class="esc-key" href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.key)}</a>
+        <span>${acct
+          ? `<b><span class="acct-link" onclick="goToAccount(\'${esc(acct)}\')">${esc(acct)}</span></b>`
+          : `<span class="esc-unmatched">no account matched</span>`}</span>
+        <span>${esc(r.status || "\\u2014")}</span>
+        <span>${esc(r.Region || "\\u2014")}</span>
+        <span>${esc(r.csm || "\\u2014")}</span>
+        <span>${esc(r.assignee || "unassigned")}</span>
+        <span>opened ${esc(r.created || "\\u2014")}</span>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+// Severity sort position, read off the rank the R side already computed rather
+// than re-deriving it from the label — the two must not disagree.
+function escRank(sev, rows) {
+  const hit = rows.find(r => r.severity === sev);
+  return hit ? (hit.severity_rank || 9) : 9;
+}
+
+// ── SaaS migration board ───────────────────────────────────────────────────
+// op_list$saas_pipeline, one column per estimated fiscal quarter. The report is
+// already scoped to in-flight migrations, so everything in it is "ongoing" —
+// there is no completed stage to filter out.
+
+// Stage order is weakest to strongest. The picklist is mid-rename: two values
+// carry the new numeric prefix and two are legacy text, which is why this is an
+// explicit list rather than a sort on the string. Anything unrecognised sorts
+// last and renders grey, so a new picklist value shows up rather than vanishing.
+const SAAS_STAGES = [
+  { match: "1 - pipeline",            key: "pipeline",  label: "Pipeline" },
+  { match: "having conversations",    key: "talking",   label: "Having conversations" },
+  { match: "verbal commitment",       key: "committed", label: "Verbal commitment" },
+  { match: "2 - migration in progress", key: "running", label: "Migration in progress" }
+];
+
+function saasStage(v) {
+  const s = String(v || "").trim().toLowerCase();
+  const i = SAAS_STAGES.findIndex(st => st.match === s);
+  if (i === -1) return { rank: SAAS_STAGES.length, key: "pipeline", label: v || "—" };
+  return { rank: i, key: SAAS_STAGES[i].key, label: SAAS_STAGES[i].label };
+}
+
+// "Q3-2027" -> 20273, so quarters sort chronologically rather than as strings
+// (where Q1-2028 would land before Q3-2027).
+function saasQuarterKey(q) {
+  const m = String(q || "").match(/^Q([1-4])-(\\d{4})$/);
+  return m ? parseInt(m[2], 10) * 10 + parseInt(m[1], 10) : Infinity;
+}
+
+// The Immuta fiscal year starts in February, so Q1 is Feb-Apr of the year the
+// label counts back from — the same convention as date_to_fiscal_quarter().
+function saasQuarterMonths(q) {
+  const m = String(q || "").match(/^Q([1-4])-(\\d{4})$/);
+  if (!m) return "";
+  const qn = parseInt(m[1], 10), fyStart = parseInt(m[2], 10) - 1;
+  const names = ["Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan"];
+  // Index 11 is January, which falls in the next calendar year — so Q4 reads
+  // "Nov 26 - Jan 27" rather than putting both months in the same year.
+  const yr = i => String(i === 11 ? fyStart + 1 : fyStart).slice(2);
+  const s = (qn - 1) * 3, e = s + 2;
+  return yr(s) === yr(e)
+    ? names[s] + "\\u2013" + names[e] + " " + yr(e)
+    : names[s] + " " + yr(s) + " \\u2013 " + names[e] + " " + yr(e);
+}
+
+function toggleSaaSCard(el) { el.classList.toggle("open"); }
+
+function renderSaaSMigration() {
+  buildFlatPills("saas-region-filters", "saas");
+  buildFlatCSMPills("saas-csm-filters");
+
+  const statsEl = document.getElementById("saas-stats");
+  const boardEl = document.getElementById("saas-board");
+  const all     = (SAAS_DATA && SAAS_DATA.rows) || [];
+
+  setCount("sub-count-saas_migration", all.filter(adoptFacet2).length);
+
+  let rows = all.filter(adoptFacet2);
+  if (searchTerm) {
+    rows = rows.filter(r => String(r["Account Name"] || "").toLowerCase().includes(searchTerm));
+  }
+
+  if (!rows.length) {
+    statsEl.innerHTML = "";
+    boardEl.innerHTML = `<p class="empty-msg" style="padding:40px">${
+      all.length ? "No migrations match the current region, CSM and search filters."
+                 : "No SaaS migration pipeline data \\u2014 check the Salesforce report in main.R."}</p>`;
+    return;
+  }
+
+  // Stats: one per stage, in pipeline order, plus the in-flight total.
+  const byStage = {};
+  rows.forEach(r => { const k = saasStage(r["SaaS Migration Pipeline Stage"]).label;
+                      byStage[k] = (byStage[k] || 0) + 1; });
+  const ordered = SAAS_STAGES.map(s => s.label).filter(l => byStage[l]);
+  Object.keys(byStage).forEach(l => { if (!ordered.includes(l)) ordered.push(l); });
+
+  statsEl.innerHTML =
+    `<div class="stat-item"><div class="stat-label">In flight</div><div class="stat-value">${rows.length}</div></div>` +
+    ordered.map(l =>
+      `<div class="stat-item"><div class="stat-label">${esc(l)}</div><div class="stat-value">${byStage[l]}</div></div>`
+    ).join("");
+
+  // Group by estimated quarter. Anything without one gets its own column at the
+  // end rather than being dropped — an unscheduled migration is the one most
+  // worth seeing.
+  const groups = {};
+  rows.forEach(r => {
+    const q = String(r["Estimated SaaS Migration Period"] || "").trim() || "Unscheduled";
+    (groups[q] = groups[q] || []).push(r);
+  });
+
+  const quarters = Object.keys(groups).sort((a, b) => saasQuarterKey(a) - saasQuarterKey(b));
+  const nowKey   = saasQuarterKey(currentFiscalQuarter());
+  const today    = new Date().toISOString().slice(0, 10);
+
+  boardEl.innerHTML = quarters.map(q => {
+    const cards = groups[q].slice().sort((a, b) => {
+      const d = saasStage(b["SaaS Migration Pipeline Stage"]).rank -
+                saasStage(a["SaaS Migration Pipeline Stage"]).rank;
+      return d !== 0 ? d
+        : String(a["Account Name"] || "").localeCompare(String(b["Account Name"] || ""));
+    }).map(r => {
+      const st   = saasStage(r["SaaS Migration Pipeline Stage"]);
+      const due  = r["Est. Date to Move Out of Stage (SM)"];
+      const late = due && due < today;
+      const note = r["SaaS Migration Pipeline Notes"];
+      return `<div class="saas-card st-${st.key}" onclick="toggleSaaSCard(this)">
+        <div class="saas-card-name">${esc(r["Account Name"])}</div>
+        <div class="saas-card-meta">
+          <span>${esc(r.Region || "\\u2014")}</span>
+          <span>${esc(r.csm || "\\u2014")}</span>
+        </div>
+        <div class="saas-card-meta">
+          <span>Out of stage: ${due
+            ? `<span class="${late ? "saas-overdue" : ""}">${esc(due)}${late ? " (past)" : ""}</span>`
+            : "\\u2014"}</span>
+        </div>
+        <span class="saas-stage saas-s-${st.key}">${esc(st.label)}</span>
+        ${note ? `<div class="saas-note">${esc(note)}</div>
+                  <div class="saas-note-hint">Click for notes</div>` : ""}
+      </div>`;
+    }).join("");
+
+    const isCurrent = saasQuarterKey(q) === nowKey;
+    const months    = saasQuarterMonths(q);
+    return `<div class="saas-col${isCurrent ? " current" : ""}">
+      <div class="saas-col-head">
+        <div>
+          <div class="saas-q">${esc(q)}${isCurrent ? " \\u00b7 now" : ""}</div>
+          ${months ? `<div class="saas-q-sub">${months}</div>` : ""}
+        </div>
+        <span class="saas-q-n">${groups[q].length}</span>
+      </div>
+      <div class="saas-col-body">${cards}</div>
+    </div>`;
+  }).join("");
+}
+
+// The facet, against a saas_pipeline row rather than an account record — same
+// rule as adoptFacet(), different field names.
+function adoptFacet2(r) {
+  return (activeRegion === "all" || r.Region === activeRegion) &&
+         (activeCSM    === "all" || r.csm    === activeCSM);
+}
+
+// Today as a fiscal quarter label, matching date_to_fiscal_quarter(): the
+// fiscal year starts in February and is labelled with the calendar year it
+// ends in, so February 2026 is Q1-2027.
+function currentFiscalQuarter() {
+  const d = new Date(), m = d.getMonth(), y = d.getFullYear();   // m: 0 = Jan
+  const fyEnd = m >= 1 ? y + 1 : y;                              // Feb onwards -> next year
+  const qn = Math.floor(((m + 11) % 12) / 3) + 1;                // Feb-Apr -> 1
+  return "Q" + qn + "-" + fyEnd;
+}
+
 // ── Self-Managed ─────────────────────────────────────────────────────────────
 function smVersionStatus(r) {
   const v = r["Customer on Unsupported Version"];
@@ -2645,7 +3140,8 @@ function renderSelfManaged() {
     !(r["Is SaaS Customer"] === true || r["Is SaaS Customer"] === "TRUE")
   );
 
-  document.getElementById("tab-count-self-managed").textContent = selfManagedRows.length;
+  setCount("tab-count-performance", selfManagedRows.length);
+  setCount("sub-count-self_managed", selfManagedRows.length);
 
   let rows = selfManagedRows;
   if (activeSMSupport !== "all") rows = rows.filter(r => smVersionStatus(r) === activeSMSupport);
@@ -2737,7 +3233,10 @@ function renderAccounts() {
   document.getElementById("account-list").innerHTML = html;
   document.getElementById("no-results").style.display = visible.length === 0 ? "block" : "none";
   document.getElementById("count-badge").textContent = visible.length + " account" + (visible.length !== 1 ? "s" : "");
-  document.getElementById("tab-count-accounts").textContent = visible.length;
+  // The page badge tracks the Accounts sub-tab: it is the account count, and
+  // the other three panels are all views onto the same set.
+  setCount("tab-count-engagement", visible.length);
+  setCount("sub-count-accounts",   visible.length);
   buildAlphaJump(letters);
 }
 
@@ -2766,7 +3265,7 @@ function renderRenewals() {
     <div class="stat-item"><div class="stat-label">Open Renewals</div><div class="stat-value">${rows.length}</div></div>
     <div class="stat-item"><div class="stat-label">Total ARR</div><div class="stat-value">${fmtUsd(totalArr)}</div></div>
     <div class="stat-item"><div class="stat-label">Accounts</div><div class="stat-value">${acctSet.size}</div></div>`;
-  document.getElementById("tab-count-renewals").textContent = rows.length;
+  setCount("sub-count-renewals", rows.length);
   document.getElementById("count-badge").textContent = rows.length + " renewal" + (rows.length !== 1 ? "s" : "");
 
   // Region + CSM pills
@@ -2837,7 +3336,7 @@ function renderExpansions() {
     <div class="stat-item"><div class="stat-label">Open Expansions</div><div class="stat-value">${rows.length}</div></div>
     <div class="stat-item"><div class="stat-label">Pipeline Value</div><div class="stat-value">${fmtUsd(totalArr)}</div></div>
     <div class="stat-item"><div class="stat-label">Accounts</div><div class="stat-value">${acctSet.size}</div></div>`;
-  document.getElementById("tab-count-expansions").textContent = rows.length;
+  setCount("sub-count-expansions", rows.length);
   document.getElementById("count-badge").textContent = rows.length + " expansion" + (rows.length !== 1 ? "s" : "");
 
   buildFlatPills("expansion-filters", "expansion");
@@ -2888,7 +3387,10 @@ function sortExpansions(col) {
 
 // ── Navigate from table row to account card ────────────────────────────────
 function goToAccount(name) {
-  switchPage("accounts");
+  // Accounts is a sub-tab now, so set both: the page, then the sub-tab within
+  // it. Order matters — switchSub() writes into whichever page is active.
+  PAGES.engagement.active = "accounts";
+  switchPage("engagement");
   searchTerm = name;
   document.getElementById("search").value = name;
   render();
@@ -3408,6 +3910,8 @@ render();
   tmpl <- gsub("{{SNAP_DATES}}",  .to_json(snap_dates),  tmpl, fixed = TRUE)
   tmpl <- gsub("{{CHANGES}}",      changes_json,          tmpl, fixed = TRUE)
   tmpl <- gsub("{{CONSUMPTION}}",  consumption_json,      tmpl, fixed = TRUE)
+  tmpl <- gsub("{{SAAS}}",         saas_json,             tmpl, fixed = TRUE)
+  tmpl <- gsub("{{ESCALATIONS}}",  escalations_json,      tmpl, fixed = TRUE)
   tmpl <- gsub("{{JSON_DATA}}",    json_data,             tmpl, fixed = TRUE)
   tmpl
 }

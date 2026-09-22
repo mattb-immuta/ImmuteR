@@ -88,6 +88,11 @@ enrich_list_object <- function(new_list, diff_date, data_dir = "data/") {
   # ── 5. SaaS pipeline ─────────────────────────────────────────────────────────
   changes$saas_pipeline <- .diff_saas(new_list$saas_pipeline, old_list$saas_pipeline)
 
+  # ── 5b. Escalations ──────────────────────────────────────────────────────────
+  # Keyed on the Jira issue key, so "added" is an escalation raised since the
+  # last run and "removed" is one that closed — both worth seeing.
+  changes$escalations <- .diff_escalations(new_list$escalations, old_list$escalations)
+
   # ── 6. Consumption ───────────────────────────────────────────────────────────
   changes$consumption <- .diff_consumption(new_list$consumption$low_consumption,
                                            old_list$consumption$low_consumption)
@@ -314,6 +319,38 @@ enrich_list_object <- function(new_list, diff_date, data_dir = "data/") {
 }
 
 
+# Escalations diff, keyed on the Jira issue key. Unlike the other components
+# there is no snapshot before op_list$escalations existed, so a NULL old side
+# means "first run with this data", not "everything is new" — returning an empty
+# list keeps the first run from reporting 30-odd spurious additions.
+.diff_escalations <- function(new_df, old_df) {
+  if (is.null(new_df) || is.null(old_df) ||
+      !is.data.frame(new_df) || !is.data.frame(old_df) ||
+      !("key" %in% names(new_df)) || !("key" %in% names(old_df))) {
+    return(list())
+  }
+
+  added   <- new_df[!(new_df$key %in% old_df$key), , drop = FALSE]
+  removed <- old_df[!(old_df$key %in% new_df$key), , drop = FALSE]
+
+  # Severity and status moves on issues open in both runs — a P3 escalating to
+  # P1 matters as much as a new one being raised.
+  field_changes <- data.frame()
+  both_keys <- intersect(new_df$key, old_df$key)
+  if (length(both_keys) > 0) {
+    cols <- intersect(c("severity", "status"), intersect(names(new_df), names(old_df)))
+    if (length(cols) > 0) {
+      both <- merge(new_df[new_df$key %in% both_keys, c("key", "Account Name", cols)],
+                    old_df[old_df$key %in% both_keys, c("key", cols)],
+                    by = "key", suffixes = c(".new", ".old"))
+      changed <- Reduce(`|`, lapply(cols, function(cc) .field_changed(both, cc)))
+      field_changes <- both[changed, , drop = FALSE]
+    }
+  }
+
+  list(added = added, removed = removed, field_changes = field_changes)
+}
+
 .diff_saas <- function(new_df, old_df) {
   if (is.null(new_df) || is.null(old_df)) return(list())
 
@@ -528,7 +565,7 @@ enrich_list_object <- function(new_list, diff_date, data_dir = "data/") {
 
 .build_change_summary <- function(changes) {
   components <- c("accounts", "renewals", "expansions", "csm_table", "saas_pipeline",
-                   "consumption", "forecast")
+                   "escalations", "consumption", "forecast")
 
   rows <- lapply(components, function(comp) {
     ch <- changes[[comp]]

@@ -4,17 +4,11 @@
 \alias{load_op_list_raw}
 \title{Load raw op_list data from Looker}
 \usage{
-load_op_list_raw(token = NULL, cache_path = NULL, refresh = FALSE)
+load_op_list_raw(token = NULL)
 }
 \arguments{
 \item{token}{Character. Bearer token from \code{looker_auth()}.
 Defaults to calling \code{looker_auth()} automatically.}
-
-\item{cache_path}{Character or NULL. Directory for parquet caches. Set to
-\code{"data/op_list/"} (relative to project root) to enable caching.}
-
-\item{refresh}{Logical. If \code{TRUE}, re-fetch from Looker even when a
-cache file exists. Default \code{FALSE}.}
 }
 \value{
 Named list of tibbles: \code{users}, \code{data_sources},
@@ -22,6 +16,5 @@ Named list of tibbles: \code{users}, \code{data_sources},
 }
 \description{
 Fetches each of the six Looker looks that back the CPO op_list consumption
-spreadsheet. Results are optionally cached as parquet files so subsequent
-calls skip the network round-trip.
+spreadsheet directly from Looker on every call.
 }

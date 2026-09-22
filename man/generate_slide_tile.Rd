@@ -51,9 +51,15 @@ any zoom level. The default \code{dpi = 600} produces a 3000 × 4800 px PNG.
 Three lime-headed sections are rendered:
 \describe{
   \item{\strong{Adoption}}{Stoplight dots for PBAC, Comply, Request, and
-    Agentic Governance, coloured from the leading word of each Salesforce
-    picklist value (Green / Yellow / Red / Black); then Registered Users,
-    Licensed Users, and the Consumption Ratio (colour-coded: lime at
+    Agentic Governance. PBAC is rated from
+    \code{op_list$consumption$pbac_adoption} and Request from the stage
+    tile the account appears on in Looker dashboard 1009, each labelled
+    with what the value says ("Moderate adoption", "Retained") rather than
+    the colour word; Comply and Agentic Governance are the Salesforce
+    picklists, labelled Green / Yellow / Red / Black. Both derived rows
+    fall back to their picklist when the pipeline ran without Looker. Then
+    the platforms and features behind the PBAC rating, then Registered
+    Users, Licensed Users, and the Consumption Ratio (colour-coded: lime at
     \eqn{\ge} 50\%, amber at \eqn{\ge} 25\%, red below); then Lifecycle
     Stage.}
   \item{\strong{Performance}}{Support cases over the trailing 90 and 360

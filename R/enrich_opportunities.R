@@ -214,6 +214,19 @@ enrich_opportunities <- function(sf_opportunity_report    = "00OVH000005p6A92AI"
     }
   )
 
+  # ── escalations child list ──────────────────────────────────────────────────
+  # Open CUSTX Jira issues — the detail behind support$escalations_open, which
+  # is only a count. Needs JIRA_EMAIL / JIRA_TOKEN in .Renviron; warns rather
+  # than aborting, and the Escalations tab renders an empty state without it.
+  message(".. building op_list$escalations")
+  output_list[["escalations"]] <- tryCatch(
+    op_list_escalations(accounts = output_list[["accounts"]]),
+    error = function(e) {
+      warning("Escalations skipped: ", conditionMessage(e), call. = FALSE)
+      NULL
+    }
+  )
+
   # ── product_board child list ────────────────────────────────────────────────
   if (productboard) {
     message(".. building op_list$product_board")

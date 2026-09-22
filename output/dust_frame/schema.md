@@ -1,6 +1,6 @@
 # Dust frame payload — field reference
 
-Generated 2026-09-21 10:38 from op_list. 72 accounts, 5 regions, 10 CSMs.
+Generated 2026-09-22 12:03 from op_list. 72 accounts, 5 regions, 10 CSMs.
 
 `accounts.json` is an array of these objects, sorted by `name`.
 Values are **presentation-ready**: render them as-is. The `*_raw` fields are
@@ -19,8 +19,8 @@ the only ones to compute with — sort, filter and plot on those.
 | `account_owner` | string | `Cory Phillips` |  |
 | `field_cto` | string | `Samantha Hamernick` |  |
 | `consumption_link` | string | `<a class="consumption-link" href="https://imm…` | A full <a> tag, not a URL. Insert as HTML or skip it. |
-| `is_saas` | boolean | `True` | TRUE for SaaS, FALSE for self-managed. |
-| `unsupported` | boolean | `False` | Self-managed account running an unsupported version. |
+| `is_saas` | boolean | `TRUE` | TRUE for SaaS, FALSE for self-managed. |
+| `unsupported` | boolean | `FALSE` | Self-managed account running an unsupported version. |
 | `churn_summary` | string | `Q2-2028` | Comma-separated fiscal quarters with churn-forecast risk. |
 | `lifecycle_stage` | string | `S3: greater than 75% license consumption` | Salesforce lifecycle picklist. |
 | `pbac_adoption` | string | `Amber: Production consumption at greater than…` | Salesforce PBAC picklist. Fallback only — prefer `pbac_rating`. |
@@ -33,7 +33,7 @@ the only ones to compute with — sort, filter and plot on those.
 | `request_status` | string | `adopted` | tried / adopted / retained / none — the Looker stage. |
 | `agentic_governance_adoption` | string | `Red: Customer expressed interest in POC or de…` | Salesforce Agentic picklist. |
 | `platform_html` | string | `Databricks` | Platforms as HTML; dev-only ones are wrapped in a grey span. |
-| `multiplatform` | boolean | `False` | More than one platform in Production. |
+| `multiplatform` | boolean | `FALSE` | More than one platform in Production. |
 | `registered_users` | string | `218` | Formatted count, or an em-dash. |
 | `licensed_users` | string | `210` | Formatted count. "0" means an ELA (unlimited seats). |
 | `consumption_ratio` | string | `103.8%` | Pre-formatted percentage, or an em-dash. |
@@ -55,40 +55,7 @@ the only ones to compute with — sort, filter and plot on those.
 ## Nested shapes
 
 ```json
-{
- "renewals": [
-  {
-   "name": "Cummins - DBX+SYN - Q4FY27 Renewal",
-   "url": "https://immuta.lightning.force.com/lightning/r/Opportunity/006VH000003Wdvl/view",
-   "amount": "$550,032",
-   "amount_raw": 550032,
-   "end_date": "January 21, 2027",
-   "end_date_raw": "2027-01-21",
-   "churn_quarter": "Q4-2027",
-   "risk": "At Risk Renewal",
-   "next_steps": "-"
-  }
- ],
- "expansions": [
-  {
-   "name": "Cummins - Expansion",
-   "url": "https://immuta.lightning.force.com/lightning/r/Opportunity/006VV00000Pg6E6/view",
-   "owner": "Jonathan King",
-   "amount": "$325,000",
-   "amount_raw": 325000,
-   "fiscal_period": "Q4-2027",
-   "close_date": "January 22, 2027",
-   "close_date_raw": "2027-01-22",
-   "next_steps": "9/16 - We are meeting with Anu on October 6."
-  }
- ],
- "products": [
-  {
-   "name": "Connector - Databricks",
-   "quantity": "1"
-  }
- ]
-}
+{"renewals":[{"name":"Cummins - DBX+SYN - Q4FY27 Renewal","url":"https://immuta.lightning.force.com/lightning/r/Opportunity/006VH000003Wdvl/view","amount":"$550,032","amount_raw":550032,"end_date":"January 21, 2027","end_date_raw":"2027-01-21","churn_quarter":"Q4-2027","risk":"At Risk Renewal","next_steps":"-"}],"expansions":[{"name":"Cummins - Expansion","url":"https://immuta.lightning.force.com/lightning/r/Opportunity/006VV00000Pg6E6/view","owner":"Jonathan King","amount":"$325,000","amount_raw":325000,"fiscal_period":"Q4-2027","close_date":"January 22, 2027","close_date_raw":"2027-01-22","next_steps":"9/16 - We are meeting with Anu on October 6."}],"products":[{"name":"Connector - Databricks","quantity":"1"}]}
 ```
 
 ## Rating strings
@@ -112,3 +79,4 @@ green > amber > red > black.
 A null `consumption_ratio_raw` means the figure is unavailable, which is not
 the same as zero: such an account reaches red on complexity alone and no
 further. `licensed_users` of `"0"` is an ELA, already scored as a ratio of 1.
+

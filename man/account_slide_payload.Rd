@@ -16,8 +16,11 @@ A named list with elements:
 \describe{
   \item{\code{account}}{name, region, arr, ae, csm, fcto, next_renewal,
     account_url, customer_central_url.}
-  \item{\code{adoption}}{modules (a list of label/status/colour triples),
-    registered, licensed, ratio, lifecycle_stage.}
+  \item{\code{adoption}}{modules (a list of label/status/colour/source
+    entries — PBAC and Request rated from Looker, Comply and Agentic from
+    the Salesforce picklists, with \code{source} naming which), platforms,
+    platforms_dev, features (always an array), features_text, registered,
+    licensed, ratio, lifecycle_stage.}
   \item{\code{performance}}{cases_90d, cases_360d, cases_total,
     escalations_90d, escalations_360d, escalations_open, deployment
     (the SaaS / SM: Supported / SM: Unsupported badge text),

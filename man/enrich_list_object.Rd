@@ -23,7 +23,7 @@ snapshots. Defaults to \code{"data/"}.}
 \describe{
   \item{changes}{Data frame summarising detected changes across all
     op_list components (accounts, renewals, expansions, csm_table,
-    saas_pipeline, consumption). One row per component with columns
+    saas_pipeline, consumption, forecast). One row per component with columns
     \code{Component}, \code{Added}, \code{Removed}, \code{Changed},
     and \code{Total_Moves}.}
   \item{changes_detail}{Named list with the full diff for each component,
@@ -36,7 +36,13 @@ snapshots. Defaults to \code{"data/"}.}
     \code{all_deltas} (Changes in Data Sources Count / Changes in Active
     Policies for every account present in both snapshots, not just the
     flagged ones) — see \code{op_list_consumption()} for how those columns
-    are derived.}
+    are derived. The \code{forecast} component (from
+    \code{\link{op_list_forecast}}, keyed by Opportunity ID) has
+    \code{added}, \code{removed} and \code{field_changes}; the latter
+    carries \code{.new}/\code{.old} pairs for Churn Quarter, Churn Forecast,
+    Account Risk, Amount, Stage and the close dates, a matching
+    \code{*_changed} boolean per field, and \code{forecast_delta} (new minus
+    old forecast dollars).}
   \item{renewal_changes}{Data frame of renewals where Account Risk or Churn
     Forecast changed (retained for backward compatibility).}
   \item{customer_ops_tracker}{Joined renewal + expansion table for use in

@@ -195,21 +195,26 @@ tryCatch(
 # -----------------------------------------------------------------------------
 # Publish the dashboard to the shared Google Drive folder
 # -----------------------------------------------------------------------------
-# ONLY immuta_accounts.html is uploaded. The slide PNGs and payload JSON stay
-# local in output/ — they're regenerated every run, there are 144 of them, and
-# re-uploading the set each time is slow for no benefit. Push them by hand when
-# you actually need them on Drive:
+# immuta_accounts.html plus the Dust frame payload (output/dust_frame/, ~365 KB
+# across four files) — the JSON that a Dust agent is handed to rebuild the
+# dashboard, so it belongs next to the dashboard it is being compared against.
+# push_output_to_drive() recreates local subdirectories as Drive subfolders, so
+# these land in a `dust_frame` folder rather than cluttering the shared root.
+#
+# The slide PNGs stay local — they're regenerated every run, there are 144 of
+# them, and re-uploading the set each time is slow for no benefit. Push them by
+# hand when you actually need them on Drive:
 #
 #   push_output_to_drive()                              # everything
 #   push_output_to_drive(pattern = "slide_content")     # just the PNGs
 #
-# Matched by name and updated in place, so the dashboard's Drive link and file
-# ID stay stable across runs.
+# Everything is matched by name and updated in place, so the dashboard's Drive
+# link and file ID — and the payload files' links — stay stable across runs.
 #
 # Wrapped in tryCatch so a Drive failure warns rather than killing the run (or
 # the plumber /refresh request) after everything else already succeeded.
 tryCatch(
-  push_output_to_drive(pattern = "^immuta_accounts\\.html$"),
+  push_output_to_drive(pattern = "^(immuta_accounts\\.html|dust_frame/)"),
   error = function(e) {
     warning("Drive push skipped: ", conditionMessage(e), call. = FALSE)
   }

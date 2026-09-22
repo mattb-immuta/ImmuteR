@@ -4,7 +4,12 @@
 \alias{op_list_consumption}
 \title{Build the consumption child list for op_list}
 \usage{
-op_list_consumption(op_list, raw = NULL, low_consumption_threshold = 0.25)
+op_list_consumption(
+  op_list,
+  raw = NULL,
+  low_consumption_threshold = 0.25,
+  domain_accounts = NULL
+)
 }
 \arguments{
 \item{op_list}{Named list from \code{\link{enrich_opportunities}}.
@@ -18,6 +23,12 @@ still built; Looker columns (\code{Users}, \code{Data Sources},
 \item{low_consumption_threshold}{Numeric. Fraction below which a customer's
 registered/licensed user ratio flags them as low consumption. Default
 \code{0.25} (25\%).}
+
+\item{domain_accounts}{Character vector or \code{NULL}. Accounts using
+domains, passed through to \code{\link{op_list_pbac_adoption}}.
+\code{enrich_opportunities()} supplies this from the Domains dashboard
+(Looker 1053) on a \code{looker = TRUE} run; \code{NULL} scores the
+\code{domains} component \code{0} for everyone.}
 }
 \value{
 Named list stored as \code{op_list$consumption}, with elements:
@@ -36,6 +47,15 @@ Named list stored as \code{op_list$consumption}, with elements:
     accounts, literal \code{"saas"} for SaaS-hosted accounts, \code{NA}
     when not captured by the SDD-active look), and \code{Low Consumption}
     columns described above.}
+  \item{\code{metrics}}{One row per account with the numeric inputs for
+    adoption scoring — currently \code{platform_count}. See
+    \code{\link{op_list_metrics}}. Zero rows when \code{raw} is
+    \code{NULL}.}
+  \item{\code{pbac_adoption}}{One row per account with the PBAC complexity
+    signals, their weighted \code{complexity_score}, the production
+    \code{consumption_ratio}, and the \code{pbac_adoption} stoplight rating
+    derived from those two. See \code{\link{op_list_pbac_adoption}}.
+    Components with no Looker data behind them score \code{0}.}
 }
 }
 \description{

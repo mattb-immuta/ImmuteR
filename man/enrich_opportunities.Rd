@@ -11,10 +11,8 @@ enrich_opportunities(
   sf_saas_migration_report = "00OVV000006FbWr2AK",
   sf_csm_summary_report = "00OVV000006FbNB2A0",
   sf_orders_report = "00OVV000005RTxV2AW",
-  idex = FALSE,
-  idex_path = "data/idex/",
+  sf_forecast_report = "00OVH00000706ML2AY",
   looker = FALSE,
-  looker_cache_path = "data/looker/",
   low_consumption_threshold = 0.25,
   productboard = FALSE,
   fiscal.period
@@ -36,18 +34,21 @@ Expected to carry the QBR/EBR date and note fields, which
 
 \item{sf_orders_report}{Character. Salesforce report ID for the orders report.}
 
-\item{idex}{Logical. Whether to refresh idex parquet exports before reading. Defaults to \code{FALSE}.}
-
-\item{idex_path}{Character. Path to idex parquet directory. Defaults to \code{"data/idex/"}.}
+\item{sf_forecast_report}{Character. Salesforce report ID for the renewal
+churn forecast report ("CompanyChurnReport"), pulled on every run into
+\code{op_list$forecast} via \code{\link{op_list_forecast}}. Set to
+\code{NULL} to skip the pull.}
 
 \item{looker}{Logical. If \code{TRUE}, pulls the six Looker looks that back the
 CPO consumption spreadsheet and joins live metrics (users, data sources, queries,
 policies, support cases) onto \code{op_list$consumption$renewals}. Requires
 \code{LOOKER_CLIENT_ID} and \code{LOOKER_CLIENT_SECRET} environment variables.
+Also derives \code{request_adoption_looker} (plus
+\code{request_adoption_looker_stage} and \code{request_adoption_match}) on
+\code{op_list$accounts} from the Request metrics dashboard (see
+\code{\link{op_list_request_adoption}}); the hand-maintained Salesforce
+\code{Request Adoption} picklist is left untouched alongside it.
 Defaults to \code{FALSE} — SFDC-only stats are always computed.}
-
-\item{looker_cache_path}{Character or NULL. Directory for Looker parquet caches.
-Defaults to \code{"data/looker/"}. Pass \code{NULL} to disable caching.}
 
 \item{low_consumption_threshold}{Numeric. Fraction below which a customer's
 registered/licensed user ratio flags them as low consumption in
@@ -69,7 +70,8 @@ e.g. \code{c("Q1-2027", "Q2-2027")}.}
 \value{
 A named list with elements: \code{renewals}, \code{expansions},
   \code{accounts}, \code{active_orders}, \code{csm_table}, \code{saas_pipeline},
-  \code{orders}, \code{consumption}, \code{support} (from BigQuery — see
+  \code{orders}, \code{consumption}, \code{forecast} (see
+  \code{\link{op_list_forecast}}), \code{support} (from BigQuery — see
   \code{\link{op_list_support}}), and (if \code{productboard = TRUE})
   \code{product_board}.
 }
