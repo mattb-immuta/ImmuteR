@@ -7,16 +7,22 @@
 #' rendering byte-identical records — any difference between the two is a
 #' difference in the \emph{rendering}, which is the whole point of the exercise.
 #'
-#' Four files land in \code{dir}:
+#' Six files land in \code{dir}:
 #'
 #' \describe{
 #'   \item{\code{accounts.json}}{One object per account, sorted by name — the
 #'     page's \code{ACCOUNTS} array. Around 180 KB for 72 accounts, comfortably
 #'     inside both Dust's 50 MB upload limit and an agent's context window.}
 #'   \item{\code{changes.json}}{The snapshot diff, i.e. the page's
-#'     \code{CHANGES_DATA} (\code{\link{enrich_list_object}} output).}
+#'     \code{CHANGES_DATA} (\code{\link{enrich_list_object}} output). Carries an
+#'     \code{escalations} component alongside the opportunity ones.}
 #'   \item{\code{consumption.json}}{The consumption rows, i.e. the page's
 #'     \code{CONSUMPTION_DATA}. The Self-Managed tab reads from this.}
+#'   \item{\code{escalations.json}}{Open CUSTX Jira issues, i.e. the page's
+#'     \code{ESCALATIONS_DATA} (\code{\link{op_list_escalations}}). Empty with
+#'     \code{has_data = FALSE} when the Jira credentials are absent.}
+#'   \item{\code{saas.json}}{The SaaS migration pipeline, i.e. the page's
+#'     \code{SAAS_DATA}, with CSM joined on from accounts.}
 #'   \item{\code{schema.md}}{A field dictionary plus one fully worked example
 #'     record. Written so the agent can code against the shape without reading
 #'     all 72 records first — which is what stops it inventing field names.}
@@ -56,20 +62,32 @@ output_dust_payload <- function(op_list, dir = "output/dust_frame") {
     accounts    = file.path(dir, "accounts.json"),
     changes     = file.path(dir, "changes.json"),
     consumption = file.path(dir, "consumption.json"),
+    escalations = file.path(dir, "escalations.json"),
+    saas        = file.path(dir, "saas.json"),
     schema      = file.path(dir, "schema.md")
   )
 
-  # .to_json() is the package's own serialiser — the same one that fills the
-  # HTML page — so the frame sees exactly the escaping and number formatting the
-  # page does.
+  # Every file is written by the same builder the HTML page uses, so the frame
+  # and the page cannot disagree about what the data says. .to_json() is the
+  # package's own serialiser — the frame sees exactly the escaping and number
+  # formatting the page does.
   writeLines(.to_json(records),                  paths[["accounts"]],    useBytes = TRUE)
   writeLines(.build_changes_json(op_list),       paths[["changes"]],     useBytes = TRUE)
   writeLines(.build_consumption_json(op_list),   paths[["consumption"]], useBytes = TRUE)
+  writeLines(.build_escalations_json(op_list),   paths[["escalations"]], useBytes = TRUE)
+  writeLines(.build_saas_json(op_list),          paths[["saas"]],        useBytes = TRUE)
   writeLines(.dust_schema_md(records, op_list),  paths[["schema"]],      useBytes = TRUE)
+
+  # Escalations are the one component that can legitimately be absent (no Jira
+  # credentials), so say so at write time rather than leaving the agent to
+  # discover an empty tab.
+  n_esc <- if (is.data.frame(op_list$escalations)) nrow(op_list$escalations) else 0L
 
   message(".. wrote Dust frame payload to ", dir, "/ (",
           length(records), " accounts, ",
-          round(file.size(paths[["accounts"]]) / 1024), " KB)")
+          round(file.size(paths[["accounts"]]) / 1024), " KB; ",
+          n_esc, " escalation(s)",
+          if (n_esc == 0) " — escalations.json is an empty state" else "", ")")
 
   invisible(paths)
 }
@@ -116,10 +134,18 @@ output_dust_payload <- function(op_list, dir = "output/dust_frame") {
     consumption_ratio           = "Pre-formatted percentage, or an em-dash.",
     consumption_ratio_raw       = "The ratio as a number, or null. The scatter's x axis.",
     immuta_version              = "Deployed version, \"saas\" for SaaS accounts.",
+    connections                 = "Connections migration per Production instance, \"12 / 40\". \"None\" means nothing upgraded; several instances are comma-separated and named.",
+    connections_raw             = "Upgraded over total across the account, or null. Sort on this.",
     inc_90d                     = "Support cases in the last 90 days.",
     inc_360d                    = "Support cases in the last 360 days.",
     custx_90d                   = "Escalations in the last 90 days.",
     custx_open                  = "Escalations currently open.",
+    executive_buyer             = "Contact name(s) from the Salesforce contacts report; several are \"; \"-separated. Em-dash when nobody holds the role.",
+    buyer_relationship          = "The executive buyer's relationship. From the account report. Strong / neutral / weak.",
+    buyer_influence             = "The executive buyer's influence. From the account report. Strong / neutral / weak.",
+    champion                    = "Contact name(s) from the Salesforce contacts report; several are \"; \"-separated. Em-dash when nobody holds the role.",
+    champion_relationship       = "The champion's relationship. From the account report. Strong / neutral / weak.",
+    champion_influence          = "The champion's influence. From the account report. Strong / neutral / weak.",
     last_qbr                    = "Formatted date, or an em-dash.",
     next_qbr                    = "Formatted date, or an em-dash.",
     qbr_note                    = "Free text from Salesforce.",
@@ -159,15 +185,59 @@ output_dust_payload <- function(op_list, dir = "output/dust_frame") {
   n_regions <- length(unique(vapply(records, function(r) r$region, character(1))))
   n_csms    <- length(unique(vapply(records, function(r) r$csm,    character(1))))
 
+  # The side files are documented from the data frames themselves for the same
+  # reason the account table is: a column added upstream turns up here on the
+  # next run instead of going undocumented and being guessed at.
+  .side_table <- function(df, notes = character(0)) {
+    if (!is.data.frame(df) || nrow(df) == 0) {
+      return("_No rows in the current payload — the file is an empty state._")
+    }
+    c("| Field | Type | Example | Notes |",
+      "|---|---|---|---|",
+      vapply(names(df), function(k) {
+        v <- df[[k]][1]
+        paste0("| `", k, "` | ",
+               if (is.logical(v)) "boolean" else if (is.numeric(v)) "number" else "string",
+               " | ", .example(v), " | ",
+               if (k %in% names(notes)) notes[[k]] else "", " |")
+      }, character(1)))
+  }
+
+  esc_notes <- c(
+    key             = "Jira issue key. The diff key in `changes.json`.",
+    url             = "Browse URL for the issue. Render the key as a link to it.",
+    summary         = "Issue title. Usually leads with the customer name.",
+    severity        = "Jira priority name, instance-specific (`P1`, `Sev 1`, `Highest`).",
+    severity_rank   = "Normalised urgency, 1 (most) to 5, 9 = unrecognised. Sort on this; clamp to 1-4 for colour.",
+    status          = "Workflow status name. A local facet.",
+    status_category = "Jira status category. Always not-Done — open issues only.",
+    age_days        = "Days since `created`. Flag at 90+; that is the stale threshold.",
+    `Account Name`  = "Joined to an account, or null when no match was found.",
+    Region          = "From the account, not from Jira. Null when unmatched.",
+    csm             = "From the account, not from Jira. Null when unmatched.",
+    assignee        = "Jira assignee display name, or null when unassigned.",
+    created         = "Date only, `YYYY-MM-DD`.",
+    updated         = "Date only, `YYYY-MM-DD`."
+  )
+
+  esc_rows  <- .side_table(op_list$escalations, esc_notes)
+  saas_rows <- .side_table(op_list$saas_pipeline)
+
   paste(c(
     "# Dust frame payload — field reference",
     "",
     paste0("Generated ", format(Sys.time(), "%Y-%m-%d %H:%M"), " from op_list. ",
            length(records), " accounts, ", n_regions, " regions, ", n_csms, " CSMs."),
     "",
-    "`accounts.json` is an array of these objects, sorted by `name`.",
+    "Six files: `accounts.json`, `changes.json`, `consumption.json`,",
+    "`escalations.json`, `saas.json` and this dictionary.",
+    "",
     "Values are **presentation-ready**: render them as-is. The `*_raw` fields are",
     "the only ones to compute with — sort, filter and plot on those.",
+    "",
+    "## `accounts.json`",
+    "",
+    "An array of these objects, sorted by `name`.",
     "",
     "| Field | Type | Example | Notes |",
     "|---|---|---|---|",
@@ -204,6 +274,46 @@ output_dust_payload <- function(op_list, dir = "output/dust_frame") {
     "A null `consumption_ratio_raw` means the figure is unavailable, which is not",
     "the same as zero: such an account reaches red on complexity alone and no",
     "further. `licensed_users` of `\"0\"` is an ELA, already scored as a ratio of 1.",
+    "",
+    "## `escalations.json`",
+    "",
+    "`{ has_data: boolean, rows: [...] }`. One row per **open** CUSTX Jira issue,",
+    "already sorted by severity then age. `has_data: false` with an empty `rows`",
+    "means the pipeline ran without Jira credentials — that is a different empty",
+    "state from \"your filters match nothing\", and the two must read differently.",
+    "",
+    esc_rows,
+    "",
+    "Unlike the account records these values are **raw, not pre-formatted**: a",
+    "missing account is `null`, not an em-dash. Escalations come straight from",
+    "Jira rather than through the account record builder, so this one file is the",
+    "exception to the presentation-ready rule — supply your own placeholder here.",
+    "",
+    "Sort on `severity_rank` (ascending), then `age_days` (descending). Do not",
+    "sort on the `severity` label: it is whatever the Jira instance calls its",
+    "priorities, so it is not alphabetically ordered by urgency.",
+    "",
+    "## `saas.json`",
+    "",
+    "`{ has_data: boolean, rows: [...] }`. The SaaS migration pipeline, one row",
+    "per account in flight, with `csm` joined on from the account record.",
+    "",
+    saas_rows,
+    "",
+    "## `changes.json`",
+    "",
+    "`{ has_data, diff_date, summary, <component>... }`. Each component is",
+    "`{ added, removed, field_changes }` — except `csm_table`, which has",
+    "`reassignments` in place of `field_changes`. The components are:",
+    "",
+    "`accounts`, `renewals`, `expansions`, `forecast`, `csm_table`,",
+    "`saas_pipeline`, `escalations`.",
+    "",
+    "`field_changes` rows carry paired `<field>.old` / `<field>.new` columns;",
+    "render them as `old → new`. The `escalations` component is keyed on the Jira",
+    "issue `key`, so `added` is an escalation **raised** since the last snapshot",
+    "and `removed` is one that **closed** — a close is good news, not a deletion,",
+    "and should not be styled as a loss.",
     ""
   ), collapse = "\n")
 }

@@ -447,6 +447,28 @@ op_list_consumption <- function(op_list,
     low_consumption <- account_base
   }
 
+  # ── Connections adoption ────────────────────────────────────────────────────
+  # From dashboard 995, not a saved look, so it is fetched here rather than in
+  # load_op_list_raw(). Guarded: a renamed tile or a Looker outage should cost
+  # one column on the card, not the whole consumption build.
+  connections <- if (has_looker) {
+    tryCatch(op_list_connections(), error = function(e) {
+      warning("Connections adoption skipped: ", conditionMessage(e), call. = FALSE)
+      NULL
+    })
+  } else NULL
+
+  if (!is.null(connections) && nrow(connections) > 0 && !is.null(low_consumption)) {
+    # distinct() guards the join the same way the multiplatform join below
+    # does: a duplicated account name would fan low_consumption out and break
+    # its one-row-per-customer contract.
+    low_consumption <- low_consumption |>
+      dplyr::left_join(
+        connections |> dplyr::distinct(`Account Name`, .keep_all = TRUE),
+        by = "Account Name"
+      )
+  }
+
   # ── PBAC adoption ───────────────────────────────────────────────────────────
   # multiplatform lives on low_consumption at this point, not on accounts:
   # enrich_opportunities() copies it across only AFTER this function returns.
@@ -490,6 +512,7 @@ op_list_consumption <- function(op_list,
     # ── Derived ─────────────────────────────────────────────────────────────────
     low_consumption = low_consumption,  # one row per customer, accounts + Looker
     metrics         = op_list_metrics(data_sources),  # one row per account, scoring inputs
-    pbac_adoption   = pbac_adoption  # one row per account, PBAC rating + inputs
+    pbac_adoption   = pbac_adoption,  # one row per account, PBAC rating + inputs
+    connections     = connections     # one row per account, dashboard 995 tile
   )
 }

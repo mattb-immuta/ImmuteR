@@ -44,11 +44,17 @@
 # Rating labels. Lowercase leading colour word, which fmtStoplight() in
 # report_all_accounts_html.R matches case-insensitively, so these render as
 # stoplights like the Salesforce picklists do.
+#
+# Red is split by which axis is failing, because the two call for opposite
+# plays: low complexity with some seat use is a depth problem (adoption risk);
+# high complexity with almost no seat use is an enablement problem
+# (consumption risk).
 .PBAC_ADOPTION_RATINGS <- c(
-  black = "black: negligible adoption",
-  red   = "red: minimal adoption",
-  amber = "amber: moderate adoption",
-  green = "green: strong adoption"
+  black           = "Black: Negligible Value",
+  red_adoption    = "Red: Critical Adoption Risk",
+  red_consumption = "Red: Critical Consumption Risk",
+  amber           = "amber: moderate adoption",
+  green           = "green: strong adoption"
 )
 
 # `x >= threshold`, with NA reading as FALSE. The rules below are written as
@@ -60,9 +66,9 @@
 # three bands, read as: how much is this account asking of PBAC, and how much
 # of what they bought are they using?
 #
-#                    ratio < 0.25   0.25-0.75    >= 0.75
-#   score >= 4       red            amber        green
-#   score <  4       black          red          amber
+#                    ratio < 0.25              0.25-0.75                  >= 0.75
+#   score >= 4       red: consumption risk     amber                      green
+#   score <  4       black                     red: adoption risk         amber
 #
 # A missing ratio is treated as "not yet demonstrated", not as zero: such an
 # account can still reach red on complexity alone, but no further.
@@ -80,9 +86,9 @@
   some_use  <- .pbac_ge(consumption_ratio, ratio_minimal)
   heavy_use <- .pbac_ge(consumption_ratio, ratio_moderate)
 
-  out[some_use]              <- r["red"]
+  out[some_use]              <- r["red_adoption"]
   out[heavy_use]             <- r["amber"]
-  out[complex]               <- r["red"]
+  out[complex]               <- r["red_consumption"]
   out[complex & some_use]    <- r["amber"]
   out[complex & heavy_use]   <- r["green"]
 

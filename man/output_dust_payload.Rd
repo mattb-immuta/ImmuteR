@@ -25,16 +25,22 @@ rendering byte-identical records — any difference between the two is a
 difference in the \emph{rendering}, which is the whole point of the exercise.
 }
 \details{
-Four files land in \code{dir}:
+Six files land in \code{dir}:
 
 \describe{
   \item{\code{accounts.json}}{One object per account, sorted by name — the
     page's \code{ACCOUNTS} array. Around 180 KB for 72 accounts, comfortably
     inside both Dust's 50 MB upload limit and an agent's context window.}
   \item{\code{changes.json}}{The snapshot diff, i.e. the page's
-    \code{CHANGES_DATA} (\code{\link{enrich_list_object}} output).}
+    \code{CHANGES_DATA} (\code{\link{enrich_list_object}} output). Carries an
+    \code{escalations} component alongside the opportunity ones.}
   \item{\code{consumption.json}}{The consumption rows, i.e. the page's
     \code{CONSUMPTION_DATA}. The Self-Managed tab reads from this.}
+  \item{\code{escalations.json}}{Open CUSTX Jira issues, i.e. the page's
+    \code{ESCALATIONS_DATA} (\code{\link{op_list_escalations}}). Empty with
+    \code{has_data = FALSE} when the Jira credentials are absent.}
+  \item{\code{saas.json}}{The SaaS migration pipeline, i.e. the page's
+    \code{SAAS_DATA}, with CSM joined on from accounts.}
   \item{\code{schema.md}}{A field dictionary plus one fully worked example
     record. Written so the agent can code against the shape without reading
     all 72 records first — which is what stops it inventing field names.}

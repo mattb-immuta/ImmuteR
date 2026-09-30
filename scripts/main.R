@@ -58,7 +58,8 @@ sf_active_order_report   <- "00OVV000006AOnB2AW"
 sf_saas_migration_report <- "00OVV000006FbWr2AK"
 sf_csm_summary_report    <- "00OVV000006FbNB2A0"
 sf_orders_report         <- "00OVV000005RTxV2AW"
-sf_forecast_report       <- "00OVH00000706ML2AY"  # CompanyChurnReport (renewal churn forecast)
+sf_forecast_report       <- "00OVV000006hrNN2AY"  # renewal churn forecast
+sf_contacts_report       <- "00OVV000006TwOX2A0"  # contacts -> op_list$contacts, accounts$champion / executive_buyer
 
 # Google Sheet URLs
 account_doc_tracker        <- "https://docs.google.com/spreadsheets/d/1Rxl25OyKEW1W1ny8Vbv3TDa2QCqR9VSpTN0QVPu6o9w/edit?usp=sharing"
@@ -87,6 +88,7 @@ new_op_list <- enrich_opportunities(
   sf_csm_summary_report    = sf_csm_summary_report,
   sf_orders_report         = sf_orders_report,
   sf_forecast_report       = sf_forecast_report,
+  sf_contacts_report       = sf_contacts_report,
   fiscal.period            = fiscal.period,
   looker                   = TRUE
 )

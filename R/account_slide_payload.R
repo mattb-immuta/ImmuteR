@@ -30,7 +30,9 @@
 #'     escalations_90d, escalations_360d, escalations_open, deployment
 #'     (the SaaS / SM: Supported / SM: Unsupported badge text),
 #'     deployment_color, version.}
-#'   \item{\code{engagement}}{last_qbr, next_qbr, qbr_note.}
+#'   \item{\code{engagement}}{contacts (Executive Buyer then Champion, each
+#'     label/name/relationship/influence plus a dot colour for the two
+#'     ratings), last_qbr, next_qbr, qbr_note.}
 #' }
 #'
 #' @examples
@@ -182,6 +184,15 @@ account_slide_payload <- function(account_name, op_list) {
         if (!is.null(c_data)) c_data[["Immuta Version"]] else NA, "—")
     ),
     engagement = list(
+      # Same rows, same order as the Engagement block on the PNG tile.
+      contacts = lapply(contact_role_rows(a_data), function(r) {
+        list(label        = r$label,
+             name         = r$name,
+             relationship = r$relationship,
+             relationship_colour = .strength_colour(r$relationship),
+             influence    = r$influence,
+             influence_colour    = .strength_colour(r$influence))
+      }),
       last_qbr = fmt_date(a_data[["Date Last QBR"]]),
       next_qbr = fmt_date(a_data[["Date Next QBR"]]),
       qbr_note = .coalesce_chr(a_data[["QBR Note"]], "—")

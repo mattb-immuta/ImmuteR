@@ -14,6 +14,38 @@ safe_val <- function(x) {
 }
 
 
+#' When an op_list was built, as "Updated 23 Sep 2026".
+#'
+#' Read from \code{op_list$updated}, stamped by \code{enrich_opportunities()}.
+#' Shared by the HTML dashboard and the slide headers so the two cannot claim
+#' different dates for the same data.
+#'
+#' An op_list saved before this field existed has no timestamp. Rather than
+#' quietly showing today's date — which would date a six-month-old snapshot as
+#' current, the one error that matters here — it falls back to the file mtime
+#' of the newest snapshot, and failing that says so outright.
+#'
+#' @param op_list Named list.
+#' @param prefix Character. Leading word, or "" for the bare date.
+#' @noRd
+.op_list_updated <- function(op_list, prefix = "Updated ") {
+  ts <- op_list[["updated"]]
+
+  if (is.null(ts) || length(ts) == 0 || all(is.na(ts))) {
+    snaps <- list.files("data/", pattern = "^opportunities_\\d{4}-\\d{2}-\\d{2}\\.RData$",
+                        full.names = TRUE)
+    if (length(snaps) == 0) return(paste0(prefix, "date unknown"))
+    ts <- max(file.mtime(snaps))
+  }
+
+  d <- suppressWarnings(as.Date(ts))
+  if (length(d) == 0 || is.na(d)) return(paste0(prefix, "date unknown"))
+
+  # %d is zero-padded on every platform; %e is not portable to Windows.
+  paste0(prefix, sub("^0", "", format(d, "%d %b %Y")))
+}
+
+
 # --- Formatting helpers -------------------------------------------------------
 
 #' Format a numeric value as USD currency, e.g. "$1,234,567".

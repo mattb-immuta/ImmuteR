@@ -333,6 +333,51 @@ looker_tile_accounts <- function(dashboard_id,
                                  dash     = NULL,
                                  base_url = Sys.getenv("LOOKER_BASE_URL",
                                                        "https://immuta.cloud.looker.com")) {
+  df <- looker_tile_data(dashboard_id, pattern, show_row = show_row,
+                         token = token, dash = dash, base_url = base_url)
+  if (is.null(df) || nrow(df) == 0) return(character(0))
+
+  acct_col <- .looker_account_col(df)
+  if (is.na(acct_col)) {
+    warning("Tile matching '", pattern,
+            "' has no account-name column; columns: ",
+            paste(names(df), collapse = ", "), call. = FALSE)
+    return(character(0))
+  }
+
+  unique(trimws(as.character(df[[acct_col]])))
+}
+
+#' Rows of a Looker dashboard tile
+#'
+#' The data frame behind \code{\link{looker_tile_accounts}}. Use this when the
+#' tile carries measures you need rather than membership alone — the
+#' "Connections Adoption by Instance" tile on dashboard 995, for instance,
+#' where the counts are the point and the account list is incidental.
+#'
+#' Tile titles are matched case-insensitively on a substring; the first match
+#' wins and extra matches are reported. Dashboard-level filters are not
+#' applied — see \code{\link{run_looker_dashboard_tile}} — so filter the result
+#' in R.
+#'
+#' @param dashboard_id Integer or character. Ignored when \code{dash} is given.
+#' @param pattern Character. Substring matched against tile titles.
+#' @param show_row Logical. Filter to \code{`Show row` == "Yes"} when that
+#'   column exists. Default \code{TRUE}.
+#' @param token Character. Bearer token from \code{\link{looker_auth}}.
+#' @param dash Named list from \code{\link{looker_dashboard}}, or \code{NULL}.
+#' @param base_url Character. Looker instance base URL.
+#'
+#' @return A tibble of the tile's rows, or \code{NULL} with a warning when no
+#'   tile matches or the tile has no runnable query.
+#' @export
+looker_tile_data <- function(dashboard_id,
+                             pattern,
+                             show_row = TRUE,
+                             token    = NULL,
+                             dash     = NULL,
+                             base_url = Sys.getenv("LOOKER_BASE_URL",
+                                                   "https://immuta.cloud.looker.com")) {
   if (is.null(token)) token <- looker_auth()
   if (is.null(dash))  dash  <- looker_dashboard(dashboard_id, token, base_url)
 
@@ -351,7 +396,7 @@ looker_tile_accounts <- function(dashboard_id,
                          function(e) .nz(e$title, "<untitled>"), character(1)),
                   collapse = " | "),
             call. = FALSE)
-    return(character(0))
+    return(NULL)
   }
   if (length(hits) > 1) {
     message(".. '", pattern, "' matched ", length(hits), " tiles; using '",
@@ -359,22 +404,29 @@ looker_tile_accounts <- function(dashboard_id,
   }
 
   df <- run_looker_dashboard_tile(hits[[1]], token, base_url)
-  if (is.null(df) || nrow(df) == 0) return(character(0))
+  if (is.null(df) || nrow(df) == 0) return(df)
 
   if (isTRUE(show_row) && "Show row" %in% names(df)) {
     df <- df[tolower(trimws(as.character(df[["Show row"]]))) == "yes", ,
              drop = FALSE]
   }
+  df
+}
 
-  acct_col <- .looker_account_col(df)
-  if (is.na(acct_col)) {
-    warning("Tile '", .nz(hits[[1]]$title, "<untitled>"),
-            "' has no account-name column; columns: ",
-            paste(names(df), collapse = ", "), call. = FALSE)
-    return(character(0))
+# First column whose name matches `patterns` in order, excluding any matching
+# `exclude`. Looker prefixes a column with its view name, and that prefix
+# changes between explores, so the tile columns are resolved by shape rather
+# than pinned by full name — the same reasoning as .looker_account_col().
+.looker_col <- function(df, patterns, exclude = NULL) {
+  nms <- names(df)
+  for (p in patterns) {
+    cand <- nms[grepl(p, nms, ignore.case = TRUE)]
+    if (!is.null(exclude)) {
+      cand <- cand[!grepl(exclude, cand, ignore.case = TRUE)]
+    }
+    if (length(cand) > 0) return(cand[1])
   }
-
-  unique(trimws(as.character(df[[acct_col]])))
+  NA_character_
 }
 
 #' Dump a Looker dashboard's structure (and optionally its data) to disk

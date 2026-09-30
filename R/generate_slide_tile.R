@@ -27,12 +27,18 @@
 #'     days, customer escalations over 90 days and currently open (from
 #'     \code{op_list$support}, via BigQuery), plus deployment type, Immuta
 #'     version, and version support status.}
-#'   \item{\strong{Engagement}}{Date of the last and next QBR, and the QBR
-#'     note (wrapped, truncated to three lines).}
+#'   \item{\strong{Engagement}}{Executive Buyer and Champion side by side —
+#'     the contact's name, then Relationship and Influence as stoplight dots
+#'     (Strong green, Neutral amber, Weak red); then the date of the last and
+#'     next QBR, and the QBR note (wrapped, truncated to two lines).}
 #' }
 #'
 #' Data sources: the four adoption fields, \code{Lifecycle Stage},
 #' \code{Is SaaS Customer}, \code{Customer on Unsupported Version}, and the
+#' contact-role fields (\code{executive_buyer} and \code{champion}, rolled up
+#' from \code{op_list$contacts} by \code{\link{enrich_opportunities}}, plus
+#' \code{Executive Buyer Relationship} / \code{Influence} and
+#' \code{Champion Relationship} / \code{Influence}), and the
 #' three QBR fields (\code{Date Last QBR}, \code{Date Next QBR},
 #' \code{QBR Note} — normalised by \code{\link{normalize_qbr_fields}}) come from
 #' \code{op_list$accounts}; consumption figures and \code{Immuta Version} from
@@ -140,8 +146,15 @@ generate_slide_tile <- function(account_name,
   # ── 5b. QBR fields (normalised on accounts by normalize_qbr_fields()) ──────
   qbr_last <- fmt_date(a_data[["Date Last QBR"]])
   qbr_next <- fmt_date(a_data[["Date Next QBR"]])
+  # Two lines, not three: the contact-role rows above took the third.
   qbr_note <- .tile_wrap(.coalesce_chr(a_data[["QBR Note"]], "—"),
-                         width = 46, max_lines = 3)
+                         width = 46, max_lines = 2)
+
+  # ── 5c. Contact roles (Executive Buyer, Champion) ──────────────────────────
+  # Shared with account_slide_payload() via contact_role_rows(). Several
+  # contacts in one role arrive "; "-joined; the tile shows as much as fits
+  # on one line of a half-width column.
+  contact_roles <- contact_role_rows(a_data)
 
   # ── 6. Adoption stoplights + platform strings ─────────────────────────────
   # PBAC and Request are rated from Looker, Comply and Agentic from the
@@ -179,6 +192,7 @@ generate_slide_tile <- function(account_name,
   sz_metric    <- 7.0   # ~20 pt   3-column big numbers
   sz_metric_sm <- 5.8   # ~16 pt   4-column support counts
   sz_body      <- 3.6   # ~10 pt
+  sz_rating    <- 3.2   # ~9 pt    contact Relationship / Influence words
   sz_tag       <- 2.8   # ~8 pt    deployment pill (0.78x body, as in the HTML)
   sz_label     <- 2.5   # ~7 pt    micro-caps
 
@@ -224,13 +238,17 @@ generate_slide_tile <- function(account_name,
   y_sup_value <- H - 5.34
   y_sup_label <- H - 5.58
 
-  # ENGAGEMENT — QBR dates and note (also shifted down 0.40 inches)
-  y_h3        <- H - 6.14
-  y_rule_3    <- H - 6.40
-  y_qbr_label <- H - 6.68
-  y_qbr_value <- H - 6.92
-  y_note_eye  <- H - 7.24
-  y_note_val  <- H - 7.46   # vjust = 1, top of the wrapped note
+  # ENGAGEMENT — contact roles, QBR dates, note. Pulled up to the same
+  # header gap the other sections use, so the two contact rows fit.
+  y_h3        <- H - 5.90
+  y_rule_3    <- H - 6.14
+  y_ct_label  <- H - 6.36   # EXECUTIVE BUYER | CHAMPION
+  y_ct_name   <- H - 6.56
+  y_ct_rate   <- H - 6.78   # REL ● word   INF ● word
+  y_qbr_label <- H - 7.00
+  y_qbr_value <- H - 7.20
+  y_note_eye  <- H - 7.40
+  y_note_val  <- H - 7.50   # vjust = 1, top of the wrapped note (2 lines)
 
   # ── 8. Build plot ──────────────────────────────────────────────────────────
   p <- ggplot2::ggplot() +
@@ -411,6 +429,51 @@ generate_slide_tile <- function(account_name,
 
   # ── Section 3: ENGAGEMENT ──────────────────────────────────────────────────
   p <- hdr(p, "Engagement", y_h3, y_rule_3)
+
+  # Executive Buyer | Champion, each: micro-caps role, name, then the two
+  # ratings as dots — same dot style as the adoption stoplights.
+  for (i in seq_along(contact_roles)) {
+    cr  <- contact_roles[[i]]
+    x_0 <- pad + (i - 1) * col2
+    nm  <- .tile_wrap(cr$name, width = 22, max_lines = 1)
+
+    p <- p +
+      ggplot2::annotate("text",
+        x = x_0, y = y_ct_label, label = toupper(cr$label),
+        hjust = 0, vjust = 0.5, family = fam, fontface = "bold",
+        size = sz_label, colour = col_muted
+      ) +
+      ggplot2::annotate("text",
+        x = x_0, y = y_ct_name, label = nm,
+        hjust = 0, vjust = 0.5, family = fam, fontface = "bold",
+        size = sz_body, colour = if (identical(nm, "—")) col_none else col_white
+      )
+
+    ratings <- list(list(k = "REL", v = cr$relationship, dx = 0),
+                    list(k = "INF", v = cr$influence,    dx = 1.10))
+    for (r in ratings) {
+      word <- if (identical(r$v, "—")) "—" else
+        paste0(toupper(substring(r$v, 1, 1)), tolower(substring(r$v, 2)))
+      p <- p +
+        ggplot2::annotate("text",
+          x = x_0 + r$dx, y = y_ct_rate, label = r$k,
+          hjust = 0, vjust = 0.5, family = fam, fontface = "bold",
+          size = sz_label, colour = col_muted
+        ) +
+        ggplot2::annotate("point",
+          x = x_0 + r$dx + 0.28, y = y_ct_rate,
+          size = 2.8, shape = 21,
+          fill = .strength_colour(r$v),
+          colour = col_white, stroke = 0.25
+        ) +
+        ggplot2::annotate("text",
+          x = x_0 + r$dx + 0.40, y = y_ct_rate,
+          label = .tile_wrap(word, width = 9, max_lines = 1),
+          hjust = 0, vjust = 0.5, family = fam, fontface = "bold",
+          size = sz_rating, colour = col_white
+        )
+    }
+  }
 
   p <- lab_val(p, pad,        y_qbr_label, y_qbr_value, "LAST QBR", qbr_last)
   p <- lab_val(p, pad + col2, y_qbr_label, y_qbr_value, "NEXT QBR", qbr_next)

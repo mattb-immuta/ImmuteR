@@ -217,11 +217,17 @@ output_slides_regional_review <- function(op_list,
 
 .slide_block_engagement <- function(pl) {
   en <- pl$engagement
-  paste(
+  contacts <- if (is.null(en$contacts)) list() else en$contacts
+  contact_lines <- vapply(contacts, function(r) {
+    paste0(r$label, ": ", r$name,
+           "  (Rel: ", r$relationship, ", Inf: ", r$influence, ")")
+  }, character(1))
+  paste(c(
+    contact_lines,
+    if (length(contact_lines)) "",
     paste0("Last QBR: ", en$last_qbr),
     paste0("Next QBR: ", en$next_qbr),
     "",
-    paste0("Note: ", en$qbr_note),
-    sep = "\n"
-  )
+    paste0("Note: ", en$qbr_note)
+  ), collapse = "\n")
 }

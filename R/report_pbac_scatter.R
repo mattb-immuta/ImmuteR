@@ -129,6 +129,9 @@ report_pbac_scatter <- function(op_list,
     features   = features,
     colour     = unname(vapply(pbac$pbac_adoption, pbac_rating_colour, character(1))),
     rating     = unname(vapply(pbac$pbac_adoption, pbac_rating_label,  character(1))),
+    # Accounts still in S1 (Installation and Config.) plot as squares: low
+    # consumption there is expected, not a warning sign.
+    install    = .pbac_install_stage(op_list$accounts, pbac$`Account Name`),
     stringsAsFactors = FALSE
   )
   points <- points[order(points$name), , drop = FALSE]
@@ -315,7 +318,7 @@ r"---(<!DOCTYPE html>
   .band-label { font-size: 9px; font-weight: 700; letter-spacing: .1em; }
 
   .pt { cursor: pointer; transition: opacity .12s; }
-  .pt circle { stroke-width: 1.5; }
+  .pt circle, .pt rect.mark { stroke-width: 1.5; }
   .pt.dim { opacity: .12; }
   .pt.hit { fill: transparent; stroke: none; }
 
@@ -352,6 +355,7 @@ r"---(<!DOCTYPE html>
       <span class="key"><svg viewBox="0 0 14 14"><circle cx="7" cy="7" r="4" fill="#8792a3" stroke="#161a21" stroke-width="1"/></svg> account, filled by rating</span>
       <span class="key"><svg viewBox="0 0 14 14"><circle cx="7" cy="7" r="4" fill="#8792a3" stroke="#161a21" stroke-width="1" stroke-dasharray="1.8 1.8"/></svg> consumption ratio unavailable (drawn at zero)</span>
       <span class="key"><svg viewBox="0 0 14 14"><circle cx="7" cy="7" r="4" fill="#8792a3" stroke="#161a21" stroke-width="2.4"/></svg> ratio above axis maximum, pinned to edge</span>
+      <span class="key"><svg viewBox="0 0 14 14"><rect x="3" y="3" width="8" height="8" fill="#8792a3" stroke="#161a21" stroke-width="1"/></svg> in Installation and Config. (lifecycle S1)</span>
       <span class="key">points are jittered to separate co-located accounts</span>
     </footer>
     <div class="stamp" id="stamp"></div>
@@ -395,6 +399,13 @@ function seeded(str) {
 
 // Which rating a coordinate falls in — the same grid op_list_pbac_adoption()
 // applies, so the shading can't disagree with the stored rating.
+// Band caption, one entry per line; the two red cells are named for the
+// failing axis, matching the stored rating labels.
+function bandLines(key, highComplexity) {
+  if (key === "red") return ["RED: CRITICAL", highComplexity ? "CONSUMPTION RISK" : "ADOPTION RISK"];
+  return [key.toUpperCase()];
+}
+
 function ratingAt(score, ratio) {
   const complex = score >= CFG.complexityMin;
   const heavy   = ratio !== null && ratio >= CFG.ratioModerate;
@@ -450,10 +461,10 @@ function draw() {
         x: x0, y: yTop, width: x1 - x0, height: yBot - yTop,
         fill: COLOURS[key].bg
       }));
-      svg.appendChild(el("text", {
-        x: x0 + 7, y: yTop + 15, class: "band-label", fill: COLOURS[key].fg,
+      bandLines(key, r === 1).forEach((line, i) => svg.appendChild(el("text", {
+        x: x0 + 7, y: yTop + 15 + i * 11, class: "band-label", fill: COLOURS[key].fg,
         "fill-opacity": ".85"
-      }, key.toUpperCase()));
+      }, line)));
     }
   }
 
@@ -527,12 +538,16 @@ function draw() {
 
     // Fill carries the rating; the outline is always ink, so a pale amber dot
     // reads as clearly against its own band as a dark one does.
-    const c = el("circle", {
-      cx: cx, cy: cy, r: 4.5,
-      fill: col.fg,
-      stroke: "#161a21",
-      "stroke-width": pinned ? 2.4 : 1
-    });
+    // Square for accounts in Installation and Config.; same area as the dot.
+    const c = p.install
+      ? el("rect", { x: cx - 4, y: cy - 4, width: 8, height: 8, class: "mark",
+                     fill: col.fg, stroke: "#161a21", "stroke-width": pinned ? 2.4 : 1 })
+      : el("circle", {
+          cx: cx, cy: cy, r: 4.5,
+          fill: col.fg,
+          stroke: "#161a21",
+          "stroke-width": pinned ? 2.4 : 1
+        });
     // Unknown ratio keeps the rating fill but breaks its outline: the dot's x
     // position is a placeholder, not a measurement.
     if (!known) {
@@ -697,4 +712,17 @@ draw();
 </body>
 </html>
 )---"
+}
+
+
+# TRUE for each name whose account is in lifecycle stage S1 — "S1: Installation
+# and Config." in Salesforce. Matched on the stage number or the words, so a
+# relabel of the picklist doesn't silently turn every square back into a dot.
+.pbac_install_stage <- function(accounts, names) {
+  if (is.null(accounts) || !all(c("Account Name", "Lifecycle Stage") %in% names(accounts))) {
+    return(rep(FALSE, length(names)))
+  }
+  stage <- as.character(accounts$`Lifecycle Stage`)[
+    match(trimws(as.character(names)), trimws(as.character(accounts$`Account Name`)))]
+  !is.na(stage) & grepl("^\\s*S1\\b|install", stage, ignore.case = TRUE, perl = TRUE)
 }

@@ -16,9 +16,17 @@
 #' @param sf_csm_summary_report Character. Salesforce report ID for CSM account assignments.
 #' @param sf_orders_report Character. Salesforce report ID for the orders report.
 #' @param sf_forecast_report Character. Salesforce report ID for the renewal
-#'   churn forecast report ("CompanyChurnReport"), pulled on every run into
+#'   churn forecast report (00OVV000006hrNN2AY), pulled on every run into
 #'   \code{op_list$forecast} via \code{\link{op_list_forecast}}. Set to
 #'   \code{NULL} to skip the pull.
+#' @param sf_contacts_report Character. Salesforce report ID for the contacts
+#'   report (executive buyer, champion and incident response contacts per
+#'   customer), pulled into \code{op_list$contacts} — one row per contact,
+#'   with \code{is_incident_response} etc. flags for mail merges — via
+#'   \code{\link{op_list_contacts}}. Executive buyer and champion names are
+#'   also appended to \code{op_list$accounts} as \code{executive_buyer} and
+#'   \code{champion}. Set to \code{NULL} to skip the pull (both columns are
+#'   then \code{NA}).
 #' @param looker Logical. If \code{TRUE}, pulls the six Looker looks that back the
 #'   CPO consumption spreadsheet and joins live metrics (users, data sources, queries,
 #'   policies, support cases) onto \code{op_list$consumption$renewals}. Requires
@@ -46,7 +54,8 @@
 #'
 #' @return A named list with elements: \code{renewals}, \code{expansions},
 #'   \code{accounts}, \code{active_orders}, \code{csm_table}, \code{saas_pipeline},
-#'   \code{orders}, \code{consumption}, \code{forecast} (see
+#'   \code{orders}, \code{contacts} (see \code{\link{op_list_contacts}}),
+#'   \code{consumption}, \code{forecast} (see
 #'   \code{\link{op_list_forecast}}), \code{support} (from BigQuery — see
 #'   \code{\link{op_list_support}}), and (if \code{productboard = TRUE})
 #'   \code{product_board}.
@@ -57,7 +66,8 @@ enrich_opportunities <- function(sf_opportunity_report    = "00OVH000005p6A92AI"
                                  sf_saas_migration_report = "00OVV000006FbWr2AK",
                                  sf_csm_summary_report    = "00OVV000006FbNB2A0",
                                  sf_orders_report         = "00OVV000005RTxV2AW",
-                                 sf_forecast_report       = "00OVH00000706ML2AY",
+                                 sf_forecast_report       = "00OVV000006hrNN2AY",
+                                 sf_contacts_report       = "00OVV000006TwOX2A0",
                                  looker                   = FALSE,
                                  low_consumption_threshold = 0.25,
                                  productboard             = FALSE,
@@ -107,6 +117,27 @@ enrich_opportunities <- function(sf_opportunity_report    = "00OVH000005p6A92AI"
   output_list[["csm_table"]]<-sf_run_report(sf_csm_summary_report)
   output_list[["saas_pipeline"]]<-sf_run_report(sf_saas_migration_report)
   output_list[["orders"]] <- sf_run_report(sf_orders_report)
+
+  # ── contacts child table ────────────────────────────────────────────────────
+  # One row per contact (kept that way for incident-response mail merges).
+  # Executive buyer / champion names are rolled up onto accounts; the
+  # Relationship / Influence ratings already arrive on the account report
+  # itself. Warns rather than aborting — the columns are NA (em-dash
+  # downstream) if the report can't be read.
+  contacts <- NULL
+  if (!is.null(sf_contacts_report) && nzchar(sf_contacts_report)) {
+    message(".. building op_list$contacts")
+    contacts <- tryCatch(
+      op_list_contacts(sf_contacts_report = sf_contacts_report),
+      error = function(e) {
+        warning("Contacts report skipped: ", conditionMessage(e), call. = FALSE)
+        NULL
+      }
+    )
+    output_list[["contacts"]] <- contacts
+  }
+  output_list[["accounts"]] <- .accounts_add_contact_roles(
+    output_list[["accounts"]], contacts)
 
   # ── forecast child table ────────────────────────────────────────────────────
   # Renewal churn forecast, grouped by churn quarter. Diffed against the prior
@@ -234,6 +265,14 @@ enrich_opportunities <- function(sf_opportunity_report    = "00OVH000005p6A92AI"
       accounts = output_list[["accounts"]]
     )
   }
+
+  # ── build timestamp ─────────────────────────────────────────────────────────
+  # When this op_list was assembled, stamped here rather than read off the
+  # snapshot filename or Sys.time() at render time. main.R saves the .RData
+  # AFTER generating the report, so the newest file on disk is the previous
+  # run's — and re-rendering a loaded snapshot should date the data, not the
+  # render. Consumers read it through .op_list_updated().
+  output_list[["updated"]] <- Sys.time()
 
   message(".. enrich_opportunities complete")
   return(output_list)

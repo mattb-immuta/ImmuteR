@@ -17,6 +17,12 @@
 #' @param output_path Character. Path where the HTML file will be written.
 #'   Parent directories are created automatically.
 #'   Defaults to \code{"output/immuta_accounts.html"}.
+#' @param favicon Character. The browser-tab icon. Either a local image file
+#'   (\code{.ico}, \code{.png}, \code{.svg}), which is embedded in the page so
+#'   it shows offline and in downloaded copies, or a URL the browser fetches
+#'   when the page opens. Defaults to \code{inst/assets/immuta_favicon.svg} (the
+#'   Immuta mark, black, white in dark-mode tabs) if that file exists, otherwise Immuta's own
+#'   \code{https://www.immuta.com/favicon.ico}. \code{NULL} omits it.
 #'
 #' @return Invisibly returns \code{output_path}.
 #'
@@ -27,7 +33,8 @@
 #' }
 #' @export
 report_all_accounts_html <- function(op_list,
-                                     output_path = "output/immuta_accounts.html") {
+                                     output_path = "output/immuta_accounts.html",
+                                     favicon     = .rah_default_favicon()) {
 
   # Ensure output directory exists
   out_dir <- dirname(output_path)
@@ -75,7 +82,9 @@ report_all_accounts_html <- function(op_list,
 
   # Build HTML -----------------------------------------------------------------
   html <- .rah_html(json_data, regions, csms, snap_dates, changes_json, consumption_json,
-                    lifecycle_stages, saas_json, escalations_json)
+                    lifecycle_stages, saas_json, escalations_json,
+                    updated = .op_list_updated(op_list),
+                    favicon = favicon)
 
   writeLines(html, output_path, useBytes = FALSE)
   message(".. wrote account HTML dashboard to ", output_path)
@@ -318,6 +327,37 @@ report_all_accounts_html <- function(op_list,
       custx_open       = .int_or_dash(.num_or_na(s_row, "escalations_open")),
       custx_90d_raw    = .num_or_na(s_row, "escalations_90d"),
       custx_open_raw   = .num_or_na(s_row, "escalations_open"),
+      # Connections migration, joined onto low_consumption by
+      # op_list_consumption() from dashboard 995. Already a display string
+      # ("12 / 40", "None", or several comma-separated) — the ratio beside it
+      # is the sortable form.
+      connections      = safe_val(.blank_dash(
+        if (!is.null(c_row) && "connections" %in% names(c_row)) c_row[["connections"]] else NA)),
+      connections_raw  = .num_or_na(c_row, "connections_ratio"),
+      # Contact roles. Two roles, the same three fields each: who they are,
+      # how strong the relationship is, how much influence they carry. Named
+      # by role rather than leaving the buyer's pair unprefixed, so neither
+      # reads as "the account's" relationship.
+      #
+      # Names come from the contacts report (op_list$contacts), rolled up onto
+      # accounts as `champion` / `executive_buyer` by enrich_opportunities();
+      # Relationship / Influence are fields on the account report itself.
+      # .first_col() returns NULL for a missing column, so an older snapshot
+      # still renders — with em-dashes.
+      executive_buyer  = safe_val(.blank_dash(.first_col(acct,
+                           c("executive_buyer", "Executive Buyer")))),
+      buyer_relationship = safe_val(.blank_dash(.first_col(acct,
+                           c("Executive Buyer Relationship")))),
+      buyer_influence  = safe_val(.blank_dash(.first_col(acct,
+                           c("Executive Buyer Influence")))),
+
+      champion         = safe_val(.blank_dash(.first_col(acct,
+                           c("champion", "Champion")))),
+      champion_relationship = safe_val(.blank_dash(.first_col(acct,
+                           c("Champion Relationship")))),
+      champion_influence = safe_val(.blank_dash(.first_col(acct,
+                           c("Champion Influence")))),
+
       last_qbr         = fmt_date(.first_col(acct, c("Date Last QBR"))),
       next_qbr         = fmt_date(.first_col(acct, c("Date Next QBR"))),
       qbr_note         = safe_val(.blank_dash(.first_col(acct, c("QBR Note")))),
@@ -489,6 +529,22 @@ report_all_accounts_html <- function(op_list,
       removed       = .df_to_rows(cd$saas_pipeline$removed),
       field_changes = .df_to_rows(cd$saas_pipeline$field_changes)
     ),
+    # Keyed on the Jira issue key, so "added" is an escalation raised since the
+    # last run and "removed" is one that closed. The column lists are explicit
+    # because the escalations frame carries fourteen columns and the Changes
+    # tab only wants the triage-relevant ones.
+    escalations   = list(
+      added         = .df_to_rows(cd$escalations$added,
+                        c("key", "Account Name", "severity", "status",
+                          "age_days", "summary", "url")),
+      removed       = .df_to_rows(cd$escalations$removed,
+                        c("key", "Account Name", "severity", "status",
+                          "age_days", "summary", "url")),
+      field_changes = .df_to_rows(cd$escalations$field_changes,
+                        c("key", "Account Name",
+                          "severity.new", "severity.old",
+                          "status.new",   "status.old"))
+    ),
     forecast      = list(
       added         = .df_to_rows(cd$forecast$added,
                         c("Opportunity Name", "Account Name", "Churn Quarter",
@@ -583,7 +639,7 @@ report_all_accounts_html <- function(op_list,
 
 # ---- Internal: full HTML page template -------------------------------------
 
-.rah_html <- function(json_data, regions, csms = character(0), snap_dates = character(0), changes_json = "null", consumption_json = "null", lifecycle_stages = character(0), saas_json = "null", escalations_json = "null") {
+.rah_html <- function(json_data, regions, csms = character(0), snap_dates = character(0), changes_json = "null", consumption_json = "null", lifecycle_stages = character(0), saas_json = "null", escalations_json = "null", updated = "", favicon = NULL) {
 
   region_pills <- paste(
     vapply(regions, function(r) {
@@ -616,6 +672,7 @@ report_all_accounts_html <- function(op_list,
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Immuta | Customer Accounts</title>
+{{FAVICON}}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -817,6 +874,27 @@ report_all_accounts_html <- function(op_list,
     min-width: 0;
   }
   .letter-group { margin-bottom: 6px; }
+  /* Churn-quarter group headings (Accounts in End Date order) carry a
+     count + ARR on the right, so the heading reads as a quarter subtotal. */
+  .letter-heading.cq-heading { display: flex; align-items: baseline; gap: 10px; }
+  .cq-heading .cq-label  { color: var(--text-1); }
+  .cq-heading .cq-months { color: var(--text-3); font-weight: 600; letter-spacing: .6px; }
+  .cq-heading .cq-meta   { margin-left: auto; color: var(--text-2); letter-spacing: .6px; }
+  .alpha-jump a.cq-jump  { width: auto; padding: 0 7px; }
+  /* Same grouping inside the Renewals / Expansions tables. */
+  .flat-table tr.cq-group-row td {
+    background: var(--im-lime-lt);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .6px;
+    text-transform: uppercase;
+    color: var(--text-1);
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .flat-table tr.cq-group-row:hover td { background: var(--im-lime-lt); }
+  .flat-table tr.cq-group-row .cq-months { color: var(--text-3); font-weight: 600; margin-left: 8px; }
+  .flat-table tr.cq-group-row .cq-meta   { float: right; color: var(--text-2); }
   .letter-heading {
     font-size: 10px;
     font-weight: 700;
@@ -995,11 +1073,11 @@ report_all_accounts_html <- function(op_list,
   .overview-cols {
     display: grid;
     grid-template-columns:
-      minmax(130px, .75fr)   /* commercial   */
-      minmax(150px, .9fr)    /* account team */
-      minmax(180px, 1.1fr)   /* adoption     */
-      minmax(170px, 1fr)     /* performance  */
-      minmax(180px, 1.1fr);  /* engagement   */
+      minmax(150px, .9fr)    /* commercial + account team */
+      minmax(180px, 1.1fr)   /* adoption: evidence        */
+      minmax(200px, 1.1fr)   /* adoption: ratings + plot  */
+      minmax(180px, 1.05fr)  /* performance               */
+      minmax(180px, 1.05fr); /* engagement                */
     gap: 22px;
     padding: 6px 0;
     align-items: start;
@@ -1075,7 +1153,64 @@ report_all_accounts_html <- function(op_list,
   .ov-adopt-subk { color: var(--text-3); flex: none; min-width: 54px; }
   .ov-adopt-subv { color: var(--text-2); }
   .ov-adopt-none { color: var(--text-3); }
-  @media (max-width: 1500px) {
+
+  /* Per-account PBAC plot. Sized in the SVG viewBox rather than here so the
+     band geometry stays in one place; this only caps how wide it may grow. */
+  .ov-mini-plot { width: 100%; max-width: 210px; height: auto; display: block; }
+  .ov-mini-caption { max-width: 210px; margin-top: 3px; font-size: 10.5px; font-weight: 700; letter-spacing: .2px; }
+  .ov-mini-frame { fill: none; stroke: var(--border); stroke-width: 1; }
+  .ov-mini-grid  { stroke: var(--border); stroke-width: 1; }
+  .ov-mini-pin   { stroke: var(--border); stroke-width: 1; stroke-dasharray: 2 2; }
+  .ov-mini-tick  { font-size: 7px; fill: var(--text-3); }
+  .ov-mini-dot   { stroke: #111827; stroke-width: 1.2; }
+  /* A dashed ring means the ratio was never measured — the dot is sitting at
+     the axis origin as a placeholder, not reporting zero consumption. */
+  .ov-mini-dot.missing { stroke-dasharray: 2 1.5; }
+  .ov-mini-dot.over    { stroke-width: 2; }
+  .ov-mini-empty {
+    font-size: 10.5px;
+    color: var(--text-3);
+    padding: 10px 0;
+  }
+
+  /* One tile per open escalation, linking out to Jira. Deliberately denser
+     than the Escalations tab rows: this is a count made browsable, not a
+     second triage surface. */
+  .ov-esc-tiles { display: flex; flex-direction: column; gap: 5px; margin-top: 3px; }
+  .ov-esc-tile {
+    display: block;
+    text-decoration: none;
+    border: 1px solid var(--border);
+    border-left-width: 3px;
+    border-radius: 4px;
+    padding: 5px 7px;
+    background: var(--bg-1, transparent);
+  }
+  .ov-esc-tile:hover { border-color: var(--text-3); }
+  .ov-esc-tile.sev-1 { border-left-color: #EF4444; }
+  .ov-esc-tile.sev-2 { border-left-color: #F59E0B; }
+  .ov-esc-tile.sev-3 { border-left-color: #9CA3AF; }
+  .ov-esc-tile.sev-4 { border-left-color: var(--border); }
+  .ov-esc-line { display: flex; align-items: center; gap: 6px; }
+  .ov-esc-key  { font-size: 10.5px; font-weight: 600; color: var(--text-2); }
+  .ov-esc-age  { font-size: 10px; color: var(--text-3); margin-left: auto; }
+  .ov-esc-age.stale { color: #B91C1C; font-weight: 600; }
+  .ov-esc-sum {
+    display: block;
+    font-size: 10.5px;
+    line-height: 1.4;
+    color: var(--text-2);
+    margin-top: 2px;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  /* Five columns need more room than three did before wrapping. The two
+     Adoption columns are kept adjacent at the intermediate width so the plot
+     stays beside the evidence it is drawn from. */
+  @media (max-width: 1700px) {
     .overview-cols { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   }
   @media (max-width: 900px) {
@@ -1154,6 +1289,7 @@ report_all_accounts_html <- function(op_list,
     font-size: 13px;
     font-weight: 600;
   }
+  .stoplight-dot.square { border-radius: 2px; }
   .stoplight-dot {
     width: 10px;
     height: 10px;
@@ -1302,6 +1438,29 @@ report_all_accounts_html <- function(op_list,
   }
   .refresh-btn:hover:not(:disabled) { background: var(--im-lime-dk); }
   .refresh-btn:disabled { opacity: .55; cursor: wait; }
+
+  /* The buttons and the build date stack in the top-right corner. The stack
+     is what keeps the date pinned under the buttons rather than sitting
+     beside them in the flex row the topbar itself lays out. */
+  .topbar-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    flex-shrink: 0;
+    margin-left: auto;
+  }
+  .topbar-btns { display: flex; gap: 10px; }
+  /* Quiet on purpose. This is provenance, not a metric — it should answer
+     "how stale is this?" when asked and be invisible otherwise. */
+  .topbar-updated {
+    font-size: 10.5px;
+    font-weight: 500;
+    letter-spacing: .3px;
+    color: rgba(255,255,255,.45);
+    white-space: nowrap;
+    padding-right: 2px;
+  }
 
   /* ── Modal ────────────────────────────────────────────────────────────────── */
   .modal-overlay {
@@ -1531,6 +1690,19 @@ report_all_accounts_html <- function(op_list,
     padding: 1px 7px; border-radius: 9px;
   }
   .saas-col-body { padding: 8px; display: flex; flex-direction: column; gap: 8px; }
+  /* Target SaaS share if every migration up to this quarter lands. */
+  .saas-tgt {
+    padding: 7px 12px; border-bottom: 1px solid var(--border);
+    background: var(--im-lime-lt); font-size: 11px; color: var(--text-2);
+    display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+  }
+  .saas-tgt-k   { font-size: 9.5px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase; color: var(--text-3); }
+  .saas-tgt-v   { font-size: 15px; font-weight: 800; color: var(--text-1); }
+  .saas-tgt-sub { font-size: 10.5px; color: var(--text-3); white-space: nowrap; }
+  .saas-churn-tag {
+    display: inline-block; margin-left: 6px; font-size: 9.5px; font-weight: 700;
+    padding: 1px 6px; border-radius: 4px; background: #FEE2E2; color: #991B1B;
+  }
 
   .saas-card {
     background: var(--im-white); border: 1px solid var(--border);
@@ -1692,8 +1864,8 @@ report_all_accounts_html <- function(op_list,
     transition: color .12s;
   }
   .flat-table th:hover { color: var(--text-1); }
-  .flat-table th.sort-asc::after  { content: " \2191"; color: var(--im-lime-dk); }
-  .flat-table th.sort-desc::after { content: " \2193"; color: var(--im-lime-dk); }
+  .flat-table th.sort-asc::after  { content: " \\2191"; color: var(--im-lime-dk); }
+  .flat-table th.sort-desc::after { content: " \\2193"; color: var(--im-lime-dk); }
   .flat-table td {
     padding: 10px 12px;
     border-bottom: 1px solid var(--surface);
@@ -1748,11 +1920,19 @@ report_all_accounts_html <- function(op_list,
       <span class="diff-date-chevron">&#9660;</span>
     </div>
   </div>
-  <!-- Drive file 1K5pNbz2TPrxGSvU8l2hbEjbMFfFShQ09, as the uc?export=download
-       form so the button downloads directly rather than opening the Drive
-       preview page. Swap to /file/d/<id>/view to land on the preview instead. -->
-  <a class="refresh-btn" href="https://drive.google.com/uc?export=download&id=1K5pNbz2TPrxGSvU8l2hbEjbMFfFShQ09" target="_blank" rel="noopener" style="text-decoration:none">&#11123; Download Update</a>
-  <button class="refresh-btn" id="refresh-btn" onclick="triggerRefresh()">&#8635; Refresh</button>
+  <div class="topbar-actions">
+    <div class="topbar-btns">
+      <!-- Drive file 1K5pNbz2TPrxGSvU8l2hbEjbMFfFShQ09, as the uc?export=download
+           form so the button downloads directly rather than opening the Drive
+           preview page. Swap to /file/d/<id>/view to land on the preview instead. -->
+      <a class="refresh-btn" href="https://drive.google.com/uc?export=download&id=1K5pNbz2TPrxGSvU8l2hbEjbMFfFShQ09" target="_blank" rel="noopener" style="text-decoration:none">&#11123; Download Update</a>
+      <button class="refresh-btn" id="refresh-btn" onclick="triggerRefresh()">&#8635; Refresh</button>
+    </div>
+    <!-- When op_list was built, not when this file was written. A refresh
+         that fails leaves the old page on screen; a render date would keep
+         advancing and hide that. -->
+    <div class="topbar-updated" id="topbar-updated">{{UPDATED}}</div>
+  </div>
 </div>
 
 <!-- REFRESH MODAL -->
@@ -1823,7 +2003,14 @@ report_all_accounts_html <- function(op_list,
             </div>
           </div>
           <div class="sidebar-section">
-            <div class="sidebar-label">Jump to Letter</div>
+            <div class="sidebar-label">Sort by</div>
+            <div class="region-filters">
+              <button class="pill active" data-acctsort="name">Name (A&ndash;Z)</button>
+              <button class="pill" data-acctsort="end_date">End Date</button>
+            </div>
+          </div>
+          <div class="sidebar-section">
+            <div class="sidebar-label" id="jump-label">Jump to Letter</div>
             <div class="alpha-jump" id="alpha-jump"></div>
           </div>
         </aside>
@@ -1984,6 +2171,9 @@ let activeCSM       = "all";
 let searchTerm      = "";
 let activePage      = "engagement";
 let renewalSort         = { col: "end_date_raw", dir: 1 };
+// Accounts sub-tab order: "name" (A-Z, grouped by letter) or "end_date"
+// (next renewal end date, grouped by that renewal\'s churn quarter).
+let accountSort         = "name";
 let expansionSort       = { col: "close_date_raw", dir: 1 };
 let adoptSort           = { col: null, dir: 1 };
 let smSort              = { col: null, dir: 1 };
@@ -2177,14 +2367,177 @@ function pbacAdoptionHtml(a) {
   const plats = (a.platform_html && a.platform_html !== "\\u2014") ? a.platform_html : none;
   const feats = adoptBlank(a.pbac_features) ? none : esc(a.pbac_features);
 
+  // The complexity score is the plot\'s y axis and half the rating rule, so it
+  // belongs with the evidence rather than buried in the tooltip. Shown out of
+  // its maximum: a bare "3" reads as a rank, "3 / 7" reads as a measurement.
+  const score = (a.pbac_score === null || a.pbac_score === undefined || isNaN(a.pbac_score))
+    ? none
+    : `${a.pbac_score} / ${PBAC_CFG.scoreMax}`;
+
   return `<div class="ov-adopt">
     <div class="ov-adopt-top">
       <span class="ov-pair-k">PBAC</span>
-      <span class="ov-pair-v">${fmtStoplightAs(r, ratingLabel(r), r)}</span>
+      <span class="ov-pair-v">${pbacBadge(a)}</span>
     </div>
     <div class="ov-adopt-sub">
       <div class="ov-adopt-subrow"><span class="ov-adopt-subk">Platforms</span><span class="ov-adopt-subv">${plats}</span></div>
       <div class="ov-adopt-subrow"><span class="ov-adopt-subk">Features</span><span class="ov-adopt-subv">${feats}</span></div>
+      <div class="ov-adopt-subrow"><span class="ov-adopt-subk">Complexity</span><span class="ov-adopt-subv">${score}</span></div>
+    </div>
+  </div>`;
+}
+
+// ── Overview: per-account PBAC plot ────────────────────────────────────────
+// The Adoption tab\'s scatter at card size, with only this account drawn. The
+// bands come from pbacRatingAt() rather than a copied colour table, so moving a
+// threshold moves both plots together — a small chart that quietly disagreed
+// with the big one would be worse than no chart.
+const PBAC_MINI = { w: 196, h: 128, l: 20, r: 7, t: 7, b: 16, pin: 13 };
+
+function pbacMiniSvg(a) {
+  if (!hasPbac(a)) {
+    return `<div class="ov-mini-empty">No PBAC rating \\u2014 needs a Looker run.</div>`;
+  }
+
+  const M = PBAC_MINI;
+  const pw = M.w - M.l - M.r, ph = M.h - M.t - M.b;
+  const X = v => M.l + Math.min(v, PBAC_CFG.ratioMax) / PBAC_CFG.ratioMax * (pw - M.pin);
+  const Y = s => M.t + ph - (Math.min(s, PBAC_CFG.scoreMax) / PBAC_CFG.scoreMax) * ph;
+
+  // Six bands, same row/column split as the full plot: r = 1 is the
+  // high-complexity row, columns break at ratioMinimal and ratioModerate.
+  const xEdges = [0, PBAC_CFG.ratioMinimal, PBAC_CFG.ratioModerate, PBAC_CFG.ratioMax];
+  let bands = "";
+  for (let r = 0; r < 2; r++) {
+    for (let c = 0; c < 3; c++) {
+      const key  = pbacRatingAt(r === 1 ? PBAC_CFG.scoreMax : 0, (xEdges[c] + xEdges[c + 1]) / 2);
+      const x0   = X(xEdges[c]);
+      const x1   = c === 2 ? M.l + pw : X(xEdges[c + 1]);
+      const yTop = Y(r === 1 ? PBAC_CFG.scoreMax : PBAC_CFG.complexityMin);
+      const yBot = Y(r === 1 ? PBAC_CFG.complexityMin : 0);
+      bands += `<rect x="${x0}" y="${yTop}" width="${x1 - x0}" height="${yBot - yTop}" fill="${PBAC_COLOURS[key].bg}"/>`;
+    }
+  }
+
+  // A null ratio is a missing measurement, not a zero. It plots at the left
+  // edge with a dashed outline, the same convention the full scatter uses.
+  const ratio   = a.consumption_ratio_raw;
+  const missing = ratio === null || ratio === undefined || isNaN(ratio);
+  const over    = !missing && ratio > PBAC_CFG.ratioMax;
+  const colour  = ratingColour(a.pbac_rating) || "black";
+
+  // Held a dot-radius inside the frame. At this size a point at score 7 or
+  // ratio 0 sits exactly on the border and gets sliced in half by it, which
+  // reads as a rendering fault rather than as an extreme value. The nudge is
+  // smaller than the dot, so it cannot move a point across a band edge.
+  const R = 4.5;
+  const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
+  const cx = clamp(missing ? X(0) : (over ? M.l + pw - M.pin / 2 : X(ratio)),
+                   M.l + R, M.l + pw - R);
+  const cy = clamp(Y(a.pbac_score), M.t + R, M.t + ph - R);
+
+  const tip = `${a.name} \\u2014 score ${a.pbac_score} / ${PBAC_CFG.scoreMax}, ratio ${a.consumption_ratio}`;
+
+  return `<svg class="ov-mini-plot" viewBox="0 0 ${M.w} ${M.h}" role="img" aria-label="${esc(tip)}">
+    <title>${esc(tip)}</title>
+    ${bands}
+    <line x1="${X(PBAC_CFG.ratioMax)}" y1="${M.t}" x2="${X(PBAC_CFG.ratioMax)}" y2="${M.t + ph}" class="ov-mini-pin"/>
+    <line x1="${M.l}" y1="${Y(PBAC_CFG.complexityMin)}" x2="${M.l + pw}" y2="${Y(PBAC_CFG.complexityMin)}" class="ov-mini-grid"/>
+    <rect x="${M.l}" y="${M.t}" width="${pw}" height="${ph}" class="ov-mini-frame"/>
+    ${isInstallStage(a)
+      ? `<rect x="${cx - R * 0.885}" y="${cy - R * 0.885}" width="${R * 1.77}" height="${R * 1.77}" fill="${PBAC_COLOURS[colour].dot}"
+              class="ov-mini-dot${missing ? " missing" : ""}${over ? " over" : ""}"/>`
+      : `<circle cx="${cx}" cy="${cy}" r="${R}" fill="${PBAC_COLOURS[colour].dot}"
+              class="ov-mini-dot${missing ? " missing" : ""}${over ? " over" : ""}"/>`}
+    <text x="${M.l - 4}" y="${Y(PBAC_CFG.scoreMax) + 3}" class="ov-mini-tick" text-anchor="end">${PBAC_CFG.scoreMax}</text>
+    <text x="${M.l - 4}" y="${Y(0) + 3}" class="ov-mini-tick" text-anchor="end">0</text>
+    <text x="${M.l}" y="${M.h - 4}" class="ov-mini-tick" text-anchor="start">0</text>
+    <text x="${M.l + pw}" y="${M.h - 4}" class="ov-mini-tick" text-anchor="end">&gt;${PBAC_CFG.ratioMax}</text>
+  </svg>
+  <div class="ov-mini-caption" style="color:${PBAC_COLOURS[colour].ink}">${esc(pbacFullLabel(a.pbac_rating))}</div>`;
+}
+
+// PBAC rating badge with the scatter plot\'s labels and symbology: the full
+// label ("Red: Critical Adoption Risk") and a square marker for accounts in
+// Installation and Config., a round one otherwise.
+function pbacBadge(a) {
+  const html = fmtStoplightAs(a.pbac_rating, pbacFullLabel(a.pbac_rating), a.pbac_rating);
+  return isInstallStage(a)
+    ? html.replace("stoplight-dot ", "stoplight-dot square ")
+    : html;
+}
+
+// The stored rating as a full caption, colour word included and capitalised:
+// "Red: Critical Adoption Risk", "Amber: Moderate adoption".
+function pbacFullLabel(v) {
+  if (adoptBlank(v)) return "";
+  const m = String(v).trim().match(/^(green|amber|yellow|red|black)\\s*:\\s*(.*)$/i);
+  if (!m) return String(v).trim();
+  return adoptCap(m[1].toLowerCase()) + ": " + adoptCap(m[2]);
+}
+
+// ── Overview: open escalation tiles ────────────────────────────────────────
+// Read from ESCALATIONS_DATA at render time rather than joined onto the account
+// record, so the card and the Escalations tab cannot fall out of step. Sorted
+// the same way that tab sorts: severity first, then oldest.
+function escTilesHtml(a) {
+  const rows = ((ESCALATIONS_DATA && ESCALATIONS_DATA.rows) || [])
+    .filter(r => r["Account Name"] === a.name)
+    .sort((x, y) => (x.severity_rank - y.severity_rank) || ((y.age_days || 0) - (x.age_days || 0)));
+
+  if (!rows.length) {
+    // An account with a non-zero count but no rows means the Jira pull did not
+    // run, which is a different thing from having nothing open.
+    return a.custx_open_raw > 0
+      ? `<div class="ov-mini-empty">${a.custx_open_raw} open, detail not loaded</div>`
+      : "";
+  }
+
+  return `<div class="ov-esc-tiles">` + rows.map(r => {
+    const rank = Math.min(Math.max(r.severity_rank || 4, 1), 4);
+    const stale = (r.age_days || 0) >= 90;
+    return `<a class="ov-esc-tile sev-${rank}" href="${esc(r.url)}" target="_blank" rel="noopener"
+               title="${esc(r.summary || "")}" onclick="event.stopPropagation()">
+      <span class="ov-esc-line">
+        <span class="esc-sev esc-sev-${rank}">${esc(r.severity || "\\u2014")}</span>
+        <span class="ov-esc-key">${esc(r.key)}</span>
+        <span class="ov-esc-age${stale ? " stale" : ""}">${r.age_days != null ? r.age_days + "d" : ""}</span>
+      </span>
+      <span class="ov-esc-sum">${esc(r.summary || "")}</span>
+    </a>`;
+  }).join("") + `</div>`;
+}
+
+// ── Overview: relationship strength ────────────────────────────────────────
+// Salesforce will supply strong / neutral / weak. Mapped onto the same three
+// stoplight colours every other rating on the card uses, so the column reads
+// consistently rather than introducing a fourth visual language.
+const STRENGTH_COLOUR = { strong: "green", neutral: "amber", weak: "red" };
+
+function strengthValue(v) {
+  if (adoptBlank(v)) return `<span class="em-dash">\\u2014</span>`;
+  const key    = String(v).trim().toLowerCase();
+  const colour = STRENGTH_COLOUR[key];
+  // An unrecognised value is shown as-is rather than silently dropped: the
+  // picklist gaining a fourth option should be visible, not invisible.
+  if (!colour) return esc(v);
+  return fmtStoplightAs(colour, adoptCap(key), adoptCap(key));
+}
+
+// A contact role — who holds it, then how strong the relationship is and how
+// much influence they carry, indented beneath. Same shape for every role, so
+// Executive Buyer and Champion stay comparable at a glance; same indent idiom
+// as the PBAC evidence block, so the card has one way of saying "this
+// supports the line above" rather than two.
+function contactRoleHtml(label, name, relationship, influence) {
+  return `<div class="ov-adopt">
+    <div class="ov-adopt-top">
+      <span class="ov-pair-k">${label}</span>
+      <span class="ov-pair-v">${adoptBlank(name) ? `<span class="em-dash">\\u2014</span>` : esc(name)}</span>
+    </div>
+    <div class="ov-adopt-sub">
+      <div class="ov-adopt-subrow"><span class="ov-adopt-subk">Relationship</span><span class="ov-adopt-subv">${strengthValue(relationship)}</span></div>
+      <div class="ov-adopt-subrow"><span class="ov-adopt-subk">Influence</span><span class="ov-adopt-subv">${strengthValue(influence)}</span></div>
     </div>
   </div>`;
 }
@@ -2289,35 +2642,47 @@ function buildCard(a) {
         <div class="overview-col">
           ${fieldHtml("Contract ARR", a.arr, "arr-value")}
           ${fieldHtml("Region", a.region)}
-        </div>
-        <div class="overview-col">
           ${fieldHtml("Customer Success Manager", a.csm)}
           ${fieldHtml("Account Owner", a.account_owner)}
           ${fieldHtml("Field CTO", a.field_cto)}
         </div>
+
+        <!-- Adoption runs across two columns. The split is evidence on the
+             left, ratings on the right: what we measured, then what we
+             concluded from it. -->
         <div class="overview-col">
           <div class="ov-head">Adoption</div>
+          ${fieldHtml("Lifecycle Stage", a.lifecycle_stage)}
           ${pbacAdoptionHtml(a)}
-          ${adoptionHtml("Comply", a.comply_adoption)}
-          ${requestAdoptionHtml(a)}
-          ${adoptionHtml("Agentic", a.agentic_governance_adoption)}
           ${adoptBlank(a.pbac_rating) ? pairHtml("Platforms", a.platform_html) : ""}
           ${pairHtml("Registered", esc(a.registered_users))}
           ${pairHtml("Licensed", esc(a.licensed_users))}
           ${pairHtml("Ratio", `<span class="${pctClass(a.consumption_ratio_raw)}">${esc(a.consumption_ratio)}</span>`)}
-          ${fieldHtml("Lifecycle Stage", a.lifecycle_stage)}
         </div>
+        <div class="overview-col">
+          <div class="ov-head">Adoption</div>
+          ${pbacMiniSvg(a)}
+          ${requestAdoptionHtml(a)}
+          ${adoptionHtml("Agentic", a.agentic_governance_adoption)}
+          ${adoptionHtml("Comply", a.comply_adoption)}
+        </div>
+
         <div class="overview-col">
           <div class="ov-head">Performance</div>
           <div>${deployTag(a)}</div>
           ${pairHtml("Version", esc(a.immuta_version))}
+          ${pairHtml("Connections", esc(a.connections))}
           ${pairHtml("Incidents 90d", esc(a.inc_90d))}
           ${pairHtml("Incidents 360d", esc(a.inc_360d))}
           ${pairHtml("CustX 90d", esc(a.custx_90d), a.custx_90d_raw > 0)}
           ${pairHtml("CustX open", esc(a.custx_open), a.custx_open_raw > 0)}
+          ${escTilesHtml(a)}
         </div>
+
         <div class="overview-col">
           <div class="ov-head">Engagement</div>
+          ${contactRoleHtml("Executive Buyer", a.executive_buyer, a.buyer_relationship, a.buyer_influence)}
+          ${contactRoleHtml("Champion", a.champion, a.champion_relationship, a.champion_influence)}
           ${pairHtml("Last QBR", esc(a.last_qbr))}
           ${pairHtml("Next QBR", esc(a.next_qbr))}
           ${fieldHtmlRaw("QBR Note", `<span class="ov-note">${esc(a.qbr_note)}</span>`)}
@@ -2584,6 +2949,20 @@ function pbacSeed(str) {
   return ((h >>> 0) % 10000) / 10000;
 }
 
+// Band caption, one entry per line. The two red cells are named for the axis
+// that is failing, matching the stored rating labels.
+function pbacBandLines(key, highComplexity) {
+  if (key === "red") return ["RED: CRITICAL", highComplexity ? "CONSUMPTION RISK" : "ADOPTION RISK"];
+  return [key.toUpperCase()];
+}
+
+// Lifecycle S1 ("S1: Installation and Config.") — matched on the stage number
+// or the word, so a picklist relabel does not quietly turn squares into dots.
+function isInstallStage(a) {
+  const st = String((a && a.lifecycle_stage) || "").trim().toLowerCase();
+  return st.startsWith("s1") || st.includes("install");
+}
+
 function pbacRatingAt(score, ratio) {
   const cx = score >= PBAC_CFG.complexityMin;
   const heavy = ratio !== null && ratio >= PBAC_CFG.ratioModerate;
@@ -2624,9 +3003,9 @@ function renderPbacPanel(rows) {
       const yTop = pbacY(r === 1 ? PBAC_CFG.scoreMax : PBAC_CFG.complexityMin);
       const yBot = pbacY(r === 1 ? PBAC_CFG.complexityMin : 0);
       svg.appendChild(svgEl("rect", { x: x0, y: yTop, width: x1 - x0, height: yBot - yTop, fill: PBAC_COLOURS[key].bg }));
-      svg.appendChild(svgEl("text", {
-        x: x0 + 7, y: yTop + 15, class: "pbac-band-label", fill: PBAC_COLOURS[key].ink
-      }, key.toUpperCase()));
+      pbacBandLines(key, r === 1).forEach((line, i) => svg.appendChild(svgEl("text", {
+        x: x0 + 7, y: yTop + 15 + i * 11, class: "pbac-band-label", fill: PBAC_COLOURS[key].ink
+      }, line)));
     }
   }
 
@@ -2699,8 +3078,14 @@ function renderPbacPanel(rows) {
     const sw = Math.max(0.4, r * 0.28);
 
     const g = svgEl("g", { class: "pbac-pt" + (on ? "" : " dim") });
-    const c = svgEl("circle", { cx: cx, cy: cy, r: r, fill: col.dot, stroke: "#111111",
-                                "stroke-width": pinned ? sw * 2.4 : sw });
+    // Square for accounts in Installation and Config. (lifecycle S1) — low
+    // consumption is expected there. Side chosen for the same area as the dot.
+    const side = r * 1.77;
+    const c = isInstallStage(a)
+      ? svgEl("rect", { x: cx - side / 2, y: cy - side / 2, width: side, height: side,
+                        fill: col.dot, stroke: "#111111", "stroke-width": pinned ? sw * 2.4 : sw })
+      : svgEl("circle", { cx: cx, cy: cy, r: r, fill: col.dot, stroke: "#111111",
+                          "stroke-width": pinned ? sw * 2.4 : sw });
     // Unknown ratio keeps the rating fill but breaks its outline: the dot is at
     // zero as a placeholder, not because the account measured zero.
     if (!known) { c.setAttribute("stroke-dasharray", "1.8 1.8"); c.setAttribute("fill-opacity", ".45"); }
@@ -2725,7 +3110,7 @@ function renderPbacPanel(rows) {
   const lit    = rows.filter(a => pbacAt[a.name]).length;
   const facets = [activeRegion === "all" ? null : activeRegion,
                   activeCSM    === "all" ? null : activeCSM].filter(Boolean);
-  const size = " Point size is contract ARR; a dashed outline means the consumption ratio is unavailable, a heavy one means it is above the axis maximum.";
+  const size = " Point size is contract ARR; a square marks an account in Installation and Config. (lifecycle S1); a dashed outline means the consumption ratio is unavailable, a heavy one means it is above the axis maximum.";
   document.getElementById("pbac-facet-note").textContent = (facets.length || searchTerm
     ? `Showing ${lit} of ${rows.length} rated accounts` +
       (facets.length ? ` — ${facets.join(", ")}` : "") +
@@ -2768,7 +3153,7 @@ function pbacSide() {
 
   el.innerHTML =
     `<div class="ps-name"><span class="acct-link" onclick="goToAccount(\'${esc(a.name)}\')">${esc(a.name)}</span></div>` +
-    `<div>${fmtStoplightAs(a.pbac_rating, ratingLabel(a.pbac_rating), a.pbac_rating)}</div>` +
+    `<div>${pbacBadge(a)}</div>` +
     // ARR is what the dot size encodes, so the panel has to name the figure.
     `<div class="ps-kv" style="margin-top:8px"><span>Contract ARR</span><span>${esc(a.arr)}</span></div>` +
 
@@ -2817,8 +3202,8 @@ function pbacWriteupHtml() {
     <h3>Crossing the axes</h3>
     <table class="pbac-matrix"><tbody>
       <tr><th></th><th>Ratio &lt; ${PBAC_CFG.ratioMinimal}</th><th>${PBAC_CFG.ratioMinimal} – ${PBAC_CFG.ratioModerate}</th><th>Ratio &ge; ${PBAC_CFG.ratioModerate}</th></tr>
-      <tr><th class="rowh">score &ge; ${PBAC_CFG.complexityMin}</th>${cell("red", "Red")}${cell("amber", "Amber")}${cell("green", "Green")}</tr>
-      <tr><th class="rowh">score &lt; ${PBAC_CFG.complexityMin}</th>${cell("black", "Black")}${cell("red", "Red")}${cell("amber", "Amber")}</tr>
+      <tr><th class="rowh">score &ge; ${PBAC_CFG.complexityMin}</th>${cell("red", "Red: Critical Consumption Risk")}${cell("amber", "Amber")}${cell("green", "Green")}</tr>
+      <tr><th class="rowh">score &lt; ${PBAC_CFG.complexityMin}</th>${cell("black", "Black")}${cell("red", "Red: Critical Adoption Risk")}${cell("amber", "Amber")}</tr>
     </tbody></table>
     <p>Note the asymmetry: complexity alone caps at <b>red</b>, consumption alone caps at <b>amber</b>. Neither axis reaches green by itself — green needs the deployment to be doing demanding work <i>and</i> people to be there doing it.</p>
 
@@ -2831,7 +3216,7 @@ function pbacWriteupHtml() {
     <p>The ratio is deliberately kept out of the complexity score. It measures seat uptake, not deployment sophistication, and folding it in would collapse the two axes back into the single number this rating exists to avoid.</p>
 
     <h3>Reading a point</h3>
-    <p>The colour gives severity; the pair behind it gives the play. Red with a high score and a thin ratio is an enablement problem — the platform work is done, the users are not there. Red with a low score and a healthy ratio is a depth problem — plenty of people, nothing hard being asked of the product. Same colour, opposite conversations. Black should move fastest: neither axis has cleared its floor, and there is no adoption story to tell at renewal.</p>`;
+    <p>The colour gives severity; the pair behind it gives the play. <b>Red: Critical Consumption Risk</b> (high score, thin ratio) is an enablement problem — the platform work is done, the users are not there. <b>Red: Critical Adoption Risk</b> (low score, some usage) is a depth problem — people are there, nothing hard is being asked of the product. Same colour, opposite conversations. Black should move fastest: neither axis has cleared its floor, and there is no adoption story to tell at renewal.</p>`;
 }
 
 // ── Escalations ────────────────────────────────────────────────────────────
@@ -3023,7 +3408,39 @@ function renderSaaSMigration() {
   const ordered = SAAS_STAGES.map(s => s.label).filter(l => byStage[l]);
   Object.keys(byStage).forEach(l => { if (!ordered.includes(l)) ordered.push(l); });
 
+  // ── TGT SaaS % ──────────────────────────────────────────────────────────
+  // For each quarter: (SaaS customers today + migrations scheduled in that
+  // quarter or earlier) / customer count. Pipeline rows whose notes say
+  // "assumed churn" are never counted as migrated, and drop out of the
+  // customer count from the account\'s churn quarter on (its next renewal\'s
+  // Churn Quarter; failing that its migration period; failing both, every
+  // quarter). Computed on the region/CSM facet but NOT the search box —
+  // a search narrows the cards, not the book the percentage is of.
+  const book      = ACCOUNTS.filter(a => (activeRegion === "all" || a.region === activeRegion) &&
+                                         (activeCSM    === "all" || a.csm    === activeCSM));
+  const saasNow   = book.filter(a => a.is_saas).length;
+  const facetRows = all.filter(adoptFacet2);
+  const tgtFor = q => {
+    const k = saasQuarterKey(q);
+    let migrated = 0, churned = 0;
+    facetRows.forEach(r => {
+      const rq = String(r["Estimated SaaS Migration Period"] || "").trim();
+      const rk = saasQuarterKey(rq);                 // Infinity when unscheduled
+      if (saasWillChurn(r)) {
+        const ck = saasQuarterKey(saasChurnQuarter(r));
+        if (ck === Infinity || ck <= k) churned++;
+      }
+      else if (rk <= k) migrated++;
+    });
+    const denom = book.length - churned;
+    return { saas: saasNow + migrated, denom: denom,
+             pct: denom > 0 ? (saasNow + migrated) / denom : null };
+  };
+  const pctTxt = v => v === null ? "\\u2014" : (Math.round(v * 1000) / 10) + "%";
+
   statsEl.innerHTML =
+    `<div class="stat-item"><div class="stat-label">SaaS today</div><div class="stat-value">${
+      pctTxt(book.length ? saasNow / book.length : null)}</div></div>` +
     `<div class="stat-item"><div class="stat-label">In flight</div><div class="stat-value">${rows.length}</div></div>` +
     ordered.map(l =>
       `<div class="stat-item"><div class="stat-label">${esc(l)}</div><div class="stat-value">${byStage[l]}</div></div>`
@@ -3054,7 +3471,9 @@ function renderSaaSMigration() {
       const late = due && due < today;
       const note = r["SaaS Migration Pipeline Notes"];
       return `<div class="saas-card st-${st.key}" onclick="toggleSaaSCard(this)">
-        <div class="saas-card-name">${esc(r["Account Name"])}</div>
+        <div class="saas-card-name">${esc(r["Account Name"])}${
+          saasWillChurn(r) ? `<span class="saas-churn-tag">Assumed churn${
+            saasChurnQuarter(r) ? " \\u00b7 " + esc(saasChurnQuarter(r)) : ""}</span>` : ""}</div>
         <div class="saas-card-meta">
           <span>${esc(r.Region || "\\u2014")}</span>
           <span>${esc(r.csm || "\\u2014")}</span>
@@ -3080,9 +3499,35 @@ function renderSaaSMigration() {
         </div>
         <span class="saas-q-n">${groups[q].length}</span>
       </div>
+      ${saasQuarterKey(q) === Infinity ? "" : (() => {
+        const t = tgtFor(q);
+        return `<div class="saas-tgt" title="SaaS customers today plus migrations due by ${esc(q)}, over customers net of expected churn">
+          <span><span class="saas-tgt-k">TGT SaaS %</span><br><span class="saas-tgt-v">${pctTxt(t.pct)}</span></span>
+          <span class="saas-tgt-sub">${t.saas} / ${t.denom}</span>
+        </div>`;
+      })()}
       <div class="saas-col-body">${cards}</div>
     </div>`;
   }).join("");
+}
+
+// A pipeline row whose notes mark the customer as "assumed churn" rather than
+// a migration. ("will churn" is the older wording, still honoured.)
+function saasWillChurn(r) {
+  return /(assumed|will)\\s+churn/i.test(String(r["SaaS Migration Pipeline Notes"] || ""));
+}
+
+// The quarter an assumed-churn customer leaves the book: the Churn Quarter on
+// its next renewal, else its Estimated SaaS Migration Period, else "" (which
+// removes it from every quarter).
+function saasChurnQuarter(r) {
+  const name = String(r["Account Name"] || "").trim();
+  const a = ACCOUNTS.find(x => x.name === name);
+  const nr = a ? nextRenewal(a) : null;
+  const cq = nr ? String(nr.churn_quarter || "").trim() : "";
+  if (/^Q[1-4]-\\d{4}$/.test(cq)) return cq;
+  const mq = String(r["Estimated SaaS Migration Period"] || "").trim();
+  return /^Q[1-4]-\\d{4}$/.test(mq) ? mq : "";
 }
 
 // The facet, against a saas_pipeline row rather than an account record — same
@@ -3217,19 +3662,51 @@ function renderAccounts() {
     (activeCSM === "all" || a.csm === activeCSM) &&
     (!q || a.name.toLowerCase().includes(q))
   );
-  const groups = {};
-  visible.forEach(a => {
-    const letter = (a.name[0] || "#").toUpperCase();
-    if (!groups[letter]) groups[letter] = [];
-    groups[letter].push(a);
-  });
-  const letters = Object.keys(groups).sort();
+
   let html = "";
-  letters.forEach(letter => {
-    html += `<div class="letter-group" id="letter-${letter}"><div class="letter-heading">${letter}</div>`;
-    groups[letter].forEach(a => { html += buildCard(a); });
-    html += "</div>";
-  });
+  if (accountSort === "end_date") {
+    // One group per churn quarter of the account\'s NEXT renewal (earliest end
+    // date), in quarter order; accounts are by end date inside each group.
+    const groups = groupByChurnQuarter(visible.map(a => {
+      const nr = nextRenewal(a);
+      return {
+        a: a,
+        end: nr ? nr.end_date_raw : "",
+        quarter: nr ? nr.churn_quarter : null,
+        amount: nr ? (+nr.amount_raw || 0) : 0
+      };
+    }), x => x.quarter, x => x.end, 1);
+
+    groups.forEach(g => {
+      const arr = g.items.reduce((s, x) => s + x.amount, 0);
+      const n   = g.items.length;
+      html += `<div class="letter-group" id="${g.anchor}">` +
+        `<div class="letter-heading cq-heading">` +
+          `<span class="cq-label">${esc(g.label)}</span>` +
+          (g.months ? `<span class="cq-months">${esc(g.months)}</span>` : "") +
+          `<span class="cq-meta">${n} account${n !== 1 ? "s" : ""}` +
+            (arr > 0 ? ` &middot; ${fmtUsd(arr)} renewing` : "") + `</span>` +
+        `</div>`;
+      g.items.forEach(x => { html += buildCard(x.a); });
+      html += "</div>";
+    });
+    buildQuarterJump(groups);
+  } else {
+    const groups = {};
+    visible.forEach(a => {
+      const letter = (a.name[0] || "#").toUpperCase();
+      if (!groups[letter]) groups[letter] = [];
+      groups[letter].push(a);
+    });
+    const letters = Object.keys(groups).sort();
+    letters.forEach(letter => {
+      html += `<div class="letter-group" id="letter-${letter}"><div class="letter-heading">${letter}</div>`;
+      groups[letter].forEach(a => { html += buildCard(a); });
+      html += "</div>";
+    });
+    buildAlphaJump(letters);
+  }
+
   document.getElementById("account-list").innerHTML = html;
   document.getElementById("no-results").style.display = visible.length === 0 ? "block" : "none";
   document.getElementById("count-badge").textContent = visible.length + " account" + (visible.length !== 1 ? "s" : "");
@@ -3237,7 +3714,93 @@ function renderAccounts() {
   // the other three panels are all views onto the same set.
   setCount("tab-count-engagement", visible.length);
   setCount("sub-count-accounts",   visible.length);
-  buildAlphaJump(letters);
+}
+
+function setAccountSort(mode) {
+  accountSort = mode;
+  document.querySelectorAll("[data-acctsort]").forEach(b =>
+    b.classList.toggle("active", b.dataset.acctsort === mode));
+  renderAccounts();
+}
+
+// ── Churn-quarter grouping (Accounts, Renewals, Expansions) ────────────────
+// The account\'s next renewal: earliest end date, ignoring undated ones unless
+// that is all there is.
+function nextRenewal(a) {
+  const rs = (a.renewals || []).slice();
+  if (rs.length === 0) return null;
+  rs.sort((x, y) => {
+    const xe = x.end_date_raw || "9999", ye = y.end_date_raw || "9999";
+    return xe < ye ? -1 : xe > ye ? 1 : 0;
+  });
+  return rs[0];
+}
+
+// Buckets items by fiscal quarter label, in chronological order (reversed when
+// dir is -1), with items inside each bucket ordered by sortKey. A missing
+// quarter (null) means "no open renewal"; a blank/em-dash one means the
+// renewal has no churn quarter set. Both sort after every real quarter.
+function groupByChurnQuarter(items, quarterOf, sortKey, dir) {
+  const NONE = "__none__", UNSET = "__unset__";
+  const buckets = {};
+  items.forEach(x => {
+    const raw = quarterOf(x);
+    const k = raw === null || raw === undefined ? NONE
+            : (/^Q[1-4]-\\d{4}$/.test(String(raw).trim()) ? String(raw).trim() : UNSET);
+    (buckets[k] = buckets[k] || []).push(x);
+  });
+  const rank = k => k === NONE ? Infinity : k === UNSET ? 1e9 : saasQuarterKey(k);
+  const keys = Object.keys(buckets).sort((x, y) => {
+    const special = (k) => k === NONE || k === UNSET;
+    // Unset / none stay at the bottom whichever way the dates run.
+    if (special(x) || special(y)) return rank(x) - rank(y);
+    return (rank(x) - rank(y)) * dir;
+  });
+  return keys.map(k => ({
+    key: k,
+    label: k === NONE ? "No open renewal" : k === UNSET ? "No churn quarter" : k,
+    months: (k === NONE || k === UNSET) ? "" : saasQuarterMonths(k),
+    anchor: "cq-" + k.replace(/[^A-Za-z0-9]/g, "_"),
+    items: buckets[k].slice().sort((x, y) => {
+      const xa = sortKey(x) || "9999", ya = sortKey(y) || "9999";
+      return (xa < ya ? -1 : xa > ya ? 1 : 0) * dir;
+    })
+  }));
+}
+
+// Group heading row for the flat Renewals / Expansions tables.
+function cqGroupRow(g, colspan, noun, amountOf) {
+  const n   = g.items.length;
+  const tot = g.items.reduce((s, x) => s + (+amountOf(x) || 0), 0);
+  return `<tr class="cq-group-row"><td colspan="${colspan}">${esc(g.label)}` +
+    (g.months ? `<span class="cq-months">${esc(g.months)}</span>` : "") +
+    `<span class="cq-meta">${n} ${noun}${n !== 1 ? "s" : ""}` +
+    (tot > 0 ? ` &middot; ${fmtUsd(tot)}` : "") + `</span></td></tr>`;
+}
+
+// Fiscal quarter label for a "YYYY-MM-DD" date — the JS twin of
+// date_to_fiscal_quarter(): FY starts in February and is labelled by the
+// calendar year it ends in, so March 2026 is "Q1-2027".
+function dateToFiscalQuarter(ymd) {
+  const m = String(ymd || "").match(/^(\\d{4})-(\\d{2})/);
+  if (!m) return "";
+  const y = parseInt(m[1], 10), mo = parseInt(m[2], 10);
+  const q = Math.floor(((mo - 2 + 12) % 12) / 3) + 1;
+  return "Q" + q + "-" + (mo >= 2 ? y + 1 : y);
+}
+
+function expansionQuarter(e) {
+  const fp = String(e.fiscal_period || "").trim();
+  return /^Q[1-4]-\\d{4}$/.test(fp) ? fp : dateToFiscalQuarter(e.close_date_raw);
+}
+
+// Sidebar jump links for the End Date view — one per churn-quarter group.
+function buildQuarterJump(groups) {
+  const label = document.getElementById("jump-label");
+  if (label) label.textContent = "Jump to Quarter";
+  document.getElementById("alpha-jump").innerHTML = groups.map(g =>
+    `<a href="#${g.anchor}" class="has-accounts cq-jump">${esc(g.key.indexOf("__") === 0 ? (g.key === "__none__" ? "None" : "Unset") : g.label)}</a>`
+  ).join("");
 }
 
 // ── Renewals render ────────────────────────────────────────────────────────
@@ -3289,7 +3852,7 @@ function renderRenewals() {
     return `<th class="${cls}" onclick="sortRenewals(\'${c.key}\')">${c.label}</th>`;
   }).join("");
 
-  const bodyRows = rows.map(r => {
+  const renewalRow = r => {
     const riskCls = r.risk.toLowerCase() === "high" ? "risk-high" :
                     r.risk.toLowerCase() === "moderate" ? "risk-moderate" :
                     r.risk.toLowerCase() === "low" ? "risk-low" : "";
@@ -3306,7 +3869,14 @@ function renderRenewals() {
       <td>${esc(r.csm)}</td>
       <td>${esc(r.region)}</td>
     </tr>`;
-  }).join("");
+  };
+  // Sorted by End Date: group under churn-quarter heading rows, each with a
+  // count and ARR subtotal. Any other sort stays a flat list.
+  const bodyRows = renewalSort.col === "end_date_raw"
+    ? groupByChurnQuarter(rows, r => r.churn_quarter, r => r.end_date_raw, renewalSort.dir)
+        .map(g => cqGroupRow(g, cols.length, "renewal", r => r.amount_raw) +
+                  g.items.map(renewalRow).join("")).join("")
+    : rows.map(renewalRow).join("");
 
   document.getElementById("renewal-table").innerHTML = rows.length === 0
     ? \'<p class="empty-msg" style="padding:24px">No renewals match the current filter.</p>\'
@@ -3357,7 +3927,7 @@ function renderExpansions() {
     return `<th class="${cls}" onclick="sortExpansions(\'${c.key}\')">${c.label}</th>`;
   }).join("");
 
-  const bodyRows = rows.map(e => `<tr>
+  const expansionRow = e => `<tr>
     <td><span class="acct-link" onclick="goToAccount(\'${esc(e.account)}\')">${esc(e.account)}</span></td>
     <td>${e.url ? \'<a class="opp-link" href="\' + esc(e.url) + \'" target="_blank" rel="noopener">\' + esc(e.name) + \'</a>\' : esc(e.name)}</td>
     <td>${esc(e.owner)}</td>
@@ -3366,7 +3936,15 @@ function renderExpansions() {
     <td>${esc(e.close_date)}</td>
     <td>${esc(e.next_steps)}</td>
     <td>${esc(e.region)}</td>
-  </tr>`).join("");
+  </tr>`;
+  // Sorted by Close Date: group by the quarter the expansion closes in — its
+  // Salesforce Fiscal Period, or the fiscal quarter of the close date when
+  // that is blank. Same heading rows as Renewals.
+  const bodyRows = expansionSort.col === "close_date_raw"
+    ? groupByChurnQuarter(rows, e => expansionQuarter(e), e => e.close_date_raw, expansionSort.dir)
+        .map(g => cqGroupRow(g, cols.length, "expansion", e => e.amount_raw) +
+                  g.items.map(expansionRow).join("")).join("")
+    : rows.map(expansionRow).join("");
 
   document.getElementById("expansion-table").innerHTML = rows.length === 0
     ? \'<p class="empty-msg" style="padding:24px">No expansions match the current filter.</p>\'
@@ -3437,6 +4015,8 @@ function setCSM(c) {
 
 // ── Alpha jump bar ─────────────────────────────────────────────────────────
 function buildAlphaJump(visibleLetters) {
+  const label = document.getElementById("jump-label");
+  if (label) label.textContent = "Jump to Letter";
   const container = document.getElementById("alpha-jump");
   const all = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
   container.innerHTML = all.map(l =>
@@ -3466,6 +4046,9 @@ function fmtUsd(n) {
 // ── Sidebar pill listeners ─────────────────────────────────────────────────
 document.querySelectorAll("[data-region]").forEach(btn => {
   btn.addEventListener("click", () => { setRegion(btn.dataset.region); });
+});
+document.querySelectorAll("[data-acctsort]").forEach(btn => {
+  btn.addEventListener("click", () => { setAccountSort(btn.dataset.acctsort); });
 });
 document.querySelectorAll("[data-csm]").forEach(btn => {
   btn.addEventListener("click", () => { setCSM(btn.dataset.csm); });
@@ -3507,7 +4090,8 @@ function renderChanges() {
     buildChangeSection("expansions",    "Expansions",      CHANGES_DATA.expansions,    renderExpansionChanges),
     buildChangeSection("forecast",      "Churn Forecast",  CHANGES_DATA.forecast,      renderForecastChanges),
     buildChangeSection("csm_table",     "CSM Assignments", CHANGES_DATA.csm_table,     renderCSMChanges),
-    buildChangeSection("saas_pipeline", "SaaS Pipeline",   CHANGES_DATA.saas_pipeline, renderSaaSChanges)
+    buildChangeSection("saas_pipeline", "SaaS Pipeline",   CHANGES_DATA.saas_pipeline, renderSaaSChanges),
+    buildChangeSection("escalations",   "Escalations",     CHANGES_DATA.escalations,   renderEscalationChanges)
   ].join("");
 }
 
@@ -3840,6 +4424,63 @@ function renderSaaSChanges(data) {
   return html;
 }
 
+// Escalation changes (changes_detail$escalations), keyed on the Jira issue key.
+// "Added" is an escalation raised since the last snapshot, "removed" is one that
+// closed — a close is good news and is worth reading as prominently as a raise,
+// so both get the issue key as a link out rather than bare text.
+function renderEscalationChanges(data) {
+  let html = "";
+
+  const escTable = (label, rows, badgeCls) => {
+    if (!rows || rows.length === 0) return "";
+    const body = rows.map(r => `
+      <tr>
+        <td><a href="${esc(r.url || "#")}" target="_blank" rel="noopener">${esc(r.key || "")}</a></td>
+        <td>${esc(r.severity || "\\u2014")}</td>
+        <td>${r["Account Name"]
+              ? `<span class="acct-link" onclick="goToAccount(\'${esc(r["Account Name"])}\')">${esc(r["Account Name"])}</span>`
+              : `<span class="esc-unmatched">no account matched</span>`}</td>
+        <td>${esc(r.status || "\\u2014")}</td>
+        <td>${r.age_days != null ? r.age_days + "d" : "\\u2014"}</td>
+        <td>${esc(r.summary || "")}</td>
+      </tr>`).join("");
+    return `
+      <div class="chg-group">
+        <div class="chg-group-title"><span class="chg-badge ${badgeCls}">${label} (${rows.length})</span></div>
+        <table class="flat-table">
+          <thead><tr><th>Issue</th><th>Severity</th><th>Account</th><th>Status</th><th>Age</th><th>Summary</th></tr></thead>
+          <tbody>${body}</tbody>
+        </table>
+      </div>`;
+  };
+
+  html += escTable("+ Raised",  data.added,   "chg-added");
+  html += escTable("&#8722; Closed", data.removed, "chg-removed");
+
+  // Severity and status moves on issues open in both runs. Both columns render
+  // even when only one moved — chgArrow() collapses an unchanged pair to the
+  // plain value, so an empty cell would be ambiguous where this is not.
+  const fc = data.field_changes || [];
+  if (fc.length > 0) {
+    const rows = fc.map(r => `
+      <tr>
+        <td>${esc(r.key || "")}</td>
+        <td>${r["Account Name"] ? esc(r["Account Name"]) : `<span class="esc-unmatched">\\u2014</span>`}</td>
+        <td>${chgArrow(r["severity.old"], r["severity.new"])}</td>
+        <td>${chgArrow(r["status.old"],   r["status.new"])}</td>
+      </tr>`).join("");
+    html += `
+      <div class="chg-group">
+        <div class="chg-group-title"><span class="chg-badge chg-changed">&#126; Severity / Status (${fc.length})</span></div>
+        <table class="flat-table">
+          <thead><tr><th>Issue</th><th>Account</th><th>Severity</th><th>Status</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+  }
+  return html;
+}
+
 // ── Diff-date picker ───────────────────────────────────────────────────────
 function populateSnapshots(dates) {
   const sel = document.getElementById("diff-date");
@@ -3904,6 +4545,8 @@ render();
 </body>
 </html>'
 
+  tmpl <- gsub("{{FAVICON}}",     .rah_favicon_tag(favicon), tmpl, fixed = TRUE)
+  tmpl <- gsub("{{UPDATED}}",     html_escape(updated),  tmpl, fixed = TRUE)
   tmpl <- gsub("{{REGION_PILLS}}", region_pills,          tmpl, fixed = TRUE)
   tmpl <- gsub("{{CSM_PILLS}}",   csm_pills,             tmpl, fixed = TRUE)
   tmpl <- gsub("{{SM_LIFECYCLE_PILLS}}", sm_lifecycle_pills, tmpl, fixed = TRUE)
@@ -3914,4 +4557,47 @@ render();
   tmpl <- gsub("{{ESCALATIONS}}",  escalations_json,      tmpl, fixed = TRUE)
   tmpl <- gsub("{{JSON_DATA}}",    json_data,             tmpl, fixed = TRUE)
   tmpl
+}
+
+
+# ---- Internal: favicon ------------------------------------------------------
+
+# A local copy wins over the website's, since an embedded icon also shows when
+# the page is opened offline or from a downloaded copy.
+.rah_default_favicon <- function() {
+  local <- file.path(c("inst/assets", "assets", "output/assets"),
+                     rep(c("immuta_favicon.svg", "immuta_favicon.png",
+                           "immuta_favicon.ico"), each = 3))
+  hit <- local[file.exists(local)]
+  if (length(hit)) hit[1] else "https://www.immuta.com/favicon.ico"
+}
+
+# <link rel="icon"> for a local file (inlined as a data: URI) or a URL.
+.rah_favicon_tag <- function(favicon) {
+  if (is.null(favicon) || length(favicon) == 0 || is.na(favicon[1]) ||
+      !nzchar(favicon[1])) return("")
+  favicon <- favicon[1]
+
+  if (grepl("^(https?:)?//|^data:", favicon)) {
+    return(paste0('<link rel="icon" href="', html_escape(favicon), '">'))
+  }
+
+  if (!file.exists(favicon)) {
+    warning("Favicon file not found: ", favicon, " - page has no favicon.",
+            call. = FALSE)
+    return("")
+  }
+
+  ext  <- tolower(sub(".*\\.([^.]+)$", "\\1", favicon))
+  mime <- switch(ext,
+    ico  = "image/x-icon",
+    png  = "image/png",
+    svg  = "image/svg+xml",
+    gif  = "image/gif",
+    jpg  = , jpeg = "image/jpeg",
+    webp = "image/webp",
+    "application/octet-stream")
+  raw <- readBin(favicon, "raw", file.info(favicon)$size)
+  paste0('<link rel="icon" type="', mime, '" href="data:', mime, ';base64,',
+         jsonlite::base64_enc(raw), '">')
 }

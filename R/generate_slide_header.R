@@ -210,6 +210,20 @@ generate_slide_header <- function(account_name,
       size = sz_body, colour = "#FFFFFF"
     )
 
+  # Row 2 — when op_list was built, bottom-right. The top-right corner is the
+  # ARR block, so the date takes the corner below it: same edge, opposite row.
+  # Deliberately the quietest text on the banner — a deck slide read months
+  # later should be able to answer "how current was this?" without the date
+  # competing with the account name or the ARR figure for attention.
+  p <- p +
+    ggplot2::annotate("text",
+      x = W - pad, y = div_y * 0.50,
+      label = .op_list_updated(op_list),
+      hjust = 1, vjust = 0.5,
+      family = fam, fontface = "bold",
+      size = sz_label, colour = "#999999"
+    )
+
   # ── 5. Write file ──────────────────────────────────────────────────────────
   if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
 

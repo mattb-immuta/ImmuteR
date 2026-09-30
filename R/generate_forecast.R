@@ -50,6 +50,20 @@ generate_forecast <- function(op.table,
 
   output.list <- list()
 
+  # Quarter labels use the calendar year the fiscal year ENDS in (FY starts in
+  # February): Nov 2026 - Jan 2027 is "Q4-2027", not "Q4-2026". A label with
+  # no renewals in it would otherwise simulate a silent, flat $0 — so say so.
+  available <- sort(unique(stats::na.omit(op.table$renewals$`Churn Quarter`)))
+  missing_q <- setdiff(churn.quarters, available)
+  if (length(missing_q) > 0) {
+    warning("No renewals with Churn Quarter ",
+            paste(missing_q, collapse = ", "),
+            " - forecast for it is a flat $0. Quarters in op_list$renewals: ",
+            paste(available, collapse = ", "),
+            " (current quarter: ", date_to_fiscal_quarter(Sys.Date()), ").",
+            call. = FALSE)
+  }
+
   for (i in churn.quarters) {
     temp.renewals <- op.table$renewals %>%
       dplyr::filter(`Churn Quarter` == i) %>%
@@ -89,6 +103,19 @@ generate_forecast <- function(op.table,
     return(output.list)
   }
 
+  fig <- .forecast_ecdf_plot(output.list)
+
+  return(list(simulations = output.list, plot = fig))
+}
+
+
+# ── Internal: shared ECDF plot ────────────────────────────────────────────────
+# Interactive plotly empirical CDF of simulated churn, one line per element of
+# `sims` (a named list of numeric vectors). Clicking a point pins an annotation
+# with the exact churn value and percentile. Used by generate_forecast() and
+# generate_forecast_manual().
+.forecast_ecdf_plot <- function(sims,
+                                title = "Empirical CDF of Simulated Churn by Fiscal Quarter") {
   if (!requireNamespace("plotly", quietly = TRUE) ||
       !requireNamespace("htmlwidgets", quietly = TRUE)) {
     stop(
@@ -98,8 +125,8 @@ generate_forecast <- function(op.table,
     )
   }
 
-  ecdf.df <- do.call(rbind, lapply(names(output.list), function(q) {
-    x <- sort(output.list[[q]])
+  ecdf.df <- do.call(rbind, lapply(names(sims), function(q) {
+    x <- sort(sims[[q]])
     data.frame(
       Quarter = q,
       Value = x,
@@ -116,14 +143,14 @@ generate_forecast <- function(op.table,
     mode = "lines",
     line = list(shape = "hv"),
     hovertemplate = paste0(
-      "Quarter: %{fullData.name}",
+      "%{fullData.name}",
       "<br>Churn: $%{x:,.0f}",
       "<br>Percentile: %{y:.1%}",
       "<extra></extra>"
     )
   ) %>%
     plotly::layout(
-      title = "Empirical CDF of Simulated Churn by Fiscal Quarter",
+      title = title,
       xaxis = list(title = "Simulated Total Churn ($)", tickformat = "$,.0f"),
       yaxis = list(title = "Cumulative Probability (Percentile)", tickformat = ".0%"),
       hovermode = "closest"
@@ -161,5 +188,5 @@ generate_forecast <- function(op.table,
     }
   ")
 
-  return(list(simulations = output.list, plot = fig))
+  fig
 }

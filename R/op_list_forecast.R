@@ -1,6 +1,6 @@
 #' Build the renewal churn-forecast child table for op_list.
 #'
-#' Runs the Salesforce "CompanyChurnReport" and returns one tidy row per
+#' Runs the Salesforce renewal churn forecast report and returns one tidy row per
 #' renewal opportunity carrying its churn quarter, churn forecast dollars,
 #' account risk, amount, stage and dates. Called automatically by
 #' \code{\link{enrich_opportunities}} and stored as \code{op_list$forecast};
@@ -17,7 +17,7 @@
 #' quarter slip between two runs is meaningless.
 #'
 #' @param sf_forecast_report Character. Salesforce report ID for the renewal
-#'   churn forecast report. Defaults to \code{"00OVH00000706ML2AY"}.
+#'   churn forecast report. Defaults to \code{"00OVV000006hrNN2AY"}.
 #' @param opportunity_table Optional data frame — typically the raw opportunity
 #'   report from \code{\link{enrich_opportunities}}. When supplied,
 #'   \code{Account Name} and \code{Account ID} are joined on
@@ -42,7 +42,7 @@
 #'   fc <- op_list_forecast()
 #' }
 #' @export
-op_list_forecast <- function(sf_forecast_report = "00OVH00000706ML2AY",
+op_list_forecast <- function(sf_forecast_report = "00OVV000006hrNN2AY",
                              opportunity_table  = NULL,
                              quiet              = FALSE) {
 
@@ -56,6 +56,40 @@ op_list_forecast <- function(sf_forecast_report = "00OVH00000706ML2AY",
   cq <- grep("^churn quarter$", tolower(names(fc)))
   if (length(cq) == 1) names(fc)[cq] <- "Churn Quarter"
 
+  # ── Normalise / recover the Opportunity ID ──────────────────────────────────
+  # Report layouts label the ID differently ("Opportunity ID 18",
+  # "Opportunity: Opportunity ID", ...). If there is no ID column at all, look
+  # it up from the opportunity report by Opportunity Name.
+  if (!"Opportunity ID" %in% names(fc)) {
+    id_col <- names(fc)[grepl("^(opportunity[: ]*)?(opportunity )?id( 18)?$|^opp(ortunity)? id",
+                              tolower(names(fc)))]
+    if (length(id_col)) {
+      names(fc)[names(fc) == id_col[1]] <- "Opportunity ID"
+    } else if ("Opportunity Name" %in% names(fc) && !is.null(opportunity_table) &&
+               all(c("Opportunity Name", "Opportunity ID") %in% names(opportunity_table))) {
+      ot  <- as.data.frame(opportunity_table, check.names = FALSE, stringsAsFactors = FALSE)
+      ot  <- ot[!duplicated(trimws(ot[["Opportunity Name"]])), , drop = FALSE]
+      idx <- match(trimws(as.character(fc[["Opportunity Name"]])),
+                   trimws(as.character(ot[["Opportunity Name"]])))
+      fc[["Opportunity ID"]] <- as.character(ot[["Opportunity ID"]])[idx]
+      # Summary/total rows have no name, so they stay NA and drop out below.
+      n_hit <- sum(!is.na(idx))
+      n_opp <- sum(!is.na(fc[["Opportunity Name"]]) &
+                   nzchar(trimws(as.character(fc[["Opportunity Name"]]))))
+      if (!quiet) message("  forecast: Opportunity ID matched by name for ",
+                          n_hit, " of ", n_opp, " row(s)")
+    }
+  }
+  # The opportunity report may carry 15- or 18-character IDs; align to its form.
+  if ("Opportunity ID" %in% names(fc) && !is.null(opportunity_table) &&
+      "Opportunity ID" %in% names(opportunity_table)) {
+    ref_len <- stats::median(nchar(stats::na.omit(
+      as.character(opportunity_table[["Opportunity ID"]]))))
+    if (isTRUE(ref_len == 15)) {
+      fc[["Opportunity ID"]] <- substr(as.character(fc[["Opportunity ID"]]), 1, 15)
+    }
+  }
+
   # ── Drop subtotal / grand-total rows ────────────────────────────────────────
   # Aggregate rows have no Opportunity ID; some exports also label them in the
   # grouping column. Detail rows always carry an ID.
@@ -68,14 +102,33 @@ op_list_forecast <- function(sf_forecast_report = "00OVH00000706ML2AY",
     }
     fc <- fc[keep, , drop = FALSE]
   } else {
-    warning("Forecast report has no 'Opportunity ID' column — it cannot be ",
-            "diffed or joined to accounts. Check report ", sf_forecast_report,
-            call. = FALSE)
+    warning("Forecast report has no 'Opportunity ID' column (and none could ",
+            "be recovered by Opportunity Name) — it cannot be diffed or joined ",
+            "to accounts. Check report ", sf_forecast_report, ". Columns: ",
+            paste(names(fc), collapse = ", "), call. = FALSE)
   }
 
   # ── Fill the Churn Quarter grouping down ────────────────────────────────────
   if ("Churn Quarter" %in% names(fc) && nrow(fc) > 0) {
     fc[["Churn Quarter"]] <- .fc_fill_down(as.character(fc[["Churn Quarter"]]))
+  }
+
+  # ── Currency-converted columns ──────────────────────────────────────────────
+  # Multi-currency orgs label the USD figures "Churn Forecast (converted)" /
+  # "Amount (converted)". Use those when the plain column is absent (or empty),
+  # so the forecast isn't silently $0.
+  for (base in c("Churn Forecast", "Amount")) {
+    conv <- paste0(base, " (converted)")
+    if (conv %in% names(fc)) {
+      plain_empty <- !base %in% names(fc) ||
+        all(is.na(suppressWarnings(as.numeric(gsub("[$,]", "", as.character(fc[[base]]))))))
+      if (plain_empty) fc[[base]] <- fc[[conv]]
+    }
+  }
+  if (!"Churn Forecast" %in% names(fc)) {
+    warning("Forecast report ", sf_forecast_report, " has no 'Churn Forecast' ",
+            "column, so forecast churn reads as $0. Columns: ",
+            paste(names(fc), collapse = ", "), call. = FALSE)
   }
 
   # ── Coerce the numeric metrics ──────────────────────────────────────────────
