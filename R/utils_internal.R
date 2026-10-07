@@ -271,11 +271,6 @@ build_field <- function(label, value) {
   paste0("- **", label, ":** ", val)
 }
 
-#' Alias for \code{build_field}; used in markdown report builders.
-#' @noRd
-asana_field <- build_field
-
-
 # --- HTML helpers -------------------------------------------------------------
 
 #' Escape special HTML characters in a string.
@@ -289,8 +284,8 @@ html_escape <- function(x) {
   x
 }
 
-#' Build an Asana-compatible HTML list item: "<li><strong>Label:</strong> value</li>".
+#' Build an HTML list item: "<li><strong>Label:</strong> value</li>".
 #' @noRd
-asana_li <- function(label, value) {
+html_li <- function(label, value) {
   paste0("<li><strong>", label, ":</strong> ", safe_val(value), "</li>")
 }

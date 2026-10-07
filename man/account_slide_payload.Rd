@@ -25,7 +25,9 @@ A named list with elements:
     escalations_90d, escalations_360d, escalations_open, deployment
     (the SaaS / SM: Supported / SM: Unsupported badge text),
     deployment_color, version.}
-  \item{\code{engagement}}{last_qbr, next_qbr, qbr_note.}
+  \item{\code{engagement}}{contacts (Executive Buyer then Champion, each
+    label/name/relationship/influence plus a dot colour for the two
+    ratings), last_qbr, next_qbr, qbr_note.}
 }
 }
 \description{

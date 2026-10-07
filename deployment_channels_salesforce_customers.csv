@@ -1,0 +1,223 @@
+deployment_channel,salesforce_customer_name
+#deployment-acorns,Acorns Grow Incorporated
+#deployment-activision,Activision Blizzard
+#deployment-adp,ADP
+#deployment-advara-heart-care,Advara Heart Care
+#deployment-alpine-physician-partners,Alpine Physician Partners
+#deployment-american-century-investments,American Century Investments
+#deployment-amex,American Express
+#deployment-amgen,Amgen
+#deployment-ams,ams AG
+#deployment-aon,AON
+#deployment-asb-bank,ASB Bank
+#deployment-asic,Australian Securities and Investments Commission
+#deployment-assetmark,AssetMark
+#deployment-astrazeneca,AstraZeneca
+#deployment-att,AT&T
+#deployment-autodesk,Autodesk
+#deployment-aviva,Aviva
+#deployment-aws-datamesh-quickstart,Amazon Web Services (AWS)
+#deployment-axa-spain,AXA Group
+#deployment-bah,Booz Allen Hamilton
+#deployment-bakerhughes,Baker Hughes
+#deployment-baml,Bank of America Merrill Lynch International
+#deployment-bank-of-queensland,Bank of Queensland
+#deployment-barclays,Barclays
+#deployment-bc-idaho,Blue Cross of Idaho
+#deployment-bcbsm,Blue Cross Blue Shield of Michigan
+#deployment-bcbsnc,Blue Cross & Blue Shield of North Carolina
+#deployment-becton-dickinson,"Becton, Dickinson and Co."
+#deployment-bhg,BHG
+#deployment-blackrock,"BlackRock, Inc."
+#deployment-bny,BNY
+#deployment-bob,BOB
+#deployment-boeing,Boeing
+#deployment-bokf,Bank of Oklahoma
+#deployment-booking,Booking Holdings
+#deployment-boq,Bank of Queensland
+#deployment-branch-financial,Branch Insurance
+#deployment-brex,Brex
+#deployment-bupa,BUPA
+#deployment-canadianredcross,Canadian Red Cross
+#deployment-carbonarc,Carbon Arc
+#deployment-cardinal-health,Cardinal Health
+#deployment-cba,CBA
+#deployment-cbp-beagle,CUSTOMS AND BORDER PROTECTION (CBP)
+#deployment-cbre,CBRE
+#deployment-ceridian,Ceridian
+#deployment-chevron,Chevron
+#deployment-cigna,Cigna
+#deployment-cint,Cint
+#deployment-citi-tts,Citi
+#deployment-ckh-three,
+#deployment-coastal,Coastal
+#deployment-cognoa,Cognoa
+#deployment-cogstate,Cogstate
+#deployment-coinbase,Coinbase
+#deployment-collins,Collins Aerospace
+#deployment-collinsaerospace,Collins Aerospace
+#deployment-covestro,Covestro
+#deployment-covid-alliance,
+#deployment-data-robot,DataRobot
+#deployment-datavant,Datavant
+#deployment-dcgov,DC.Gov
+#deployment-dha-omds,Defense Health Agency (DHA)
+#deployment-digit,Digit
+#deployment-disney-studios,Disney Entertainment & ESPN
+#deployment-dnb,DNB
+#deployment-dos-inl,U.S. Department of State
+#deployment-drop,Dropbox
+#deployment-dxc,DXC
+#deployment-edward-jones,Edward Jones
+#deployment-eisai,Eisai
+#deployment-esure,esure Group
+#deployment-exactsciences,Exact Sciences
+#deployment-expedia,Expedia
+#deployment-ey,Ey
+#deployment-ey-vat,EY - New York
+#deployment-fda-cderone,FDA CDRH
+#deployment-federal-reserve-bank,Federal Reserve Bank
+#deployment-fidelity,Fidelity
+#deployment-finastra,Finastra
+#deployment-finra,FINRA
+#deployment-flux,FLUX
+#deployment-freewheel,FreeWheel
+#deployment-freshfields,Freshfields Service Company
+#deployment-ge-aviation,GE Aviation
+#deployment-ge-predix,General Electric
+#deployment-gel,Genomics England
+#deployment-general-motors,General Motors
+#deployment-ginkgo,Ginkgo Bioworks
+#deployment-grail,GRAIL
+#deployment-gsa,U.S. General Services Administration (GSA)
+#deployment-gsk,GSK plc
+#deployment-guy-carpenter,Guy Carpenter
+#deployment-healthcatalyst,Health Catalyst
+#deployment-helix,Helix
+#deployment-hp-external-chat,HP Inc
+#deployment-hsbc,HSBC
+#deployment-iag,IAG
+#deployment-iag-rollin,IAG
+#deployment-immuta,
+#deployment-innovage,Innovage
+#deployment-instacart,Instacart
+#deployment-ironmountain,Iron Mountain
+#deployment-irs,Internal Revenue Service (IRS)
+#deployment-janssen,Janssen
+#deployment-janushenderson,Janus Henderson Investors
+#deployment-jpmc-awm,JPMorgan Chase
+#deployment-jpmc-cb,JPMorgan Chase
+#deployment-jpmc-ccb,JPMorgan Chase
+#deployment-jpmc-cdao,JPMorgan Chase
+#deployment-jpmc-cib,JPMorgan Chase
+#deployment-jpmc-ep,JPMorgan Chase
+#deployment-kantar,Kantar
+#deployment-katahdin,Monte Carlo Data
+#deployment-keane,Cerberus Capital Management
+#deployment-klarrio,Klarrio
+#deployment-koch,Koch
+#deployment-komodo,Komodo Health
+#deployment-kroll,Kroll
+#deployment-lapetus,Lapetus Solutions
+#deployment-latch,Latch
+#deployment-leidos,Leidos
+#deployment-lennar,Lennar
+#deployment-libertymutual,Liberty Mutual
+#deployment-lilly,Eli Lilly
+#deployment-lmi,LMI Consulting LLC
+#deployment-lockton,Lockton
+#deployment-logibec-demo,Logibec
+#deployment-m1,M1
+#deployment-macnica,Macnica
+#deployment-madrigal,Madrigal Pharmaceuticals
+#deployment-mandg,M&G
+#deployment-mckesson,McKesson
+#deployment-medtronic,MiniMed (Medtronic)
+#deployment-merck,Merck & Co.
+#deployment-microsoft-va,Microsoft
+#deployment-millenium,Millennium
+#deployment-ministère-des-armées,Ministère des Armées
+#deployment-ministry-of-health-manatu-hauora,Ministry of Health Manatu Hauora
+#deployment-moneylion,MoneyLion
+#deployment-morganstanley,Morgan Stanley
+#deployment-mscience,MSCI
+#deployment-nationwide,Nationwide
+#deployment-navy-msc,Military Sealift Command (MSC)
+#deployment-nbn,nbn
+#deployment-nestle,Nestlé
+#deployment-nextera,NextEra Energy
+#deployment-nib,NIB Group
+#deployment-nielsen,Nielsen
+#deployment-nisc,NISC
+#deployment-novant-health,Novant Health
+#deployment-novartis,Novartis Pharmaceuticals (US Headquarters)
+#deployment-nvidia,NVIDIA
+#deployment-origent,Origent Data Sciences
+#deployment-pfizer,Pfizer
+#deployment-piaggioff,Piaggio Fast Forward
+#deployment-pivotal-manpower,ManpowerGroup
+#deployment-point72,Point72 Asset Management
+#deployment-pttep,PTTEP
+#deployment-pumpjack,PumpJack Dataworks
+#deployment-radar,Radar
+#deployment-rallyhealth,Rally Health
+#deployment-reddit,Reddit
+#deployment-redventures,Red Ventures
+#deployment-resideo,Resideo
+#deployment-resmed,ResMed
+#deployment-rimes,Rimes Technologies
+#deployment-roche,Roche
+#deployment-rollsroyce,Rolls-Royce
+#deployment-rtx,RTX Corporation
+#deployment-sagent,Sagent Technology
+#deployment-scb,Siam Commercial Bank
+#deployment-schneider,Schneider
+#deployment-schneiderelectric,Schneider Electric
+#deployment-scotiabank,Scotiabank
+#deployment-shell,Shell
+#deployment-shire,Berkshire Hathaway
+#deployment-siam-commercial-bank,Siam Commercial Bank
+#deployment-sidecar,Sidecar
+#deployment-signify-health,Signify Health
+#deployment-skyscanner,Skyscanner
+#deployment-snp-global,S&P Global Inc
+#deployment-snp-mi,S&P Global
+#deployment-socure,Socure
+#deployment-sonos,Sonos
+#deployment-sony,Sony
+#deployment-spark,Spark
+#deployment-sportsbet,Sportsbet
+#deployment-statefarm,State Farm
+#deployment-stellantis,Stellantis
+#deployment-t_rowe,T. Rowe Price
+#deployment-takeda,Takeda EU
+#deployment-tdbank,TD Bank Group
+#deployment-technip-fmc,TechnipFMC
+#deployment-temasek-,Temasek International
+#deployment-thermo-fisher,Thermo Fisher Scientific
+#deployment-thomson-reuters,Thomson Reuters
+#deployment-thryv,Thryv
+#deployment-tinder,Tinder
+#deployment-trifacta,Trifacta
+#deployment-uhg,UHG
+#deployment-umd,umd
+#deployment-usps,United States Postal Service (USPS)
+#deployment-va,Department of Veterans Affairs (VA)
+#deployment-vanderbilt,Vanderbilt University
+#deployment-vanguard,The Vanguard Group
+#deployment-verana-health,Verana Health
+#deployment-vercel-immuta-ext,Vercel
+#deployment-verizon,Verizon
+#deployment-vertex,Vertex
+#deployment-vidant,Vidant Health
+#deployment-videoamp,VideoAmp
+#deployment-vizient,Vizient
+#deployment-vsp,VSP
+#deployment-wesfarmers,Wesfarmers
+#deployment-westpac,Westpac
+#deployment-wildlife,Wildlife Studios
+#deployment-worldpay,Worldpay Group
+#deployment-xant,Xantie
+#deployment-yotpo,Yotpo
+#deployment-zapier,Zapier
+#deployment-zillow,Zillow Group

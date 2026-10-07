@@ -6,8 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ImmuteR is an R package (not a generic script collection) that fuses Salesforce, Looker, and Productboard
 data for Immuta's customer success workflows. It pulls and enriches opportunity/renewal/expansion/consumption
-data, generates risk and churn-forecast signals, and pushes outputs to Google Sheets, Rmarkdown/HTML reports,
-and Asana. There is a single owner/user (Matt) running this interactively from RStudio — it is not deployed
+data, generates risk and churn-forecast signals, and pushes outputs to Google Sheets and Rmarkdown/HTML
+reports. There is a single owner/user (Matt) running this interactively from RStudio — it is not deployed
 as a service beyond the local Plumber refresh API described below.
 
 ## Commands
@@ -60,8 +60,8 @@ googlesheets4::gs4_auth(email = "matt.benigni@immuta.com")
 ```
 
 Required environment variables (set in `.Renviron` via `usethis::edit_r_environ()`):
-`ASANA_TOKEN`, `LOOKER_CLIENT_ID`, `LOOKER_CLIENT_SECRET`, `PRODUCTBOARD_API_TOKEN` (only needed if
-`productboard = TRUE`). `LOOKER_BASE_URL` and `IMMUTER_PROJECT_ROOT`/`IMMUTER_DIFF_DATE` are optional
+`LOOKER_CLIENT_ID`, `LOOKER_CLIENT_SECRET`, `PRODUCTBOARD_API_TOKEN` (only needed if
+`productboard = TRUE`), `SLACK_BOT_TOKEN` (only needed to post with `push_slack_snitch(dry_run = FALSE)`). `LOOKER_BASE_URL` and `IMMUTER_PROJECT_ROOT`/`IMMUTER_DIFF_DATE` are optional
 overrides, the latter two set automatically by `serve.R`/`api.R`, not by the user.
 
 ## Architecture
@@ -88,7 +88,7 @@ an S4/R6 class, assembled in stages:
    snapshot pattern is how the package surfaces "what changed since last run" without a database.
 
 3. A family of `output_*()` / `report_*()` functions consume the finished `op_list` to produce Google
-   Sheets writes, reactable/HTML tables, per-account Markdown/HTML/RTF summaries, and Asana task pushes.
+   Sheets writes, reactable/HTML tables, and per-account Markdown/HTML/RTF summaries.
    These are read-only with respect to `op_list` — none of them mutate it.
 
 Because of this structure, when adding a new data source, the pattern to follow is: fetch/shape it in its
@@ -118,8 +118,8 @@ changes rather than hardcoding numbers elsewhere.
 ### Formatting/rendering helpers are centralized and unexported
 
 R/utils_internal.R holds the shared, non-exported helpers (`safe_val`, `fmt_usd`, `fmt_date`, `fmt_days`,
-`fmt_bool`, `fmt_risk`, `build_field`/`asana_field`, `html_escape`, `asana_li`) used across the
-`report_*`/`output_*`/`push_asana_*` functions to keep Markdown/HTML/Asana rendering consistent
+`fmt_bool`, `fmt_risk`, `build_field`, `html_escape`, `html_li`) used across the
+`report_*`/`output_*` functions to keep Markdown/HTML rendering consistent
 (e.g. every missing value renders as an em-dash, not blank or `NA`). New report/output functions should
 reuse these rather than reimplementing formatting inline.
 
@@ -133,8 +133,17 @@ reuse these rather than reimplementing formatting inline.
   since the two systems' names aren't guaranteed identical; unmatched companies are tracked explicitly
   rather than silently dropped.
 - **Google Sheets**: via `googlesheets4`, functions named `output_gsheet_*`.
-- **Asana**: via raw `httr2` calls against the REST API (not a wrapper package) in
-  R/push_asana_account_summary.R, matched to existing tasks by account name.
+- **Slack**: `data/input/slack_channels.csv` is a hand-maintained dictionary of each customer's internal
+  Slack channel (`Account Name`, `Account ID 18`, `slack_channel`, `slack_channel_id`), read by
+  `op_list_slack_channels()` and joined onto `op_list$accounts` in `enrich_opportunities()` (matched on
+  `Account ID 18` first, name second). `push_slack_snitch()` (R/push_slack_snitch.R) takes
+  `report_next_step_snitch()` output and posts one message per flagged account to its channel via raw
+  `httr2` calls to `chat.postMessage` (bot token `SLACK_BOT_TOKEN`), @-mentioning the CSM from
+  `data/input/slack_users.csv`. Message wording lives in `data/input/snitch_slack_template.md` (Markdown,
+  `{{placeholders}}`, optional `if`/`end` comment blocks) — edit the template/CSVs, not the code. It is
+  dry-run by default and is run by hand, not from `main.R`.
+- **Local inputs**: `data/input/` holds hand-maintained files read on every run (critical_technologies.json,
+  slack_channels.csv, slack_users.csv, snitch_slack_template.md) — they are inputs, unlike the generated `output/`.
 
 ### `working_scratch/` and `output/`
 

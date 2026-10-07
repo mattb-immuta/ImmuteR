@@ -66,12 +66,18 @@ Three lime-headed sections are rendered:
     days, customer escalations over 90 days and currently open (from
     \code{op_list$support}, via BigQuery), plus deployment type, Immuta
     version, and version support status.}
-  \item{\strong{Engagement}}{Date of the last and next QBR, and the QBR
-    note (wrapped, truncated to three lines).}
+  \item{\strong{Engagement}}{Executive Buyer and Champion side by side —
+    the contact's name, then Relationship and Influence as stoplight dots
+    (Strong green, Neutral amber, Weak red); then the date of the last and
+    next QBR, and the QBR note (wrapped, truncated to two lines).}
 }
 
 Data sources: the four adoption fields, \code{Lifecycle Stage},
 \code{Is SaaS Customer}, \code{Customer on Unsupported Version}, and the
+contact-role fields (\code{executive_buyer} and \code{champion}, rolled up
+from \code{op_list$contacts} by \code{\link{enrich_opportunities}}, plus
+\code{Executive Buyer Relationship} / \code{Influence} and
+\code{Champion Relationship} / \code{Influence}), and the
 three QBR fields (\code{Date Last QBR}, \code{Date Next QBR},
 \code{QBR Note} — normalised by \code{\link{normalize_qbr_fields}}) come from
 \code{op_list$accounts}; consumption figures and \code{Immuta Version} from

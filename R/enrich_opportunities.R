@@ -49,13 +49,23 @@
 #'   environment variable (see \code{?productboard}). This step makes one API
 #'   call per note, so it's noticeably slower than the other enrich_*() steps
 #'   — hence opt-in. Defaults to \code{FALSE}.
+#' @param critical_technologies_path Character. Path to the local JSON file
+#'   that supplies the account-level \code{iam} and \code{ext_catalog} columns
+#'   (see \code{\link{op_list_critical_technologies}}). Defaults to
+#'   \code{"data/input/critical_technologies.json"}.
+#' @param slack_channels_path Character. Path to the hand-maintained CSV of
+#'   each customer's internal Slack channel, joined onto \code{op_list$accounts}
+#'   as \code{slack_channel} and \code{slack_channel_id} (see
+#'   \code{\link{op_list_slack_channels}}). Defaults to
+#'   \code{"data/input/slack_channels.csv"}.
 #' @param fiscal.period Character vector of fiscal periods to retain in expansions,
 #'   e.g. \code{c("Q1-2027", "Q2-2027")}.
 #'
 #' @return A named list with elements: \code{renewals}, \code{expansions},
 #'   \code{accounts}, \code{active_orders}, \code{csm_table}, \code{saas_pipeline},
 #'   \code{orders}, \code{contacts} (see \code{\link{op_list_contacts}}),
-#'   \code{consumption}, \code{forecast} (see
+#'   \code{consumption}, \code{csm_coverage} (see
+#'   \code{\link{op_list_csm_coverage}}), \code{forecast} (see
 #'   \code{\link{op_list_forecast}}), \code{support} (from BigQuery — see
 #'   \code{\link{op_list_support}}), and (if \code{productboard = TRUE})
 #'   \code{product_board}.
@@ -71,6 +81,8 @@ enrich_opportunities <- function(sf_opportunity_report    = "00OVH000005p6A92AI"
                                  looker                   = FALSE,
                                  low_consumption_threshold = 0.25,
                                  productboard             = FALSE,
+                                 critical_technologies_path = "data/input/critical_technologies.json",
+                                 slack_channels_path      = "data/input/slack_channels.csv",
                                  fiscal.period) {
 
   message(".. enrich_opportunities initiated")
@@ -200,6 +212,23 @@ enrich_opportunities <- function(sf_opportunity_report    = "00OVH000005p6A92AI"
       dplyr::mutate(multiplatform = dplyr::coalesce(multiplatform, FALSE))
   }
 
+  # ── IAM / external catalog integrations ─────────────────────────────────────
+  # From the locally maintained data/input/critical_technologies.json, not an
+  # API — so this runs on every run, Looker or not. NA for accounts the file
+  # doesn't list; the HTML report renders that as "None".
+  message(".. attaching iam / ext_catalog from ", critical_technologies_path)
+  ct_tbl <- op_list_critical_technologies(critical_technologies_path)
+  output_list[["accounts"]] <- output_list[["accounts"]] |>
+    dplyr::select(-dplyr::any_of(c("iam", "ext_catalog"))) |>
+    dplyr::left_join(ct_tbl, by = "Account Name")
+
+  # ── internal Slack channels ─────────────────────────────────────────────────
+  # From the hand-maintained data/input/slack_channels.csv — runs every time.
+  # NA for accounts without a channel yet; rows that match no account warn.
+  message(".. attaching slack channels from ", slack_channels_path)
+  output_list[["accounts"]] <- .accounts_add_slack_channels(
+    output_list[["accounts"]], op_list_slack_channels(slack_channels_path))
+
   # ── derived Request adoption tier ───────────────────────────────────────────
   # The Salesforce `Request Adoption` picklist is maintained by hand; this
   # derives the same four tiers from the stage tiles of the Request metrics
@@ -230,6 +259,59 @@ enrich_opportunities <- function(sf_opportunity_report    = "00OVH000005p6A92AI"
         )
     }
   }
+
+  # ── product adoption score ──────────────────────────────────────────────────
+  # PBAC complexity_score + Request points (retained 3, adopted 1), appended to
+  # consumption$pbac_adoption. Here rather than in op_list_consumption() because
+  # it needs the Request stage derived just above.
+  if (!is.null(output_list[["consumption"]][["pbac_adoption"]])) {
+    message(".. scoring product adoption")
+    output_list[["consumption"]][["pbac_adoption"]] <- tryCatch(
+      op_list_product_adoption(output_list[["consumption"]][["pbac_adoption"]],
+                               accounts = output_list[["accounts"]]),
+      error = function(e) {
+        warning("Product adoption skipped: ", conditionMessage(e), call. = FALSE)
+        output_list[["consumption"]][["pbac_adoption"]]
+      }
+    )
+  }
+
+  # Copy the score and rating onto accounts too, alongside the other
+  # per-account adoption fields. Left NA for accounts with no PBAC row (e.g.
+  # an SFDC-only run) — rendered as an em-dash downstream.
+  pa <- output_list[["consumption"]][["pbac_adoption"]]
+  output_list[["accounts"]] <- output_list[["accounts"]] |>
+    dplyr::select(-dplyr::any_of(c("product_adoption", "product_adoption_rating")))
+  if (is.data.frame(pa) && all(c("product_adoption", "product_adoption_rating") %in% names(pa))) {
+    output_list[["accounts"]] <- output_list[["accounts"]] |>
+      dplyr::left_join(
+        pa |>
+          dplyr::select(`Account Name`, product_adoption, product_adoption_rating) |>
+          # One row per name, so a duplicate can't fan the join out.
+          dplyr::distinct(`Account Name`, .keep_all = TRUE),
+        by = "Account Name"
+      )
+  } else {
+    output_list[["accounts"]]$product_adoption        <- NA_real_
+    output_list[["accounts"]]$product_adoption_rating <- NA_character_
+  }
+
+  # ── CSM coverage rollup ─────────────────────────────────────────────────────
+  # One row per CSM: account count, ARR, summed PBAC complexity, S1 count,
+  # Request retained, active Request, ongoing Agentic. Runs after
+  # op_list_consumption() (complexity_score) and the Request adoption
+  # derivation above (request_adoption_looker_stage on accounts).
+  message(".. building op_list$csm_coverage")
+  output_list[["csm_coverage"]] <- tryCatch(
+    op_list_csm_coverage(
+      accounts      = output_list[["accounts"]],
+      pbac_adoption = output_list[["consumption"]][["pbac_adoption"]]
+    ),
+    error = function(e) {
+      warning("CSM coverage skipped: ", conditionMessage(e), call. = FALSE)
+      NULL
+    }
+  )
 
   # ── support child list ──────────────────────────────────────────────────────
   # Pulled from BigQuery (retool-457517), not Looker — see ?op_list_support.

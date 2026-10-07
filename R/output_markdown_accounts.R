@@ -1,4 +1,4 @@
-#' Generate per-account markdown files for Asana task descriptions.
+#' Generate per-account markdown briefs.
 #'
 #' For each account in \code{op_list}, writes a \code{.md} file containing an
 #' account overview and a summary of open renewal opportunities. Files are named

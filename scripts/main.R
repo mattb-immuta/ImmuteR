@@ -44,13 +44,6 @@ if (nzchar(.env_diff_date)) {
 rm(.env_diff_date)
 fiscal.period   <- c("Q2-2027", "Q3-2027", "Q4-2027","Q1-2028")
 
-# Asana
-# Generate your token at https://app.asana.com/0/my-apps
-# Then add ASANA_TOKEN=your_token to your .Renviron (usethis::edit_r_environ())
-asana_token       <- Sys.getenv("ASANA_TOKEN")
-asana_project_gid <- "YOUR_PROJECT_GID"  # from your Asana project URL
-
-
 # Salesforce report IDs
 sf_opportunity_report    <- "00OVH000005p6A92AI"
 sf_account_report        <- "00OVH0000069G8Y2AU"
@@ -90,7 +83,9 @@ new_op_list <- enrich_opportunities(
   sf_forecast_report       = sf_forecast_report,
   sf_contacts_report       = sf_contacts_report,
   fiscal.period            = fiscal.period,
-  looker                   = TRUE
+  looker                   = TRUE,
+  # -> accounts$iam / accounts$ext_catalog
+  critical_technologies_path = "data/input/critical_technologies.json"
 )
 
 load(paste0("data/opportunities_", diff_date, ".RData"))
@@ -103,6 +98,16 @@ op_list[["constants"]] <- load_constants()
 # -----------------------------------------------------------------------------
 # Produce outputs
 # -----------------------------------------------------------------------------
+
+# Reader's guide first: report_all_accounts_html() embeds it behind the "User
+# Guide and Definitions" button. Edit inst/guide/immuta_accounts_guide.Rmd, not
+# the output. For a shareable PDF: report_user_guide(formats = "pdf").
+tryCatch(
+  report_user_guide(),                # -> output/immuta_accounts_guide.html
+  error = function(e) {
+    warning("Reader's guide skipped: ", conditionMessage(e), call. = FALSE)
+  }
+)
 
 report_all_accounts_html(op_list)   # -> output/immuta_accounts.html
 

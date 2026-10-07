@@ -1,9 +1,9 @@
 #' Render an account summary as HTML, RTF, or Markdown.
 #'
 #' Converts the structured list from \code{output_account_summary()} into a
-#' formatted file. HTML is recommended for pasting into Asana (open in browser,
-#' Cmd+A, Cmd+C, paste). RTF can be opened in Word or TextEdit and copied from
-#' there. Markdown is useful for GitHub, Notion, or version-controlled docs.
+#' formatted file. HTML can be opened in a browser and copied into any rich-text
+#' tool (Cmd+A, Cmd+C, paste). RTF can be opened in Word or TextEdit and copied
+#' from there. Markdown is useful for GitHub, Notion, or version-controlled docs.
 #'
 #' @param account_summary Named list returned by \code{output_account_summary()}.
 #' @param output_path Character. Full file path for the output file. The
@@ -46,8 +46,107 @@ report_account_summary <- function(account_summary,
 # HTML builder
 # =============================================================================
 
+# The account summary as an HTML fragment (<body>...</body>): overview,
+# architecture, open renewals, expansion pipeline. build_report_html() wraps it
+# in a styled page.
+build_summary_body_html <- function(account_summary) {
+
+  acct <- account_summary$account
+  opps <- account_summary$opportunities
+  arch <- account_summary$architecture
+
+  h <- function(...) paste0(...)
+
+  # ── Account Overview --------------------------------------------------------
+  overview_items <- paste0(collapse = "",
+    html_li("Contract ARR",  fmt_usd(acct$contract_arr)),
+    html_li("Region",        acct$region),
+    html_li("Account Owner", acct$account_owner),
+    html_li("Field CTO",     acct$field_cto),
+    html_li("CSM",           acct$csm)
+  )
+
+  # ── Architecture ------------------------------------------------------------
+  is_saas <- isTRUE(arch$is_saas)
+  deploy_item <- if (is_saas) {
+    html_li("Deployment", "\u2705 SaaS")
+  } else {
+    unsupported <- isTRUE(arch$unsupported_version %in% c(TRUE, "Yes", "TRUE", "true", "yes"))
+    paste0(
+      html_li("Deployment", "Self-Hosted"),
+      html_li("Unsupported Version",
+               if (unsupported) "\u26a0\ufe0f Yes \u2014 upgrade recommended"
+               else "\u2705 No")
+    )
+  }
+
+  if (nrow(arch$products) == 0) {
+    product_items <- "<li><em>No active order products found.</em></li>"
+  } else {
+    product_items <- paste0(apply(arch$products, 1, function(r) {
+      paste0("<li>", html_escape(r[["Product Name"]]),
+             " \u00b7 Qty: ", html_escape(r[["Quantity"]]), "</li>")
+    }), collapse = "")
+  }
+
+  # ── Renewals ----------------------------------------------------------------
+  if (nrow(opps$renewals) == 0) {
+    renewal_block <- "<li><em>No open renewals.</em></li>"
+  } else {
+    renewal_block <- paste0(apply(opps$renewals, 1, function(r) {
+      paste0(
+        "<li><strong>", html_escape(safe_val(r[["Opportunity Name"]])), "</strong>",
+        "<ul>",
+        html_li("Amount",            fmt_usd(r[["Amount"]])),
+        html_li("Contract End Date", fmt_date(r[["Current Contract End Date"]])),
+        html_li("Churn Quarter",     safe_val(r[["Churn Quarter"]])),
+        "</ul></li>"
+      )
+    }), collapse = "")
+  }
+
+  # ── Expansions --------------------------------------------------------------
+  if (nrow(opps$expansions) == 0) {
+    expansion_block <- "<li><em>No open expansion opportunities.</em></li>"
+  } else {
+    expansion_block <- paste0(apply(opps$expansions, 1, function(r) {
+      paste0(
+        "<li><strong>", html_escape(safe_val(r[["Opportunity Name"]])), "</strong>",
+        "<ul>",
+        html_li("Owner",         safe_val(r[["Opportunity Owner"]])),
+        html_li("Amount",        fmt_usd(r[["Amount"]])),
+        html_li("Fiscal Period", safe_val(r[["Fiscal Period"]])),
+        "</ul></li>"
+      )
+    }), collapse = "")
+  }
+
+  # ── Assemble ----------------------------------------------------------------
+  paste0(
+    "<body>",
+    "<em>Updated: ", format(Sys.Date(), "%B %d, %Y"), "</em>",
+
+    "<h2>\U1F4CB Account Overview</h2>",
+    "<ul>", overview_items, "</ul>",
+
+    "<h2>\U1F3D7\UFE0F Architecture</h2>",
+    "<ul>", deploy_item, "</ul>",
+    "<strong>Active Products</strong>",
+    "<ul>", product_items, "</ul>",
+
+    "<h2>\U1F504 Open Renewals</h2>",
+    "<ul>", renewal_block, "</ul>",
+
+    "<h2>\U1F4C8 Expansion Pipeline</h2>",
+    "<ul>", expansion_block, "</ul>",
+
+    "</body>"
+  )
+}
+
+
 build_report_html <- function(account_summary) {
-  inner <- build_asana_html(account_summary)
+  inner <- build_summary_body_html(account_summary)
   paste0(
     "<!DOCTYPE html><html><head><meta charset='UTF-8'><style>",
     "body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;",
@@ -198,23 +297,23 @@ build_report_md <- function(account_summary) {
     "",
     "## \U1F4CB Account Overview",
     "",
-    asana_field("Contract ARR",  fmt_usd(acct$contract_arr)),
-    asana_field("Region",        acct$region),
-    asana_field("Account Owner", acct$account_owner),
-    asana_field("Field CTO",     acct$field_cto),
-    asana_field("CSM",           acct$csm),
+    build_field("Contract ARR",  fmt_usd(acct$contract_arr)),
+    build_field("Region",        acct$region),
+    build_field("Account Owner", acct$account_owner),
+    build_field("Field CTO",     acct$field_cto),
+    build_field("CSM",           acct$csm),
     "",
     "## \U1F3D7\UFE0F Architecture",
     ""
   )
 
   if (isTRUE(arch$is_saas)) {
-    lines <- c(lines, asana_field("Deployment", "\U2705 SaaS"), "")
+    lines <- c(lines, build_field("Deployment", "\U2705 SaaS"), "")
   } else {
     unsupported <- isTRUE(arch$unsupported_version %in% c(TRUE, "Yes", "TRUE", "true", "yes"))
     lines <- c(lines,
-      asana_field("Deployment", "Self-Hosted"),
-      asana_field("Unsupported Version",
+      build_field("Deployment", "Self-Hosted"),
+      build_field("Unsupported Version",
                   if (unsupported) "\U26A0\UFE0F Yes \u2014 upgrade recommended"
                   else "\U2705 No"),
       ""
@@ -240,9 +339,9 @@ build_report_md <- function(account_summary) {
       r <- opps$renewals[i, ]
       lines <- c(lines,
         paste0("**", safe_val(r[["Opportunity Name"]]), "**"),
-        asana_field("Amount",            fmt_usd(r[["Amount"]])),
-        asana_field("Contract End Date", fmt_date(r[["Current Contract End Date"]])),
-        asana_field("Churn Quarter",     safe_val(r[["Churn Quarter"]])),
+        build_field("Amount",            fmt_usd(r[["Amount"]])),
+        build_field("Contract End Date", fmt_date(r[["Current Contract End Date"]])),
+        build_field("Churn Quarter",     safe_val(r[["Churn Quarter"]])),
         ""
       )
     }
@@ -256,9 +355,9 @@ build_report_md <- function(account_summary) {
       e <- opps$expansions[i, ]
       lines <- c(lines,
         paste0("**", safe_val(e[["Opportunity Name"]]), "**"),
-        asana_field("Owner",         safe_val(e[["Opportunity Owner"]])),
-        asana_field("Amount",        fmt_usd(e[["Amount"]])),
-        asana_field("Fiscal Period", safe_val(e[["Fiscal Period"]])),
+        build_field("Owner",         safe_val(e[["Opportunity Owner"]])),
+        build_field("Amount",        fmt_usd(e[["Amount"]])),
+        build_field("Fiscal Period", safe_val(e[["Fiscal Period"]])),
         ""
       )
     }

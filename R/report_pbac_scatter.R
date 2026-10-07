@@ -402,7 +402,8 @@ function seeded(str) {
 // Band caption, one entry per line; the two red cells are named for the
 // failing axis, matching the stored rating labels.
 function bandLines(key, highComplexity) {
-  if (key === "red") return ["RED: CRITICAL", highComplexity ? "CONSUMPTION RISK" : "ADOPTION RISK"];
+  if (key === "red")   return ["RED: HIGH RISK", highComplexity ? "CONSUMPTION" : "ADOPTION"];
+  if (key === "black") return ["BLACK: CRITICAL", "CHURN RISK"];
   return [key.toUpperCase()];
 }
 

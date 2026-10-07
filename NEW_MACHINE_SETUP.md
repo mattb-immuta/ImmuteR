@@ -35,13 +35,14 @@ Create or edit your user-level `.Renviron` file:
 usethis::edit_r_environ()
 ```
 
-Add your Asana token:
+Add your Looker API credentials:
 
 ```
-ASANA_TOKEN=your_token_here
+LOOKER_CLIENT_ID=your_client_id
+LOOKER_CLIENT_SECRET=your_client_secret
 ```
 
-Get a token at [app.asana.com/0/my-apps](https://app.asana.com/0/my-apps). Save the file and restart R (`Session → Restart R`).
+Save the file and restart R (`Session → Restart R`).
 
 ---
 
@@ -90,7 +91,7 @@ Then open the HTML file in `output/` and use the Refresh button to trigger a dat
 - [ ] RStudio installed
 - [ ] Project opened via `ImmuteR.Rproj`
 - [ ] `devtools::install_deps()` completed without errors
-- [ ] `ASANA_TOKEN` added to `.Renviron`
+- [ ] `LOOKER_CLIENT_ID` / `LOOKER_CLIENT_SECRET` added to `.Renviron`
 - [ ] Salesforce auth working (`sf_auth()`)
 - [ ] Google Sheets auth working (`gs4_auth()`)
 - [ ] `source("scripts/main.R")` runs successfully

@@ -1,6 +1,6 @@
 # Dust frame payload — field reference
 
-Generated 2026-09-30 09:44 from op_list. 72 accounts, 5 regions, 10 CSMs.
+Generated 2026-10-07 14:13 from op_list. 71 accounts, 5 regions, 9 CSMs.
 
 Six files: `accounts.json`, `changes.json`, `consumption.json`,
 `escalations.json`, `saas.json` and this dictionary.
@@ -31,7 +31,10 @@ An array of these objects, sorted by `name`.
 | `lifecycle_stage` | string | `S3: greater than 75% license consumption` | Salesforce lifecycle picklist. |
 | `pbac_adoption` | string | `Amber: Production consumption at greater than…` | Salesforce PBAC picklist. Fallback only — prefer `pbac_rating`. |
 | `pbac_rating` | string | `amber: moderate adoption` | Looker-derived PBAC rating, "<colour>: <label>". The one to show. |
-| `pbac_score` | number | `3` | Weighted complexity score, 0-7. The scatter's y axis. |
+| `pbac_score` | number | `3` | Weighted PBAC complexity score, 0-7. The account card mini plot's y axis. |
+| `product_adoption` | number | `4` | pbac_score + Request points (retained 3, adopted 1), 0-10. The Adoption page scatter's y axis. |
+| `product_rating` | string | `green: strong adoption` | product_adoption crossed with consumption ratio, "<colour>: <label>" (threshold 4 / 0.25 / 0.75). |
+| `request_points` | number | `1` | Request adoption points behind product_adoption: 3 retained, 1 adopted, 0 otherwise. |
 | `pbac_features` | string | `SDD · Domains · Data + subscription policies` | Complexity signals earned, joined with " · ". |
 | `comply_adoption` | string | `Red - Feature not enabled` | Salesforce Comply picklist. Colour word leads the string. |
 | `request_adoption` | string | `Amber: Use case in production, enabling data …` | Salesforce Request picklist. Hand-maintained. |
@@ -40,18 +43,20 @@ An array of these objects, sorted by `name`.
 | `agentic_governance_adoption` | string | `Red: Customer expressed interest in POC or de…` | Salesforce Agentic picklist. |
 | `platform_html` | string | `Databricks` | Platforms as HTML; dev-only ones are wrapped in a grey span. |
 | `multiplatform` | boolean | `FALSE` | More than one platform in Production. |
-| `registered_users` | string | `221` | Formatted count, or an em-dash. |
+| `iam` | string | `Okta` |  |
+| `ext_catalog` | string | "" |  |
+| `registered_users` | string | `222` | Formatted count, or an em-dash. |
 | `licensed_users` | string | `210` | Formatted count. "0" means an ELA (unlimited seats). |
-| `consumption_ratio` | string | `105.2%` | Pre-formatted percentage, or an em-dash. |
-| `consumption_ratio_raw` | number | `1.05238095238095` | The ratio as a number, or null. The scatter's x axis. |
+| `consumption_ratio` | string | `105.7%` | Pre-formatted percentage, or an em-dash. |
+| `consumption_ratio_raw` | number | `1.05714285714286` | The ratio as a number, or null. The scatter's x axis. |
 | `immuta_version` | string | `saas` | Deployed version, "saas" for SaaS accounts. |
-| `inc_90d` | string | `3` | Support cases in the last 90 days. |
+| `inc_90d` | string | `2` | Support cases in the last 90 days. |
 | `inc_360d` | string | `14` | Support cases in the last 360 days. |
 | `custx_90d` | string | `2` | Escalations in the last 90 days. |
 | `custx_open` | string | `1` | Escalations currently open. |
 | `custx_90d_raw` | number | `2` |  |
 | `custx_open_raw` | number | `1` |  |
-| `connections` | string | `29,010 / 29,010` | Connections migration per Production instance, "12 / 40". "None" means nothing upgraded; several instances are comma-separated and named. |
+| `connections` | string | `29,190 / 29,190` | Connections migration per Production instance, "12 / 40". "None" means nothing upgraded; several instances are comma-separated and named. |
 | `connections_raw` | number | `1` | Upgraded over total across the account, or null. Sort on this. |
 | `executive_buyer` | string | `—` | Contact name(s) from the Salesforce contacts report; several are "; "-separated. Em-dash when nobody holds the role. |
 | `buyer_relationship` | string | `—` | The executive buyer's relationship. From the account report. Strong / neutral / weak. |
@@ -69,7 +74,7 @@ An array of these objects, sorted by `name`.
 ## Nested shapes
 
 ```json
-{"renewals":[{"name":"Cummins - DBX+SYN - Q4FY27 Renewal","url":"https://immuta.lightning.force.com/lightning/r/Opportunity/006VH000003Wdvl/view","amount":"$550,032","amount_raw":550032,"end_date":"January 21, 2027","end_date_raw":"2027-01-21","churn_quarter":"Q4-2027","risk":"At Risk Renewal","next_steps":"-"}],"expansions":[{"name":"Cummins - Expansion","url":"https://immuta.lightning.force.com/lightning/r/Opportunity/006VV00000Pg6E6/view","owner":"Jonathan King","amount":"$325,000","amount_raw":325000,"fiscal_period":"Q4-2027","close_date":"January 22, 2027","close_date_raw":"2027-01-22","next_steps":"9/29 - We are meeting with Anu on October 6."}],"products":[{"name":"Connector - Databricks","quantity":"1"}]}
+{"renewals":[{"name":"Cummins - DBX+SYN - Q4FY27 Renewal","url":"https://immuta.lightning.force.com/lightning/r/Opportunity/006VH000003Wdvl/view","amount":"$550,032","amount_raw":550032,"end_date":"January 21, 2027","end_date_raw":"2027-01-21","churn_quarter":"Q4-2027","risk":"At Risk Renewal","next_steps":"-"}],"expansions":[{"name":"Cummins - Expansion","url":"https://immuta.lightning.force.com/lightning/r/Opportunity/006VV00000Pg6E6/view","owner":"Jonathan King","amount":"$325,000","amount_raw":325000,"fiscal_period":"Q4-2027","close_date":"January 22, 2027","close_date_raw":"2027-01-22","next_steps":"10/6 - Met w/ Anu today.  They are finalizing an internal review of their Data Protection strategy by mid-November.  She's agreed to target Nov 17, 18, & 19th as options for an EBR."}],"products":[{"name":"Connector - Databricks","quantity":"1"}]}
 ```
 
 ## Rating strings
@@ -113,10 +118,10 @@ state from "your filters match nothing", and the two must read differently.
 | `updated` | string | `2026-09-29` | Date only, `YYYY-MM-DD`. |
 | `Account Name` | string | `Shell` | Joined to an account, or null when no match was found. |
 | `url` | string | `https://immuta.atlassian.net/browse/CUSTX-3068` | Browse URL for the issue. Render the key as a link to it. |
-| `age_days` | number | `166` | Days since `created`. Flag at 90+; that is the stale threshold. |
+| `age_days` | number | `173` | Days since `created`. Flag at 90+; that is the stale threshold. |
 | `severity_rank` | number | `1` | Normalised urgency, 1 (most) to 5, 9 = unrecognised. Sort on this; clamp to 1-4 for colour. |
 | `Region` | string | `EMEA` | From the account, not from Jira. Null when unmatched. |
-| `csm` | string | `Noha Badawy` | From the account, not from Jira. Null when unmatched. |
+| `csm` | string | `Pratyoosh Raizada` | From the account, not from Jira. Null when unmatched. |
 
 Unlike the account records these values are **raw, not pre-formatted**: a
 missing account is `null`, not an em-dash. Escalations come straight from

@@ -17,6 +17,12 @@
 #' @param output_path Character. Path where the HTML file will be written.
 #'   Parent directories are created automatically.
 #'   Defaults to \code{"output/immuta_accounts.html"}.
+#' @param guide_path Character. The knitted reader's guide
+#'   (\code{\link{report_user_guide}}), embedded in the page behind the
+#'   "User Guide and Definitions" button. Defaults to
+#'   \code{immuta_accounts_guide.html} next to \code{output_path}. If it is
+#'   missing the page still renders, with a warning, and the button links to
+#'   that file name instead.
 #' @param favicon Character. The browser-tab icon. Either a local image file
 #'   (\code{.ico}, \code{.png}, \code{.svg}), which is embedded in the page so
 #'   it shows offline and in downloaded copies, or a URL the browser fetches
@@ -34,7 +40,9 @@
 #' @export
 report_all_accounts_html <- function(op_list,
                                      output_path = "output/immuta_accounts.html",
-                                     favicon     = .rah_default_favicon()) {
+                                     favicon     = .rah_default_favicon(),
+                                     guide_path  = file.path(dirname(output_path),
+                                                             "immuta_accounts_guide.html")) {
 
   # Ensure output directory exists
   out_dir <- dirname(output_path)
@@ -80,11 +88,27 @@ report_all_accounts_html <- function(op_list,
   saas_json        <- .build_saas_json(op_list)
   escalations_json <- .build_escalations_json(op_list)
 
+  # Reader's guide -------------------------------------------------------------
+  # The knitted guide (report_user_guide()) is embedded whole, base64-encoded,
+  # so the "User Guide and Definitions" button works in a downloaded copy with
+  # nothing else alongside it. Missing guide = button falls back to a relative
+  # link, with a warning so the build order gets fixed.
+  guide_b64 <- ""
+  if (!is.null(guide_path) && file.exists(guide_path)) {
+    guide_b64 <- jsonlite::base64_enc(readBin(guide_path, "raw", file.info(guide_path)$size))
+    guide_b64 <- gsub("[\r\n]", "", guide_b64)
+  } else {
+    warning("Reader's guide not found at ", guide_path,
+            " - run report_user_guide() before report_all_accounts_html().",
+            call. = FALSE)
+  }
+
   # Build HTML -----------------------------------------------------------------
   html <- .rah_html(json_data, regions, csms, snap_dates, changes_json, consumption_json,
                     lifecycle_stages, saas_json, escalations_json,
                     updated = .op_list_updated(op_list),
-                    favicon = favicon)
+                    favicon = favicon,
+                    guide_b64 = guide_b64)
 
   writeLines(html, output_path, useBytes = FALSE)
   message(".. wrote account HTML dashboard to ", output_path)
@@ -121,6 +145,14 @@ report_all_accounts_html <- function(op_list,
     if (is.null(x) || length(x) == 0) return(NA)
     if (!is.na(x) && trimws(as.character(x)) == "-") return(NA)
     x
+  }
+
+  # Snapshots saved before product adoption existed lack its columns; score
+  # them here (on this local copy only) so re-rendering an old op_list still
+  # draws the Adoption page.
+  pa <- op_list$consumption$pbac_adoption
+  if (is.data.frame(pa) && nrow(pa) > 0 && !("product_adoption" %in% names(pa))) {
+    op_list$consumption$pbac_adoption <- op_list_product_adoption(pa, op_list$accounts)
   }
 
   accounts     <- op_list$accounts
@@ -294,6 +326,14 @@ report_all_accounts_html <- function(op_list,
       # PBAC scatter plots it on y, against consumption_ratio_raw on x.
       pbac_score      = if (is.null(p_row)) NA_real_ else
                           suppressWarnings(as.numeric(p_row$complexity_score[1])),
+      # Product adoption = pbac_score + Request points (op_list_product_adoption()).
+      # The Adoption page scatter plots it on y and colours by its rating.
+      product_adoption = if (is.null(p_row) || !("product_adoption" %in% names(p_row))) NA_real_ else
+                           suppressWarnings(as.numeric(p_row$product_adoption[1])),
+      product_rating   = safe_val(if (is.null(p_row) || !("product_adoption_rating" %in% names(p_row))) NA
+                                  else p_row$product_adoption_rating[1]),
+      request_points   = if (is.null(p_row) || !("request_points" %in% names(p_row))) NA_real_ else
+                           suppressWarnings(as.numeric(p_row$request_points[1])),
       pbac_features   = {
         f <- pbac_feature_labels(p_row)
         if (length(f) == 0) "" else paste(f, collapse = " · ")
@@ -313,6 +353,12 @@ report_all_accounts_html <- function(op_list,
         if (is.na(ph) || length(ph) == 0) "—" else as.character(ph)
       },
       multiplatform = isTRUE(acct$multiplatform),
+      # From data/input/critical_technologies.json via enrich_opportunities().
+      # "" (not an em-dash) when absent, so the PBAC block can show "None".
+      iam         = { v <- .first_col(acct, c("iam"))
+                      if (is.null(v) || is.na(v[1]) || !nzchar(v[1])) "" else as.character(v[1]) },
+      ext_catalog = { v <- .first_col(acct, c("ext_catalog"))
+                      if (is.null(v) || is.na(v[1]) || !nzchar(v[1])) "" else as.character(v[1]) },
 
       # --- Health-summary blocks, mirroring generate_slide_tile() ---
       registered_users = .int_or_dash(reg_raw),
@@ -639,7 +685,7 @@ report_all_accounts_html <- function(op_list,
 
 # ---- Internal: full HTML page template -------------------------------------
 
-.rah_html <- function(json_data, regions, csms = character(0), snap_dates = character(0), changes_json = "null", consumption_json = "null", lifecycle_stages = character(0), saas_json = "null", escalations_json = "null", updated = "", favicon = NULL) {
+.rah_html <- function(json_data, regions, csms = character(0), snap_dates = character(0), changes_json = "null", consumption_json = "null", lifecycle_stages = character(0), saas_json = "null", escalations_json = "null", updated = "", favicon = NULL, guide_b64 = "") {
 
   region_pills <- paste(
     vapply(regions, function(r) {
@@ -1031,6 +1077,30 @@ report_all_accounts_html <- function(op_list,
   }
   .card.open .card-body { display: block; }
 
+  /* ── CS Coverage ───────────────────────────────────────────────────────── */
+  #coverage-list { padding-top: 16px; }
+  .cov-card .card-name { flex: 0 1 200px; }
+  .cov-chips { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; justify-content: flex-end; }
+  .cov-chip {
+    display: inline-flex; align-items: baseline; gap: 5px;
+    font-size: 12.5px; font-weight: 700; color: var(--text-1);
+    padding: 3px 9px; border: 1px solid var(--border);
+    border-radius: 4px; background: var(--surface); white-space: nowrap;
+  }
+  .cov-chip-k {
+    font-size: 9.5px; font-weight: 700; letter-spacing: .6px;
+    text-transform: uppercase; color: var(--text-3);
+  }
+  .cov-chip-onb { background: var(--amber-lt); border-color: #FCD34D; }
+  .cov-body { padding: 0 18px 8px; }
+  .cov-table { margin-top: 8px; }
+  .cov-table td.cov-quad { width: 34px; }
+  .cov-num { text-align: right; white-space: nowrap; }
+  .cov-table tr.cov-onboarding td { background: var(--amber-lt); }
+  .cov-table tr.cov-onboarding td:first-child { box-shadow: inset 3px 0 0 #F59E0B; }
+  .cov-onb-tag { margin-left: 8px; background: #FDE68A; color: #92400E; border-color: #F59E0B; }
+  .cov-empty { color: var(--text-3); padding: 24px 0; }
+
   /* ── Tabs ─────────────────────────────────────────────────────────────── */
   .tabs {
     display: flex;
@@ -1151,6 +1221,8 @@ report_all_accounts_html <- function(op_list,
     line-height: 1.5;
   }
   .ov-adopt-subk { color: var(--text-3); flex: none; min-width: 54px; }
+  /* PBAC evidence: wide enough for "External Catalogue" so values line up. */
+  .ov-adopt-sub-pbac .ov-adopt-subk { min-width: 98px; }
   .ov-adopt-subv { color: var(--text-2); }
   .ov-adopt-none { color: var(--text-3); }
 
@@ -1303,6 +1375,45 @@ report_all_accounts_html <- function(op_list,
   .stoplight-yellow { background: #F59E0B; }
   .stoplight-red    { background: #EF4444; }
   .stoplight-black  { background: #111111; }
+
+  /* 2x2 adoption glyph left of the account name on each card:
+     PBAC | Request
+     Comply | Agentic
+     Unrated quadrants stay neutral grey. */
+  .adopt-quad {
+    display: grid;
+    grid-template-columns: 9px 9px;
+    grid-template-rows: 9px 9px;
+    gap: 2px;
+    flex: none;
+  }
+  .adopt-quad > span { border-radius: 2px; background: var(--border); position: relative; }
+  /* Instant hover label. A native title= tooltip has a ~1s delay and is easy
+     to miss on a 9px target. The label sits to the right of the square, not
+     above it, because .card has overflow: hidden and would clip it. */
+  .adopt-quad > span:hover { outline: 1px solid var(--text-1); }
+  .adopt-quad > span:hover::after {
+    content: attr(data-tip);
+    position: absolute;
+    left: calc(100% + 6px);
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 20;
+    padding: 3px 7px;
+    border-radius: 4px;
+    background: #111111;
+    color: #FFFFFF;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+  /* Re-declared at .adopt-quad specificity: the grey default above
+     (class + element) otherwise outranks the bare .stoplight-* classes. */
+  .adopt-quad > .stoplight-green { background: #22C55E; }
+  .adopt-quad > .stoplight-amber { background: #F59E0B; }
+  .adopt-quad > .stoplight-red   { background: #EF4444; }
+  .adopt-quad > .stoplight-black { background: #111111; }
   .arch-yes  { background: var(--im-lime); color: var(--im-black); }
   .arch-no   { background: var(--surface); color: var(--text-3); border: 1px solid var(--border); }
   .arch-warn { background: var(--red-lt);  color: #991B1B; border: 1px solid #FCA5A5; }
@@ -1664,6 +1775,24 @@ report_all_accounts_html <- function(op_list,
   .pbac-weights td { font-size: 12.5px; padding: 5px 12px 5px 0; border-bottom: 1px solid var(--border); }
   .pbac-weights td.w { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; padding-right: 0; }
 
+  /* ── Product adoption table (under the scatter) ───────────────────────── */
+  .pa-table-wrap { padding: 0 24px 40px; overflow-x: auto; }
+  .pa-table { min-width: 1500px; }
+  .pa-table th { cursor: pointer; white-space: nowrap; position: sticky; top: 0; background: var(--im-white); z-index: 1; }
+  .pa-table td { vertical-align: top; }
+  .pa-table tbody tr { cursor: pointer; }
+  .pa-table tbody tr:hover td { background: var(--im-lime-lt); }
+  .pa-table tr.pa-pinned td { background: var(--im-lime-lt); box-shadow: inset 0 1px 0 var(--im-lime-dk), inset 0 -1px 0 var(--im-lime-dk); }
+  .pa-table tr.pa-onboarding td:first-child { box-shadow: inset 3px 0 0 #F59E0B; }
+  .pa-num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .pa-score { font-weight: 700; }
+  .pa-of { color: var(--text-3); font-size: 11px; }
+  #sub-panel-overview .adopt-stats { border-top: 1px solid var(--border); }
+  @media (max-width: 900px) {
+    .pbac-scatter-wrap { flex-direction: column; align-items: stretch; }
+    .pbac-side { flex: none; min-height: 0; }
+  }
+
   .adopt-stats {
     padding: 14px 24px; display: flex; gap: 32px; border-bottom: 1px solid var(--border);
     background: var(--surface); flex-wrap: wrap; flex-shrink: 0;
@@ -1922,6 +2051,10 @@ report_all_accounts_html <- function(op_list,
   </div>
   <div class="topbar-actions">
     <div class="topbar-btns">
+      <!-- Opens the reader\'s guide embedded below (GUIDE_B64, knitted from
+           inst/guide/immuta_accounts_guide.Rmd). The href is the fallback for
+           a build without the guide: the file sitting next to this one. -->
+      <a class="refresh-btn" href="immuta_accounts_guide.html" target="_blank" rel="noopener" onclick="return openGuide(event)" style="text-decoration:none">User Guide and Definitions</a>
       <!-- Drive file 1K5pNbz2TPrxGSvU8l2hbEjbMFfFShQ09, as the uc?export=download
            form so the button downloads directly rather than opening the Drive
            preview page. Swap to /file/d/<id>/view to land on the preview instead. -->
@@ -1980,6 +2113,9 @@ report_all_accounts_html <- function(op_list,
       <button class="sub-btn" data-sub="changes" onclick="switchSub(\'changes\')">
         Changes <span class="sub-count" id="sub-count-changes">0</span>
       </button>
+      <button class="sub-btn" data-sub="coverage" onclick="switchSub(\'coverage\')">
+        CS Coverage <span class="sub-count" id="sub-count-coverage">0</span>
+      </button>
     </div>
 
     <!-- Accounts keeps its own sidebar rather than the pill rows the other
@@ -2021,6 +2157,18 @@ report_all_accounts_html <- function(op_list,
       </div>
     </div>
 
+    <!-- One collapsible section per CSM: book-of-business totals in the
+         header, accounts with their four-square adoption glyph in the body.
+         Totals mirror op_list_csm_coverage() but are computed here so they
+         follow the region facet. -->
+    <div class="subpanel" id="sub-panel-coverage">
+      <div class="flat-page">
+        <div class="flat-filters" id="coverage-region-filters"></div>
+        <div class="flat-stats" id="coverage-stats"></div>
+        <div class="flat-table-wrap" id="coverage-list"></div>
+      </div>
+    </div>
+
     <div class="subpanel" id="sub-panel-renewals">
       <div class="flat-page">
         <div class="flat-filters" id="renewal-filters"></div>
@@ -2049,23 +2197,17 @@ report_all_accounts_html <- function(op_list,
 </div>
 
 <!-- ADOPTION -->
-<!-- One sub-tab per module. PBAC gets the scatter plot plus the write-up of how
-     the rating is derived; the other three are tables, since their rating is a
-     single value with no second axis behind it. -->
+<!-- Two sub-tabs: the overview (product adoption scatter over a sortable table
+     of every adoption/consumption field) and the write-up of how the score and
+     rating are derived. -->
 <div id="page-adoption" class="page">
   <div class="subpage">
     <div class="sub-tabs">
-      <button class="sub-btn active" data-sub="pbac" onclick="switchSub(\'pbac\')">
-        PBAC <span class="sub-count" id="sub-count-pbac">—</span>
+      <button class="sub-btn active" data-sub="overview" onclick="switchSub(\'overview\')">
+        Product Adoption Overview <span class="sub-count" id="sub-count-overview">—</span>
       </button>
-      <button class="sub-btn" data-sub="request" onclick="switchSub(\'request\')">
-        Request <span class="sub-count" id="sub-count-request">—</span>
-      </button>
-      <button class="sub-btn" data-sub="comply" onclick="switchSub(\'comply\')">
-        Comply <span class="sub-count" id="sub-count-comply">—</span>
-      </button>
-      <button class="sub-btn" data-sub="agentic" onclick="switchSub(\'agentic\')">
-        Agentic <span class="sub-count" id="sub-count-agentic">—</span>
+      <button class="sub-btn" data-sub="derivation" onclick="switchSub(\'derivation\')">
+        How the Product Adoption Score Is Derived
       </button>
     </div>
 
@@ -2075,29 +2217,21 @@ report_all_accounts_html <- function(op_list,
     <div class="flat-filters" id="adopt-region-filters"></div>
     <div class="flat-filters flat-filters-csm" id="adopt-csm-filters"></div>
 
-    <div class="subpanel active" id="sub-panel-pbac">
+    <div class="subpanel active" id="sub-panel-overview">
       <div class="pbac-scatter-wrap">
         <div class="pbac-plot">
           <svg id="pbac-plot" viewBox="0 0 880 520" role="img"
-               aria-label="Accounts plotted by consumption ratio and PBAC complexity score"></svg>
+               aria-label="Accounts plotted by consumption ratio and product adoption score"></svg>
           <div class="pbac-facet-note" id="pbac-facet-note"></div>
         </div>
         <aside class="pbac-side" id="pbac-side" aria-live="polite"></aside>
       </div>
-      <div class="pbac-writeup" id="pbac-writeup"></div>
+      <div class="adopt-stats" id="adopt-stats-overview"></div>
+      <div class="pa-table-wrap" id="adopt-table-overview"></div>
     </div>
 
-    <div class="subpanel" id="sub-panel-request">
-      <div class="adopt-stats" id="adopt-stats-request"></div>
-      <div class="flat-table-wrap" id="adopt-table-request"></div>
-    </div>
-    <div class="subpanel" id="sub-panel-comply">
-      <div class="adopt-stats" id="adopt-stats-comply"></div>
-      <div class="flat-table-wrap" id="adopt-table-comply"></div>
-    </div>
-    <div class="subpanel" id="sub-panel-agentic">
-      <div class="adopt-stats" id="adopt-stats-agentic"></div>
-      <div class="flat-table-wrap" id="adopt-table-agentic"></div>
+    <div class="subpanel" id="sub-panel-derivation">
+      <div class="pbac-writeup" id="pbac-writeup"></div>
     </div>
   </div>
 </div>
@@ -2164,6 +2298,21 @@ const CHANGES_DATA      = {{CHANGES}};
 const CONSUMPTION_DATA  = {{CONSUMPTION}};
 const SAAS_DATA         = {{SAAS}};
 const ESCALATIONS_DATA  = {{ESCALATIONS}};
+const GUIDE_B64         = "{{GUIDE_B64}}";
+
+// Open the embedded reader\'s guide in a new tab, from a Blob so it works in a
+// downloaded copy of this page. Falls through to the link href when the guide
+// was not embedded.
+function openGuide(e) {
+  if (!GUIDE_B64) return true;
+  e.preventDefault();
+  const bin   = atob(GUIDE_B64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const url = URL.createObjectURL(new Blob([bytes], { type: "text/html;charset=utf-8" }));
+  window.open(url, "_blank");
+  return false;
+}
 
 // ── State ──────────────────────────────────────────────────────────────────
 let activeRegion    = "all";
@@ -2184,38 +2333,6 @@ const SM_COLS = [
   "Registered Users", "Licensed Users", "Consumption Ratio",
   "Data Sources Count", "Active Policies (Total)"
 ];
-// Adoption tables. `rating` names the field the stoplight is read from; for
-// Request that is the Looker-derived tier (op_list_request_adoption(),
-// dashboard 1009), not the hand-maintained Salesforce picklist — which is shown
-// beside it as `extra` so the disagreements stay visible.
-const ADOPT_TABS = {
-  request: {
-    label:  "Request",
-    rating: "request_adoption_derived",
-    ratingHead: "Rating (Looker)",
-    // No Stage column: the rating badge is already labelled with the stage
-    // word, so it would repeat itself. The Salesforce picklist rides alongside
-    // as a stoplight rather than its full sentence, so agreement (or not) with
-    // the Looker tier reads at a glance; the sentence is the hover title.
-    extra:  [["request_adoption", "Salesforce", "stoplight"]],
-    empty:  "No Request adoption data \\u2014 run the pipeline with looker = TRUE."
-  },
-  comply: {
-    label:  "Comply",
-    rating: "comply_adoption",
-    ratingHead: "Rating",
-    extra:  [],
-    empty:  "No Comply adoption values on the Salesforce account report."
-  },
-  agentic: {
-    label:  "Agentic",
-    rating: "agentic_governance_adoption",
-    ratingHead: "Rating",
-    extra:  [],
-    empty:  "No Agentic Governance adoption values on the Salesforce account report."
-  }
-};
-
 // ── Flat data derived from ACCOUNTS ────────────────────────────────────────
 const ALL_RENEWALS   = [];
 const ALL_EXPANSIONS = [];
@@ -2366,6 +2483,9 @@ function pbacAdoptionHtml(a) {
   const none  = \'<span class="ov-adopt-none">None</span>\';
   const plats = (a.platform_html && a.platform_html !== "\\u2014") ? a.platform_html : none;
   const feats = adoptBlank(a.pbac_features) ? none : esc(a.pbac_features);
+  // From data/input/critical_technologies.json (accounts$iam / $ext_catalog).
+  const iam   = adoptBlank(a.iam)         ? none : esc(a.iam);
+  const cat   = adoptBlank(a.ext_catalog) ? none : esc(a.ext_catalog);
 
   // The complexity score is the plot\'s y axis and half the rating rule, so it
   // belongs with the evidence rather than buried in the tooltip. Shown out of
@@ -2379,8 +2499,10 @@ function pbacAdoptionHtml(a) {
       <span class="ov-pair-k">PBAC</span>
       <span class="ov-pair-v">${pbacBadge(a)}</span>
     </div>
-    <div class="ov-adopt-sub">
+    <div class="ov-adopt-sub ov-adopt-sub-pbac">
       <div class="ov-adopt-subrow"><span class="ov-adopt-subk">Platforms</span><span class="ov-adopt-subv">${plats}</span></div>
+      <div class="ov-adopt-subrow"><span class="ov-adopt-subk">IAM</span><span class="ov-adopt-subv">${iam}</span></div>
+      <div class="ov-adopt-subrow"><span class="ov-adopt-subk">External Catalogue</span><span class="ov-adopt-subv">${cat}</span></div>
       <div class="ov-adopt-subrow"><span class="ov-adopt-subk">Features</span><span class="ov-adopt-subv">${feats}</span></div>
       <div class="ov-adopt-subrow"><span class="ov-adopt-subk">Complexity</span><span class="ov-adopt-subv">${score}</span></div>
     </div>
@@ -2458,7 +2580,7 @@ function pbacMiniSvg(a) {
 }
 
 // PBAC rating badge with the scatter plot\'s labels and symbology: the full
-// label ("Red: Critical Adoption Risk") and a square marker for accounts in
+// label ("Red: High Risk - Adoption") and a square marker for accounts in
 // Installation and Config., a round one otherwise.
 function pbacBadge(a) {
   const html = fmtStoplightAs(a.pbac_rating, pbacFullLabel(a.pbac_rating), a.pbac_rating);
@@ -2468,7 +2590,7 @@ function pbacBadge(a) {
 }
 
 // The stored rating as a full caption, colour word included and capitalised:
-// "Red: Critical Adoption Risk", "Amber: Moderate adoption".
+// "Red: High Risk - Adoption", "Amber: Moderate adoption".
 function pbacFullLabel(v) {
   if (adoptBlank(v)) return "";
   const m = String(v).trim().match(/^(green|amber|yellow|red|black)\\s*:\\s*(.*)$/i);
@@ -2565,6 +2687,28 @@ function fmtStoplight(v) {
   return `<span class="stoplight-badge" title="${esc(raw)}"><span class="stoplight-dot stoplight-${color}"></span>${labels[color]}</span>`;
 }
 
+// Four-square adoption glyph for the card header. Each quadrant uses the same
+// rating source the Overview tab shows, falling back to the Salesforce
+// picklist when the derived rating is missing.
+function adoptionQuadHtml(a) {
+  const pbac    = adoptBlank(a.pbac_rating) ? a.pbac_adoption : a.pbac_rating;
+  const request = adoptBlank(a.request_adoption_derived) ? a.request_adoption : a.request_adoption_derived;
+  const cells = [
+    ["PBAC",    pbac],
+    ["Request", request],
+    ["Comply",  a.comply_adoption],
+    ["Agentic", a.agentic_governance_adoption]
+  ];
+  // Each square carries its own tooltip naming the rating it shows.
+  return `<div class="adopt-quad">` +
+    cells.map(([k, v]) => {
+      const c   = ratingColour(v);
+      const tip = `${k} Adoption: ${c ? adoptCap(c) : "\\u2014"}`;
+      return `<span data-tip="${esc(tip)}" aria-label="${esc(tip)}"${c ? ` class="stoplight-${c}"` : ""}></span>`;
+    }).join("") +
+    `</div>`;
+}
+
 // ── Build cards ────────────────────────────────────────────────────────────
 function buildCard(a) {
   const hasRenewals   = a.renewals.length > 0;
@@ -2619,6 +2763,7 @@ function buildCard(a) {
   return `
 <div class="card" id="acct-${esc(a.id)}" data-region="${esc(a.region)}" data-name="${esc(a.name.toLowerCase())}">
   <div class="card-header" onclick="toggleCard(this)">
+    ${adoptionQuadHtml(a)}
     <div class="card-name">${esc(a.name)}${a.multiplatform ? \' <span class="mp-badge">(M)</span>\' : \'\'}</div>
     <div class="card-arr">${esc(a.arr)}</div>
     ${a.consumption_link}
@@ -2724,12 +2869,141 @@ function buildCard(a) {
 </div>`;
 }
 
+// ── CS Coverage ────────────────────────────────────────────────────────────
+// One collapsible section per CSM. The per-CSM rules mirror
+// op_list_csm_coverage() in R/op_list_csm_coverage.R, recomputed here so the
+// totals follow the region facet. Keep the two in step.
+const coverageOpen = new Set();
+
+// Lifecycle stage 1 — "S1: Installation and Config." in Salesforce.
+function covIsOnboarding(a) {
+  const s = adoptBlank(a.lifecycle_stage) ? "" : String(a.lifecycle_stage);
+  return /^\\s*S1\\b|install|onboard/i.test(s);
+}
+
+// Looker stage where the account has one, else the SFDC picklist colour —
+// the same precedence the card glyph uses.
+function covRequestStage(a) {
+  if (!adoptBlank(a.request_status)) return String(a.request_status).trim().toLowerCase();
+  return { green: "retained", amber: "adopted", red: "tried", black: "none" }[ratingColour(a.request_adoption)] || "";
+}
+
+function covNum(v) {
+  const n = Number(v);
+  return (v === null || v === undefined || v === "" || !isFinite(n)) ? null : n;
+}
+
+function covSummarise(list) {
+  const scores = list.map(a => covNum(a.pbac_score)).filter(n => n !== null);
+  return {
+    accounts:   list.length,
+    arr:        list.reduce((s, a) => s + (covNum(a.arr_raw) || 0), 0),
+    complexity: scores.length ? scores.reduce((s, n) => s + n, 0) : null,
+    onboarding: list.filter(covIsOnboarding).length,
+    retained:   list.filter(a => covRequestStage(a) === "retained").length,
+    // Active Request = adopted or retained.
+    active:     list.filter(a => ["adopted", "retained"].includes(covRequestStage(a))).length,
+    agentic:    list.filter(a => ["amber", "green"].includes(ratingColour(a.agentic_governance_adoption))).length
+  };
+}
+
+function toggleCoverage(header, csm) {
+  header.parentElement.classList.toggle("open");
+  if (coverageOpen.has(csm)) coverageOpen.delete(csm); else coverageOpen.add(csm);
+}
+
+function renderCoverage() {
+  buildFlatPills("coverage-region-filters", "coverage");
+
+  const csmOf = a => adoptBlank(a.csm) ? "Unassigned" : String(a.csm).trim();
+  const book  = ACCOUNTS.filter(a => activeRegion === "all" || a.region === activeRegion);
+  const q     = searchTerm.toLowerCase();
+
+  const byCsm = {};
+  book.forEach(a => { (byCsm[csmOf(a)] = byCsm[csmOf(a)] || []).push(a); });
+
+  // Biggest book first, Unassigned always last.
+  const csms = Object.keys(byCsm).sort((x, y) => {
+    if (x === "Unassigned") return 1;
+    if (y === "Unassigned") return -1;
+    return covSummarise(byCsm[y]).arr - covSummarise(byCsm[x]).arr;
+  });
+
+  const tot = covSummarise(book);
+  const stat = (label, value) =>
+    `<div class="stat-item"><span class="stat-label">${label}</span><span class="stat-value">${value}</span></div>`;
+  document.getElementById("coverage-stats").innerHTML =
+    stat("CSMs", csms.filter(c => c !== "Unassigned").length) +
+    stat("Accounts", tot.accounts) +
+    stat("ARR", fmtUsd(tot.arr)) +
+    stat("S1 Onboarding", tot.onboarding) +
+    stat("Request Retained", tot.retained) +
+    stat("Active Request", tot.active) +
+    stat("Ongoing Agentic Adoption", tot.agentic);
+
+  const chip = (label, value, cls) =>
+    `<span class="cov-chip${cls ? " " + cls : ""}"><span class="cov-chip-k">${label}</span>${value}</span>`;
+
+  let shown = 0;
+  const html = csms.map(csm => {
+    // Search narrows the account rows (or keeps the whole book when the CSM
+    // name matches); the header totals always describe the full book.
+    const all  = byCsm[csm];
+    const rows = (!q || csm.toLowerCase().includes(q)) ? all
+               : all.filter(a => a.name.toLowerCase().includes(q));
+    if (!rows.length) return "";
+    shown++;
+
+    const s = covSummarise(all);
+    const open = coverageOpen.has(csm) || (q && rows.length < all.length);
+    const sorted = rows.slice().sort((x, y) =>
+      (covIsOnboarding(y) - covIsOnboarding(x)) || x.name.localeCompare(y.name));
+
+    const body = sorted.map(a => {
+      const onb = covIsOnboarding(a);
+      return `<tr class="${onb ? "cov-onboarding" : ""}">
+        <td class="cov-quad">${adoptionQuadHtml(a)}</td>
+        <td><a class="opp-link" href="#" onclick="event.preventDefault(); goToAccount(${esc(JSON.stringify(a.name))})">${esc(a.name)}</a>
+            ${onb ? `<span class="tag cov-onb-tag">Onboarding</span>` : ""}</td>
+        <td>${esc(a.lifecycle_stage)}</td>
+        <td>${esc(a.region)}</td>
+        <td class="cov-num">${esc(a.arr)}</td>
+      </tr>`;
+    }).join("");
+
+    return `<div class="card cov-card${open ? " open" : ""}">
+      <div class="card-header" onclick="toggleCoverage(this, ${esc(JSON.stringify(csm))})">
+        <div class="card-name">${esc(csm)}</div>
+        <div class="cov-chips">
+          ${chip("Accounts", s.accounts)}
+          ${chip("ARR", fmtUsd(s.arr))}
+          ${chip("PBAC Complexity", s.complexity === null ? "\\u2014" : s.complexity)}
+          ${chip("S1 Onboarding", s.onboarding, s.onboarding ? "cov-chip-onb" : "")}
+          ${chip("Active Request", s.active)}
+          ${chip("Ongoing Agentic", s.agentic)}
+        </div>
+        <span class="expand-icon">&#9660;</span>
+      </div>
+      <div class="card-body cov-body">
+        <table class="flat-table cov-table">
+          <thead><tr><th>Adoption</th><th>Account</th><th>Lifecycle Stage</th><th>Region</th><th class="cov-num">ARR</th></tr></thead>
+          <tbody>${body}</tbody>
+        </table>
+      </div>
+    </div>`;
+  }).join("");
+
+  document.getElementById("coverage-list").innerHTML =
+    html || `<div class="cov-empty">No accounts match.</div>`;
+  setCount("sub-count-coverage", shown);
+}
+
 // ── Page and sub-tab switching ─────────────────────────────────────────────
 // Each page remembers which sub-tab it was on, so coming back to Engagement
 // lands you where you left rather than resetting to Accounts.
 const PAGES = {
-  engagement:  { subs: ["accounts", "renewals", "expansions", "changes"], active: "accounts" },
-  adoption:    { subs: ["pbac", "request", "comply", "agentic"],          active: "pbac" },
+  engagement:  { subs: ["accounts", "renewals", "expansions", "changes", "coverage"], active: "accounts" },
+  adoption:    { subs: ["overview", "derivation"],                        active: "overview" },
   performance: { subs: ["self_managed", "saas_migration", "escalations"],  active: "self_managed" }
 };
 
@@ -2767,6 +3041,7 @@ function render() {
   const sub = PAGES[activePage].active;
   if (activePage === "engagement") {
     if      (sub === "accounts")   renderAccounts();
+    else if (sub === "coverage")   renderCoverage();
     else if (sub === "renewals")   renderRenewals();
     else if (sub === "expansions") renderExpansions();
     else if (sub === "changes")    renderChanges();
@@ -2816,10 +3091,16 @@ function adoptFacet(a) {
          (activeCSM    === "all" || a.csm    === activeCSM);
 }
 
-// True when an account has a PBAC rating to plot at all.
+// True when an account has a PBAC rating — the account card mini plot.
 function hasPbac(a) {
   return a.pbac_score !== null && a.pbac_score !== undefined &&
          !isNaN(a.pbac_score) && !adoptBlank(a.pbac_rating);
+}
+
+// True when an account has a product adoption score to plot at all. It needs
+// the PBAC complexity score underneath it, so a looker = FALSE run has none.
+function hasProduct(a) {
+  return covNum(a.product_adoption) !== null && !adoptBlank(a.product_rating);
 }
 
 function renderAdoption() {
@@ -2828,94 +3109,27 @@ function renderAdoption() {
 
   const faceted = ACCOUNTS.filter(adoptFacet);
   setCount("tab-count-adoption", faceted.length);
+  setCount("sub-count-overview", faceted.filter(hasProduct).length);
 
-  // Counts follow the facet, so the badges always describe what the panel is
-  // about to show. PBAC counts the accounts the Looker-derived rating covers;
-  // the other three count non-blank values in their own column.
-  setCount("sub-count-pbac", faceted.filter(hasPbac).length);
-  Object.keys(ADOPT_TABS).forEach(k => {
-    setCount("sub-count-" + k, faceted.filter(a => !adoptBlank(a[ADOPT_TABS[k].rating])).length);
-  });
-
-  const sub = PAGES.adoption.active;
-  if (sub === "pbac") renderPbacPanel(ACCOUNTS.filter(hasPbac));
-  else                renderAdoptTable(sub);
-}
-
-// ── Adoption tables (Request / Comply / Agentic) ───────────────────────────
-function renderAdoptTable(key) {
-  const cfg     = ADOPT_TABS[key];
-  const statsEl = document.getElementById("adopt-stats-" + key);
-  const tableEl = document.getElementById("adopt-table-" + key);
-
-  const anyRated = ACCOUNTS.some(a => !adoptBlank(a[cfg.rating]));
-  let rows = ACCOUNTS.filter(a => adoptFacet(a) && !adoptBlank(a[cfg.rating]));
-  if (searchTerm) rows = rows.filter(a => a.name.toLowerCase().includes(searchTerm));
-
-  if (!rows.length) {
-    statsEl.innerHTML = "";
-    // Distinguish "the data was never pulled" from "your facet is empty" —
-    // telling someone to re-run with looker = TRUE when they have simply
-    // filtered to a CSM with no rated accounts sends them off on a chase.
-    tableEl.innerHTML = `<p class="empty-msg" style="padding:40px">${
-      anyRated ? "No accounts match the current region, CSM and search filters." : cfg.empty}</p>`;
+  if (PAGES.adoption.active === "derivation") {
+    const wu = document.getElementById("pbac-writeup");
+    if (!wu.innerHTML) wu.innerHTML = productWriteupHtml();
     return;
   }
-
-  // Stats strip: one count per stoplight, plus the ARR sitting behind them.
-  const counts = { green: 0, amber: 0, red: 0, black: 0 };
-  rows.forEach(a => { const c = ratingColour(a[cfg.rating]); if (c in counts) counts[c]++; });
-  const totalArr = rows.reduce((s, a) => s + (parseFloat(a.arr_raw) || 0), 0);
-  statsEl.innerHTML =
-    `<div class="stat-item"><div class="stat-label">Accounts</div><div class="stat-value">${rows.length}</div></div>` +
-    `<div class="stat-item"><div class="stat-label">Total ARR</div><div class="stat-value">$${Math.round(totalArr / 1e6 * 10) / 10}M</div></div>` +
-    ["green", "amber", "red", "black"].map(c =>
-      `<div class="stat-item"><div class="stat-label">${adoptCap(c)}</div><div class="stat-value">${counts[c]}</div></div>`
-    ).join("");
-
-  // field key, header label, cell renderer
-  const cols = [
-    ["name",            "Account",         a => `<span class="acct-link" onclick="goToAccount(\'${esc(a.name)}\')">${esc(a.name)}</span>`],
-    ["region",          "Region",          a => esc(a.region)],
-    ["csm",             "CSM",             a => esc(a.csm)],
-    ["lifecycle_stage", "Lifecycle Stage", a => esc(a.lifecycle_stage)],
-    ["arr_raw",         "ARR",             a => `<span style="font-variant-numeric:tabular-nums">${esc(a.arr)}</span>`],
-    [cfg.rating,        cfg.ratingHead,    a => key === "request"
-        ? fmtStoplightAs(a[cfg.rating], adoptBlank(a.request_status) ? ratingLabel(a[cfg.rating]) : adoptCap(a.request_status), a[cfg.rating])
-        : fmtStoplight(a[cfg.rating])]
-  ].concat(cfg.extra.map(e => [e[0], e[1], a =>
-      e[2] === "stoplight" ? fmtStoplight(a[e[0]])
-                           : (adoptBlank(a[e[0]]) ? \'<span class="em-dash">—</span>\' : esc(adoptCap(a[e[0]])))]));
-
-  // The rating column sorts by severity, not alphabetically: "Amber" before
-  // "Black" is meaningless, green-to-black is the order anyone wants.
-  const sorted = adoptSort.col ? rows.slice().sort((a, b) => {
-    if (adoptSort.col === cfg.rating) {
-      return (COLOUR_RANK[ratingColour(a[cfg.rating])] - COLOUR_RANK[ratingColour(b[cfg.rating])]) * adoptSort.dir;
-    }
-    const av = parseFloat(a[adoptSort.col]), bv = parseFloat(b[adoptSort.col]);
-    if (!isNaN(av) && !isNaN(bv)) return (av - bv) * adoptSort.dir;
-    return String(a[adoptSort.col] || "").localeCompare(String(b[adoptSort.col] || "")) * adoptSort.dir;
-  }) : rows.slice().sort((a, b) => a.name.localeCompare(b.name));
-
-  const hdrs = cols.map(c => {
-    const arrow = adoptSort.col === c[0] ? (adoptSort.dir === 1 ? " ↑" : " ↓") : "";
-    return `<th onclick="sortAdopt(\'${c[0]}\')" style="cursor:pointer">${esc(c[1])}${arrow}</th>`;
-  }).join("");
-
-  const brs = sorted.map(a =>
-    "<tr>" + cols.map(c => `<td>${c[2](a)}</td>`).join("") + "</tr>"
-  ).join("");
-
-  tableEl.innerHTML = `<table class="flat-table"><thead><tr>${hdrs}</tr></thead><tbody>${brs}</tbody></table>`;
+  renderPbacPanel(ACCOUNTS.filter(hasProduct));
+  renderProductTable();
 }
 
-// ── PBAC: scatter of the two axes the rating is built from ─────────────────
-// Consumption ratio on x, complexity score on y, with the rating grid shaded
-// behind. The bands are computed from PBAC_CFG by the same rule
-// op_list_pbac_adoption() applies, so the shading cannot drift from the stored
-// rating — change a threshold there and change it here.
+// ── Product adoption: scatter of the two axes the rating is built from ─────
+// Consumption ratio on x, product adoption (PBAC complexity + Request points)
+// on y, with the rating grid shaded behind. The bands are computed from
+// PA_CFG by the same rule op_list_product_adoption() applies, so the shading
+// cannot drift from the stored rating — change a threshold there and here.
+//
+// PBAC_CFG stays for the PBAC-only mini plot on each account card.
 const PBAC_CFG = { ratioMax: 1.25, scoreMax: 7, ratioMinimal: 0.25, ratioModerate: 0.75, complexityMin: 4 };
+const PA_CFG   = { ratioMax: 1.25, scoreMax: 10, ratioMinimal: 0.25, ratioModerate: 0.75, adoptionMin: 4,
+                   requestRetained: 3, requestAdopted: 1 };
 const PBAC_COLOURS = {
   black: { dot: "#111111", bg: "#ECECEC", ink: "#374151" },
   red:   { dot: "#EF4444", bg: "#FEE2E2", ink: "#991B1B" },
@@ -2937,12 +3151,12 @@ const PBAC_R_MIN = 1, PBAC_R_MAX = 3;
 let pbacPinned = null, pbacHover = null, pbacRing = null;
 const pbacAt = {};     // account name -> {cx, cy} while drawn, else null
 
-const pbacX = r => PBAC_M.left + Math.min(r, PBAC_CFG.ratioMax) / PBAC_CFG.ratioMax * (PBAC_PW - PBAC_PIN);
-const pbacY = s => PBAC_M.top + PBAC_PH - (Math.min(s, PBAC_CFG.scoreMax) / PBAC_CFG.scoreMax) * PBAC_PH;
+const pbacX = r => PBAC_M.left + Math.min(r, PA_CFG.ratioMax) / PA_CFG.ratioMax * (PBAC_PW - PBAC_PIN);
+const pbacY = s => PBAC_M.top + PBAC_PH - (Math.min(s, PA_CFG.scoreMax) / PA_CFG.scoreMax) * PBAC_PH;
 
 // Deterministic jitter, so an account lands in the same spot every run and the
-// plot is comparable week to week. complexity_score is an integer and most
-// accounts sit on a handful of values, so without this they hide each other.
+// plot is comparable week to week. The score is an integer and most accounts
+// sit on a handful of values, so without this they hide each other.
 function pbacSeed(str) {
   let h = 2166136261;
   for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
@@ -2951,8 +3165,9 @@ function pbacSeed(str) {
 
 // Band caption, one entry per line. The two red cells are named for the axis
 // that is failing, matching the stored rating labels.
-function pbacBandLines(key, highComplexity) {
-  if (key === "red") return ["RED: CRITICAL", highComplexity ? "CONSUMPTION RISK" : "ADOPTION RISK"];
+function pbacBandLines(key, highScore) {
+  if (key === "red")   return ["RED: HIGH RISK", highScore ? "CONSUMPTION" : "ADOPTION"];
+  if (key === "black") return ["BLACK: CRITICAL", "CHURN RISK"];
   return [key.toUpperCase()];
 }
 
@@ -2963,11 +3178,18 @@ function isInstallStage(a) {
   return st.startsWith("s1") || st.includes("install");
 }
 
+// PBAC-only rating cell, for the mini plot on the account card.
 function pbacRatingAt(score, ratio) {
-  const cx = score >= PBAC_CFG.complexityMin;
-  const heavy = ratio !== null && ratio >= PBAC_CFG.ratioModerate;
-  const some  = ratio !== null && ratio >= PBAC_CFG.ratioMinimal;
-  if (cx) return heavy ? "green" : (some ? "amber" : "red");
+  return ratingCellAt(score >= PBAC_CFG.complexityMin, ratio, PBAC_CFG);
+}
+// Product adoption rating cell, for the Adoption page scatter.
+function paRatingAt(score, ratio) {
+  return ratingCellAt(score >= PA_CFG.adoptionMin, ratio, PA_CFG);
+}
+function ratingCellAt(high, ratio, cfg) {
+  const heavy = ratio !== null && ratio >= cfg.ratioModerate;
+  const some  = ratio !== null && ratio >= cfg.ratioMinimal;
+  if (high) return heavy ? "green" : (some ? "amber" : "red");
   return heavy ? "amber" : (some ? "red" : "black");
 }
 
@@ -2978,30 +3200,32 @@ function svgEl(tag, attrs, text) {
   return n;
 }
 
+// Facet + search, shared by the scatter (lit vs dimmed) and the table (shown).
+function paInView(a) {
+  return adoptFacet(a) && (!searchTerm || a.name.toLowerCase().includes(searchTerm));
+}
+
 function renderPbacPanel(rows) {
   const svg = document.getElementById("pbac-plot");
   svg.textContent = "";
 
-  const wu = document.getElementById("pbac-writeup");
-  if (!wu.innerHTML) wu.innerHTML = pbacWriteupHtml();
-
   if (!rows.length) {
     document.getElementById("pbac-side").innerHTML =
-      `<p class="ps-empty">No PBAC ratings — run the pipeline with looker = TRUE.</p>`;
+      `<p class="ps-empty">No product adoption scores \\u2014 run the pipeline with looker = TRUE.</p>`;
     return;
   }
 
   // ── Background: the rating grid itself ───────────────────────────────────
-  const xEdges = [0, PBAC_CFG.ratioMinimal, PBAC_CFG.ratioModerate, PBAC_CFG.ratioMax];
+  const xEdges = [0, PA_CFG.ratioMinimal, PA_CFG.ratioModerate, PA_CFG.ratioMax];
   for (let r = 0; r < 2; r++) {
     for (let c = 0; c < 3; c++) {
-      const key = pbacRatingAt(r === 1 ? PBAC_CFG.scoreMax : 0, (xEdges[c] + xEdges[c + 1]) / 2);
+      const key = paRatingAt(r === 1 ? PA_CFG.scoreMax : 0, (xEdges[c] + xEdges[c + 1]) / 2);
       const x0 = pbacX(xEdges[c]);
       // The last column swallows the pinned lane, so an outlier still sits on
       // the colour its ratio earns.
       const x1 = c === 2 ? PBAC_M.left + PBAC_PW : pbacX(xEdges[c + 1]);
-      const yTop = pbacY(r === 1 ? PBAC_CFG.scoreMax : PBAC_CFG.complexityMin);
-      const yBot = pbacY(r === 1 ? PBAC_CFG.complexityMin : 0);
+      const yTop = pbacY(r === 1 ? PA_CFG.scoreMax : PA_CFG.adoptionMin);
+      const yBot = pbacY(r === 1 ? PA_CFG.adoptionMin : 0);
       svg.appendChild(svgEl("rect", { x: x0, y: yTop, width: x1 - x0, height: yBot - yTop, fill: PBAC_COLOURS[key].bg }));
       pbacBandLines(key, r === 1).forEach((line, i) => svg.appendChild(svgEl("text", {
         x: x0 + 7, y: yTop + 15 + i * 11, class: "pbac-band-label", fill: PBAC_COLOURS[key].ink
@@ -3010,32 +3234,32 @@ function renderPbacPanel(rows) {
   }
 
   // ── Band edges, frame, axes ──────────────────────────────────────────────
-  [PBAC_CFG.ratioMinimal, PBAC_CFG.ratioModerate].forEach(v => {
+  [PA_CFG.ratioMinimal, PA_CFG.ratioModerate].forEach(v => {
     svg.appendChild(svgEl("line", { x1: pbacX(v), y1: PBAC_M.top, x2: pbacX(v), y2: PBAC_M.top + PBAC_PH,
                                     stroke: "#B8B8B8", "stroke-width": 1, "stroke-dasharray": "3 3" }));
   });
-  svg.appendChild(svgEl("line", { x1: PBAC_M.left, y1: pbacY(PBAC_CFG.complexityMin),
-                                  x2: PBAC_M.left + PBAC_PW, y2: pbacY(PBAC_CFG.complexityMin),
+  svg.appendChild(svgEl("line", { x1: PBAC_M.left, y1: pbacY(PA_CFG.adoptionMin),
+                                  x2: PBAC_M.left + PBAC_PW, y2: pbacY(PA_CFG.adoptionMin),
                                   stroke: "#B8B8B8", "stroke-width": 1, "stroke-dasharray": "3 3" }));
-  svg.appendChild(svgEl("line", { x1: pbacX(PBAC_CFG.ratioMax), y1: PBAC_M.top,
-                                  x2: pbacX(PBAC_CFG.ratioMax), y2: PBAC_M.top + PBAC_PH,
+  svg.appendChild(svgEl("line", { x1: pbacX(PA_CFG.ratioMax), y1: PBAC_M.top,
+                                  x2: pbacX(PA_CFG.ratioMax), y2: PBAC_M.top + PBAC_PH,
                                   stroke: "#B8B8B8", "stroke-width": 1 }));
 
-  for (let s = 0; s <= PBAC_CFG.scoreMax; s++) {
+  for (let s = 0; s <= PA_CFG.scoreMax; s++) {
     svg.appendChild(svgEl("text", { x: PBAC_M.left - 9, y: pbacY(s) + 3.5, class: "pbac-axis-text", "text-anchor": "end" }, s));
   }
-  [0, 0.25, 0.5, 0.75, 1.0, 1.25].filter(v => v <= PBAC_CFG.ratioMax).forEach(v => {
+  [0, 0.25, 0.5, 0.75, 1.0, 1.25].filter(v => v <= PA_CFG.ratioMax).forEach(v => {
     svg.appendChild(svgEl("text", { x: pbacX(v), y: PBAC_M.top + PBAC_PH + 16, class: "pbac-axis-text", "text-anchor": "middle" }, v.toFixed(2)));
   });
   svg.appendChild(svgEl("text", { x: PBAC_M.left + PBAC_PW - PBAC_PIN / 2, y: PBAC_M.top + PBAC_PH + 16,
-                                  class: "pbac-axis-text", "text-anchor": "middle" }, ">" + PBAC_CFG.ratioMax));
+                                  class: "pbac-axis-text", "text-anchor": "middle" }, ">" + PA_CFG.ratioMax));
   svg.appendChild(svgEl("rect", { x: PBAC_M.left, y: PBAC_M.top, width: PBAC_PW, height: PBAC_PH,
                                   fill: "none", stroke: "#B8B8B8", "stroke-width": 1 }));
   svg.appendChild(svgEl("text", { x: PBAC_M.left + PBAC_PW / 2, y: PBAC_H - 14,
                                   class: "pbac-axis-title", "text-anchor": "middle" },
                         "CONSUMPTION RATIO (REGISTERED \\u00F7 LICENSED USERS)"));
   const yTitle = svgEl("text", { x: 14, y: PBAC_M.top + PBAC_PH / 2, class: "pbac-axis-title", "text-anchor": "middle" },
-                       "COMPLEXITY SCORE");
+                       "PRODUCT ADOPTION SCORE");
   yTitle.setAttribute("transform", "rotate(-90 14 " + (PBAC_M.top + PBAC_PH / 2) + ")");
   svg.appendChild(yTitle);
 
@@ -3056,20 +3280,23 @@ function renderPbacPanel(rows) {
   rows.forEach(a => {
     const ratio  = a.consumption_ratio_raw;
     const known  = ratio !== null && ratio !== undefined && !isNaN(ratio);
-    const pinned = known && ratio > PBAC_CFG.ratioMax;
-    const colour = ratingColour(a.pbac_rating) || "black";
+    const pinned = known && ratio > PA_CFG.ratioMax;
+    const colour = ratingColour(a.product_rating) || "black";
     const col    = PBAC_COLOURS[colour];
 
+    // Vertical jitter is a fraction of one score step (PBAC_PH / scoreMax),
+    // so a point never wanders into the neighbouring integer.
+    const step = PBAC_PH / PA_CFG.scoreMax;
     const jx = (pbacSeed(a.name) - 0.5) * (pinned ? PBAC_PIN * 0.7 : 16);
-    const jy = (pbacSeed(a.name + "y") - 0.5) * 30;
+    const jy = (pbacSeed(a.name + "y") - 0.5) * step * 0.6;
     const cx = clamp(pinned ? (PBAC_M.left + PBAC_PW - PBAC_PIN / 2 + jx) : pbacX(known ? ratio : 0) + jx,
                      PBAC_M.left + 7, PBAC_M.left + PBAC_PW - 7);
-    const cy = clamp(pbacY(a.pbac_score) + jy, PBAC_M.top + 7, PBAC_M.top + PBAC_PH - 7);
+    const cy = clamp(pbacY(a.product_adoption) + jy, PBAC_M.top + 7, PBAC_M.top + PBAC_PH - 7);
 
     // Out-of-facet accounts are dimmed rather than dropped: the point of the
     // plot is where a cohort sits relative to the whole book, which is lost if
     // everyone else disappears. The count under the plot says how many are lit.
-    const on = adoptFacet(a) && (!searchTerm || a.name.toLowerCase().includes(searchTerm));
+    const on = paInView(a);
     pbacAt[a.name] = on ? { cx: cx, cy: cy } : null;
 
     // Outline scales with the dot so a 1px-radius account is not swallowed by
@@ -3095,7 +3322,7 @@ function renderPbacPanel(rows) {
     if (on) {
       g.addEventListener("mouseenter", () => { pbacHover = a.name; pbacSide(); });
       g.addEventListener("mouseleave", () => { pbacHover = null;   pbacSide(); });
-      g.addEventListener("click", () => { pbacPinned = (pbacPinned === a.name) ? null : a.name; pbacSide(); });
+      g.addEventListener("click", () => { paPin(a.name, true); });
     }
     svg.appendChild(g);
   });
@@ -3112,16 +3339,41 @@ function renderPbacPanel(rows) {
                   activeCSM    === "all" ? null : activeCSM].filter(Boolean);
   const size = " Point size is contract ARR; a square marks an account in Installation and Config. (lifecycle S1); a dashed outline means the consumption ratio is unavailable, a heavy one means it is above the axis maximum.";
   document.getElementById("pbac-facet-note").textContent = (facets.length || searchTerm
-    ? `Showing ${lit} of ${rows.length} rated accounts` +
-      (facets.length ? ` — ${facets.join(", ")}` : "") +
+    ? `Showing ${lit} of ${rows.length} scored accounts` +
+      (facets.length ? ` \\u2014 ${facets.join(", ")}` : "") +
       ". The rest stay on the plot, dimmed, for context."
-    : `${rows.length} rated accounts.`) + size;
+    : `${rows.length} scored accounts.`) + size;
 
   pbacSide();
 }
 
-// The summary panel beside the plot. Hover wins while the cursor is on a point,
-// so a pin never blocks reading the next account; leaving falls back to the pin.
+// Pin (or unpin) an account on the scatter. From a point click it toggles; from
+// a table row it always pins and brings the plot into view.
+function paPin(name, toggle) {
+  pbacPinned = (toggle && pbacPinned === name) ? null : name;
+  pbacSide();
+  document.querySelectorAll("#adopt-table-overview tr[data-name]").forEach(tr =>
+    tr.classList.toggle("pa-pinned", tr.dataset.name === pbacPinned));
+  if (!toggle && name) {
+    const plot = document.getElementById("pbac-plot");
+    if (plot && plot.scrollIntoView) plot.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+}
+
+// Table-row hover drives the same ring and side panel as a point hover.
+function paHover(name) { pbacHover = name; pbacSide(); }
+
+// "Retained (+3)" style label for an account Request stage.
+function paRequestWord(a) {
+  const st = covRequestStage(a);
+  if (!st) return "";
+  const pts = covNum(a.request_points);
+  return adoptCap(st) + (pts ? ` (+${pts})` : "");
+}
+
+// The summary panel beside the plot. Hover wins while the cursor is on a point
+// or a table row, so a pin never blocks reading the next account; leaving falls
+// back to the pin.
 function pbacSide() {
   const el   = document.getElementById("pbac-side");
   const name = pbacHover || pbacPinned;
@@ -3142,81 +3394,215 @@ function pbacSide() {
   el.className = "pbac-side" + (isPinned ? " pinned" : "");
 
   if (!a || !at) {
-    el.innerHTML = `<p class="ps-empty">Hover a point for its account summary, or click to keep it on screen while you look elsewhere.</p>`;
+    el.innerHTML = `<p class="ps-empty">Hover a point or a table row for its account summary, or click to keep it on screen while you look elsewhere.</p>`;
     return;
   }
 
   const ratio  = a.consumption_ratio_raw;
   const known  = ratio !== null && ratio !== undefined && !isNaN(ratio);
-  const pinned = known && ratio > PBAC_CFG.ratioMax;
+  const pinned = known && ratio > PA_CFG.ratioMax;
   const none   = `<span class="ov-adopt-none">None</span>`;
+  const reqPts = covNum(a.request_points) || 0;
+  const stage  = covRequestStage(a);
+  const badge  = fmtStoplightAs(a.product_rating, pbacFullLabel(a.product_rating), a.product_rating);
 
   el.innerHTML =
-    `<div class="ps-name"><span class="acct-link" onclick="goToAccount(\'${esc(a.name)}\')">${esc(a.name)}</span></div>` +
-    `<div>${pbacBadge(a)}</div>` +
+    `<div class="ps-name"><span class="acct-link" onclick="goToAccount(${esc(JSON.stringify(a.name))})">${esc(a.name)}</span></div>` +
+    `<div>${isInstallStage(a) ? badge.replace("stoplight-dot ", "stoplight-dot square ") : badge}</div>` +
     // ARR is what the dot size encodes, so the panel has to name the figure.
     `<div class="ps-kv" style="margin-top:8px"><span>Contract ARR</span><span>${esc(a.arr)}</span></div>` +
+
+    `<div class="ps-block"><div class="ps-h">Product adoption</div>` +
+      `<div class="ps-kv"><span>Score</span><span>${a.product_adoption} / ${PA_CFG.scoreMax}</span></div>` +
+      `<div class="ps-kv"><span>PBAC complexity</span><span>${a.pbac_score} / ${PBAC_CFG.scoreMax}</span></div>` +
+      `<div class="ps-kv"><span>Request${stage ? " (" + esc(adoptCap(stage)) + ")" : ""}</span><span>+${reqPts}</span></div>` +
+    `</div>` +
 
     `<div class="ps-block"><div class="ps-h">Consumption</div>` +
       `<div class="ps-kv"><span>Registered users</span><span>${esc(a.registered_users)}</span></div>` +
       `<div class="ps-kv"><span>Licensed users</span><span>${esc(a.licensed_users)}</span></div>` +
-      `<div class="ps-kv"><span>Consumption ratio</span><span>${known ? (Math.round(ratio * 1000) / 10) + "%" : "—"}</span></div>` +
+      `<div class="ps-kv"><span>Consumption ratio</span><span>${known ? (Math.round(ratio * 1000) / 10) + "%" : "\\u2014"}</span></div>` +
       (known
-        ? (pinned ? `<p class="ps-note">Above the axis maximum of ${PBAC_CFG.ratioMax} — drawn in the pinned column at the right edge.</p>` : "")
+        ? (pinned ? `<p class="ps-note">Above the axis maximum of ${PA_CFG.ratioMax} \\u2014 drawn in the pinned column at the right edge.</p>` : "")
         : `<p class="ps-note">No ratio available. Drawn at zero as a placeholder; the rating reads it as not yet demonstrated, not as zero usage.</p>`) +
     `</div>` +
 
-    `<div class="ps-block"><div class="ps-h">Complexity</div>` +
-      `<div class="ps-kv"><span>Score</span><span>${a.pbac_score} / ${PBAC_CFG.scoreMax}</span></div>` +
-      `<div class="ps-sub"><span class="ps-sub-k">Platforms</span>${(a.platform_html && a.platform_html !== "—") ? a.platform_html : none}</div>` +
+    `<div class="ps-block"><div class="ps-h">PBAC detail</div>` +
+      `<div class="ps-sub"><span class="ps-sub-k">Platforms</span>${(a.platform_html && a.platform_html !== "\\u2014") ? a.platform_html : none}</div>` +
       `<div class="ps-sub"><span class="ps-sub-k">Feature adoption</span>${adoptBlank(a.pbac_features) ? none : esc(a.pbac_features)}</div>` +
     `</div>` +
 
     `<div class="ps-hint">${isPinned
-      ? `Pinned. <button type="button" onclick="pbacPinned=null;pbacSide()">Clear</button>`
-      : "Click the point to keep this on screen."}</div>`;
+      ? `Pinned. <button type="button" onclick="paPin(null, false)">Clear</button>`
+      : "Click the point or row to keep this on screen."}</div>`;
 }
 
-// How the rating is derived, rendered under the plot. Static — the thresholds
-// are read from PBAC_CFG so the prose cannot fall out of step with the shading.
-function pbacWriteupHtml() {
+// ── Product adoption table ─────────────────────────────────────────────────
+// Every adoption and consumption field for the accounts in view, sortable on
+// any column. Hovering a row rings its point on the scatter; clicking pins it.
+let paSort = { col: "product_adoption", dir: -1 };
+
+function sortPa(col) {
+  // Numbers and ratings read best high-to-low first; text reads A-Z first.
+  const numericFirst = ["product_adoption", "product_rating", "arr_raw", "consumption_ratio_raw",
+                        "pbac_score", "request_points", "comply_adoption", "agentic_governance_adoption"];
+  paSort = paSort.col === col ? { col: col, dir: -paSort.dir }
+                              : { col: col, dir: numericFirst.includes(col) ? -1 : 1 };
+  renderProductTable();
+}
+
+function renderProductTable() {
+  const statsEl = document.getElementById("adopt-stats-overview");
+  const tableEl = document.getElementById("adopt-table-overview");
+  const dash    = `<span class="em-dash">\\u2014</span>`;
+  const txt     = v => adoptBlank(v) ? dash : esc(v);
+
+  const rows = ACCOUNTS.filter(paInView);
+  if (!rows.length) {
+    statsEl.innerHTML = "";
+    tableEl.innerHTML = `<p class="empty-msg" style="padding:40px">No accounts match the current region, CSM and search filters.</p>`;
+    return;
+  }
+
+  // Stats strip: rating counts across the accounts in view.
+  const counts = { green: 0, amber: 0, red: 0, black: 0 };
+  rows.forEach(a => { const c = ratingColour(a.product_rating); if (c in counts) counts[c]++; });
+  const scored = rows.filter(hasProduct);
+  const avg = scored.length
+    ? Math.round(scored.reduce((s, a) => s + covNum(a.product_adoption), 0) / scored.length * 10) / 10 : null;
+  const stat = (l, v) => `<div class="stat-item"><div class="stat-label">${l}</div><div class="stat-value">${v}</div></div>`;
+  statsEl.innerHTML =
+    stat("Accounts", rows.length) +
+    stat("Avg Product Adoption", avg === null ? "\\u2014" : avg) +
+    ["green", "amber", "red", "black"].map(c => stat(adoptCap(c), counts[c])).join("");
+
+  // Request rating source: Looker tier where present, else the SFDC picklist.
+  const reqSrc = a => adoptBlank(a.request_adoption_derived) ? a.request_adoption : a.request_adoption_derived;
+  const ratingRank = f => a => COLOUR_RANK[ratingColour(a[f])];
+
+  // [sort key, header, cell renderer, sort value (optional; default is text)]
+  const cols = [
+    ["name", "Account", a =>
+      `<span class="acct-link" onclick="event.stopPropagation(); goToAccount(${esc(JSON.stringify(a.name))})">${esc(a.name)}</span>`],
+    ["csm",    "CSM",    a => txt(a.csm)],
+    ["region", "Region", a => txt(a.region)],
+    ["arr_raw", "ARR", a => `<span class="pa-num">${txt(a.arr)}</span>`, a => covNum(a.arr_raw)],
+    ["product_adoption", "Product Adoption", a => hasProduct(a)
+        ? `<span class="pa-num pa-score">${a.product_adoption}</span><span class="pa-of"> / ${PA_CFG.scoreMax}</span>` : dash,
+      a => covNum(a.product_adoption)],
+    ["product_rating", "Rating", a => adoptBlank(a.product_rating) ? dash
+        : fmtStoplightAs(a.product_rating, pbacFullLabel(a.product_rating), pbacFullLabel(a.product_rating)),
+      ratingRank("product_rating")],
+    ["consumption_ratio_raw", "Consumption", a => {
+        const r = covNum(a.consumption_ratio_raw);
+        return r === null ? dash
+          : `<span class="pa-num" title="${esc(a.registered_users)} registered / ${esc(a.licensed_users)} licensed">${Math.round(r * 1000) / 10}%</span>`;
+      }, a => covNum(a.consumption_ratio_raw)],
+    ["pbac_score", "PBAC Complexity", a => covNum(a.pbac_score) === null ? dash
+        : `<span class="pa-num">${a.pbac_score}</span>`, a => covNum(a.pbac_score)],
+    ["request_points", "Request", a => {
+        const w = paRequestWord(a);
+        return w ? fmtStoplightAs(reqSrc(a), w, reqSrc(a)) : dash;
+      }, a => (covNum(a.request_points) || 0) * 10 + COLOUR_RANK[ratingColour(reqSrc(a))]],
+    ["comply_adoption", "Comply", a => fmtStoplight(a.comply_adoption), ratingRank("comply_adoption")],
+    ["agentic_governance_adoption", "Agentic", a => fmtStoplight(a.agentic_governance_adoption),
+      ratingRank("agentic_governance_adoption")],
+    ["platform_html", "Platforms", a => (a.platform_html && a.platform_html !== "\\u2014") ? a.platform_html : dash],
+    ["iam",           "IAM",            a => txt(a.iam)],
+    ["ext_catalog",   "Ext. Catalog",   a => txt(a.ext_catalog)],
+    ["pbac_features", "PBAC Features",  a => txt(a.pbac_features)],
+    ["lifecycle_stage", "Lifecycle Stage", a => txt(a.lifecycle_stage)]
+  ];
+
+  const col = cols.find(c => c[0] === paSort.col) || cols[4];
+  const key = col[3] || (a => {
+    const v = a[col[0]];
+    return adoptBlank(v) ? "" : String(v).replace(/<[^>]*>/g, "").toLowerCase();
+  });
+  const sorted = rows.slice().sort((x, y) => {
+    const xv = key(x), yv = key(y);
+    // Blanks sink to the bottom whichever way the column is sorted.
+    const xb = xv === null || xv === "" || xv === undefined, yb = yv === null || yv === "" || yv === undefined;
+    if (xb !== yb) return xb ? 1 : -1;
+    const d = (typeof xv === "number" && typeof yv === "number") ? xv - yv : String(xv).localeCompare(String(yv));
+    return d * paSort.dir || x.name.localeCompare(y.name);
+  });
+
+  const hdrs = cols.map(c => {
+    const arrow = paSort.col === c[0] ? (paSort.dir === 1 ? " \\u2191" : " \\u2193") : "";
+    return `<th onclick="sortPa(${esc(JSON.stringify(c[0]))})">${esc(c[1])}${arrow}</th>`;
+  }).join("");
+
+  const body = sorted.map(a => {
+    const nm  = esc(JSON.stringify(a.name));
+    const cls = [a.name === pbacPinned ? "pa-pinned" : "", isInstallStage(a) ? "pa-onboarding" : ""].join(" ").trim();
+    return `<tr data-name="${esc(a.name)}" class="${cls}" onmouseenter="paHover(${nm})" onmouseleave="paHover(null)" onclick="paPin(${nm}, false)">` +
+      cols.map(c => `<td>${c[2](a)}</td>`).join("") + `</tr>`;
+  }).join("");
+
+  tableEl.innerHTML = `<table class="flat-table pa-table"><thead><tr>${hdrs}</tr></thead><tbody>${body}</tbody></table>`;
+}
+
+// How the score and rating are derived — the second Adoption sub-tab. Static;
+// the thresholds and weights are read from PA_CFG / PBAC_CFG so the prose
+// cannot fall out of step with the shading.
+function productWriteupHtml() {
   const cell = (k, label) =>
     `<td style="background:${PBAC_COLOURS[k].bg};color:${PBAC_COLOURS[k].ink}">${label}</td>`;
-  const weights = [
+  const row = (name, desc, w) =>
+    `<tr><td><b>${name}</b><br><span style="color:var(--text-3);font-size:11.5px">${desc}</span></td><td class="w">${w}</td></tr>`;
+  const pbacWeights = [
     ["Multi-platform", "Data sources registered on more than one platform in Production.", 3],
-    ["Data &amp; subscription policies", "Both kinds of global policy active — the account governs who gets in and what they see.", 1],
+    ["Data &amp; subscription policies", "Both kinds of global policy active \\u2014 the account governs who gets in and what they see.", 1],
     ["Sensitive Data Discovery", "An SDD run within the last 90 days.", 1],
-    ["Domains", "On the Domains dashboard retained-accounts tile — governance is delegated, not centrally hand-run.", 1],
+    ["Domains", "On the Domains dashboard retained-accounts tile \\u2014 governance is delegated, not centrally hand-run.", 1],
     ["Guardrails", "At least one active guardrail policy.", 1]
-  ].map(w => `<tr><td><b>${w[0]}</b><br><span style="color:var(--text-3);font-size:11.5px">${w[1]}</span></td><td class="w">${w[2]}</td></tr>`).join("");
+  ].map(w => row(w[0], w[1], w[2])).join("");
+  const requestWeights = [
+    ["Retained", "On the Request dashboard retained tile \\u2014 in use for 3 of the last 4 weeks.", PA_CFG.requestRetained],
+    ["Adopted", "A Request use case in production, not yet retained.", PA_CFG.requestAdopted],
+    ["Tried / none", "POC or planning only, or no Request workflow.", 0]
+  ].map(w => row(w[0], w[1], w[2])).join("");
 
   return `
-    <h3>How the PBAC rating is derived</h3>
-    <p>Seat usage on its own is a poor read on adoption. An account can log in constantly and still run one trivial policy on one platform; another can have modest login numbers while governing three platforms with guardrails and discovery in place. The rating scores each account on two independent axes and crosses the result — <b>complexity</b> (how much the account asks of PBAC) against <b>consumption</b> (how much of what they bought they use).</p>
+    <h3>How the product adoption score is derived</h3>
+    <p>Seat usage on its own is a poor read on adoption. An account can log in constantly and still run one trivial policy on one platform; another can have modest login numbers while governing three platforms with guardrails and discovery in place, and running access requests through Immuta. The rating scores each account on two independent axes and crosses the result \\u2014 <b>product adoption</b> (how much the account asks of the product) against <b>consumption</b> (how much of what they bought they use).</p>
 
-    <h3>Complexity score</h3>
-    <p>Five yes/no signals from the Looker consumption looks and the Domains dashboard. Multi-platform is worth three because running policy across two or more platforms is the qualitative jump; the rest are worth one each.</p>
-    <table class="pbac-weights"><tbody>${weights}</tbody></table>
-    <p>The threshold for <b>complex</b> is ${PBAC_CFG.complexityMin}, which leaves exactly two routes past it: multi-platform <i>plus</i> at least one other signal (3 + 1), or all four of the single-weight signals. A multi-platform deployment with nothing else going on scores 3 and does not clear it. Policy signals count Production instances only — a guardrail on a dev instance is not production complexity.</p>
+    <h3>Product adoption score</h3>
+    <p>The score runs 0\\u2013${PA_CFG.scoreMax} and is the sum of two parts: the PBAC complexity score (0\\u2013${PBAC_CFG.scoreMax}) and Request adoption points (0\\u2013${PA_CFG.requestRetained}).</p>
+
+    <h3>1. PBAC complexity (0\\u2013${PBAC_CFG.scoreMax})</h3>
+    <p>Five yes/no signals from the Looker consumption looks and the Domains dashboard. Multi-platform is worth three because running policy across two or more platforms is the qualitative jump; the rest are worth one each. Policy signals count Production instances only \\u2014 a guardrail on a dev instance is not production complexity.</p>
+    <table class="pbac-weights"><tbody>${pbacWeights}</tbody></table>
+
+    <h3>2. Request adoption (0\\u2013${PA_CFG.requestRetained})</h3>
+    <p>Points for the account Request stage. The stage comes from the Looker Request metrics dashboard (1009) where the account appears on it, and from the Salesforce Request Adoption picklist otherwise (green = retained, amber = adopted). Retained carries the same weight as multi-platform: a request workflow people use week after week is as strong a signal as governing a second platform.</p>
+    <table class="pbac-weights"><tbody>${requestWeights}</tbody></table>
+
+    <p>The threshold for <b>high adoption</b> is ${PA_CFG.adoptionMin}. Routes past it include multi-platform plus any one other PBAC signal or an adopted Request workflow (3 + 1), a retained Request workflow plus any one PBAC signal (3 + 1), or all four single-weight PBAC signals. Multi-platform alone, or a retained Request workflow alone, scores 3 and does not clear it.</p>
 
     <h3>Crossing the axes</h3>
     <table class="pbac-matrix"><tbody>
-      <tr><th></th><th>Ratio &lt; ${PBAC_CFG.ratioMinimal}</th><th>${PBAC_CFG.ratioMinimal} – ${PBAC_CFG.ratioModerate}</th><th>Ratio &ge; ${PBAC_CFG.ratioModerate}</th></tr>
-      <tr><th class="rowh">score &ge; ${PBAC_CFG.complexityMin}</th>${cell("red", "Red: Critical Consumption Risk")}${cell("amber", "Amber")}${cell("green", "Green")}</tr>
-      <tr><th class="rowh">score &lt; ${PBAC_CFG.complexityMin}</th>${cell("black", "Black")}${cell("red", "Red: Critical Adoption Risk")}${cell("amber", "Amber")}</tr>
+      <tr><th></th><th>Ratio &lt; ${PA_CFG.ratioMinimal}</th><th>${PA_CFG.ratioMinimal} \\u2013 ${PA_CFG.ratioModerate}</th><th>Ratio &ge; ${PA_CFG.ratioModerate}</th></tr>
+      <tr><th class="rowh">score &ge; ${PA_CFG.adoptionMin}</th>${cell("red", "Red: High Risk - Consumption")}${cell("amber", "Amber")}${cell("green", "Green")}</tr>
+      <tr><th class="rowh">score &lt; ${PA_CFG.adoptionMin}</th>${cell("black", "Black: Critical Churn Risk")}${cell("red", "Red: High Risk - Adoption")}${cell("amber", "Amber")}</tr>
     </tbody></table>
-    <p>Note the asymmetry: complexity alone caps at <b>red</b>, consumption alone caps at <b>amber</b>. Neither axis reaches green by itself — green needs the deployment to be doing demanding work <i>and</i> people to be there doing it.</p>
+    <p>Note the asymmetry: adoption alone caps at <b>red</b>, consumption alone caps at <b>amber</b>. Neither axis reaches green by itself \\u2014 green needs the deployment to be doing demanding work <i>and</i> people to be there doing it.</p>
 
     <h3>Missing data</h3>
     <ul>
-      <li><b>A missing complexity signal scores zero.</b> If an account is absent from the SDD look, no SDD has run — a real negative, not a gap.</li>
-      <li><b>A missing consumption ratio stays unknown.</b> It is not forced to zero, because an unknown ratio is not the same as no usage. The rating reads it as not yet demonstrated, so such an account can reach red on complexity alone but no further.</li>
-      <li><b>Zero licensed users is an ELA, not missing data.</b> Unlimited seats means there is no denominator to divide by, so the ratio is 1 — those accounts are consuming everything they are entitled to. An ELA with nobody registered is still 0.</li>
+      <li><b>A missing PBAC signal scores zero.</b> If an account is absent from the SDD look, no SDD has run \\u2014 a real negative, not a gap.</li>
+      <li><b>An unknown Request stage scores zero.</b> No Looker stage and no Salesforce picklist value means no Request points.</li>
+      <li><b>A missing consumption ratio stays unknown.</b> It is not forced to zero, because an unknown ratio is not the same as no usage. The rating reads it as not yet demonstrated, so such an account can reach red on adoption alone but no further.</li>
+      <li><b>Zero licensed users is an ELA, not missing data.</b> Unlimited seats means there is no denominator to divide by, so the ratio is 1 \\u2014 those accounts are consuming everything they are entitled to. An ELA with nobody registered is still 0.</li>
     </ul>
-    <p>The ratio is deliberately kept out of the complexity score. It measures seat uptake, not deployment sophistication, and folding it in would collapse the two axes back into the single number this rating exists to avoid.</p>
+    <p>The ratio is deliberately kept out of the score. It measures seat uptake, not deployment sophistication, and folding it in would collapse the two axes back into the single number this rating exists to avoid.</p>
+
+    <h3>Where this differs from the PBAC rating</h3>
+    <p>The PBAC rating on each account card (the first square of the four-square glyph, and the mini plot on the card Overview tab) is unchanged: it crosses PBAC complexity alone against consumption, with the same thresholds. The product adoption rating on this page adds Request on top, so an account can sit higher here than on its card \\u2014 never lower.</p>
 
     <h3>Reading a point</h3>
-    <p>The colour gives severity; the pair behind it gives the play. <b>Red: Critical Consumption Risk</b> (high score, thin ratio) is an enablement problem — the platform work is done, the users are not there. <b>Red: Critical Adoption Risk</b> (low score, some usage) is a depth problem — people are there, nothing hard is being asked of the product. Same colour, opposite conversations. Black should move fastest: neither axis has cleared its floor, and there is no adoption story to tell at renewal.</p>`;
+    <p>The colour gives severity; the pair behind it gives the play. <b>Red: High Risk - Consumption</b> (high score, thin ratio) is an enablement problem \\u2014 the platform work is done, the users are not there. <b>Red: High Risk - Adoption</b> (low score, some usage) is a depth problem \\u2014 people are there, nothing hard is being asked of the product. Same colour, opposite conversations. <b>Black: Critical Churn Risk</b> should move fastest: neither axis has cleared its floor, and there is no adoption story to tell at renewal.</p>`;
 }
 
 // ── Escalations ────────────────────────────────────────────────────────────
@@ -4555,6 +4941,7 @@ render();
   tmpl <- gsub("{{CONSUMPTION}}",  consumption_json,      tmpl, fixed = TRUE)
   tmpl <- gsub("{{SAAS}}",         saas_json,             tmpl, fixed = TRUE)
   tmpl <- gsub("{{ESCALATIONS}}",  escalations_json,      tmpl, fixed = TRUE)
+  tmpl <- gsub("{{GUIDE_B64}}",    guide_b64,             tmpl, fixed = TRUE)
   tmpl <- gsub("{{JSON_DATA}}",    json_data,             tmpl, fixed = TRUE)
   tmpl
 }

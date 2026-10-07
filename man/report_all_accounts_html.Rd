@@ -4,7 +4,11 @@
 \alias{report_all_accounts_html}
 \title{Generate an HTML dashboard of all account summaries.}
 \usage{
-report_all_accounts_html(op_list, output_path = "output/immuta_accounts.html")
+report_all_accounts_html(
+  op_list,
+  output_path = "output/immuta_accounts.html",
+  favicon = .rah_default_favicon()
+)
 }
 \arguments{
 \item{op_list}{Named list returned by \code{enrich_opportunities()}, expected
@@ -14,6 +18,13 @@ to contain \code{accounts}, \code{renewals}, \code{expansions}, and
 \item{output_path}{Character. Path where the HTML file will be written.
 Parent directories are created automatically.
 Defaults to \code{"output/immuta_accounts.html"}.}
+
+\item{favicon}{Character. The browser-tab icon. Either a local image file
+(\code{.ico}, \code{.png}, \code{.svg}), which is embedded in the page so
+it shows offline and in downloaded copies, or a URL the browser fetches
+when the page opens. Defaults to \code{inst/assets/immuta_favicon.svg} (the
+Immuta mark, black, white in dark-mode tabs) if that file exists, otherwise Immuta's own
+\code{https://www.immuta.com/favicon.ico}. \code{NULL} omits it.}
 }
 \value{
 Invisibly returns \code{output_path}.

@@ -5,14 +5,14 @@
 \title{Build the renewal churn-forecast child table for op_list.}
 \usage{
 op_list_forecast(
-  sf_forecast_report = "00OVH00000706ML2AY",
+  sf_forecast_report = "00OVV000006hrNN2AY",
   opportunity_table = NULL,
   quiet = FALSE
 )
 }
 \arguments{
 \item{sf_forecast_report}{Character. Salesforce report ID for the renewal
-churn forecast report. Defaults to \code{"00OVH00000706ML2AY"}.}
+churn forecast report. Defaults to \code{"00OVV000006hrNN2AY"}.}
 
 \item{opportunity_table}{Optional data frame — typically the raw opportunity
 report from \code{\link{enrich_opportunities}}. When supplied,
@@ -35,7 +35,7 @@ A data frame with one row per renewal opportunity. Always carries
   \code{Account Name} / \code{Account ID}.
 }
 \description{
-Runs the Salesforce "CompanyChurnReport" and returns one tidy row per
+Runs the Salesforce renewal churn forecast report and returns one tidy row per
 renewal opportunity carrying its churn quarter, churn forecast dollars,
 account risk, amount, stage and dates. Called automatically by
 \code{\link{enrich_opportunities}} and stored as \code{op_list$forecast};

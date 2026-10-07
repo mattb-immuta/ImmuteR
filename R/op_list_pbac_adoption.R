@@ -50,9 +50,9 @@
 # high complexity with almost no seat use is an enablement problem
 # (consumption risk).
 .PBAC_ADOPTION_RATINGS <- c(
-  black           = "Black: Negligible Value",
-  red_adoption    = "Red: Critical Adoption Risk",
-  red_consumption = "Red: Critical Consumption Risk",
+  black           = "Black: Critical Churn Risk",
+  red_adoption    = "Red: High Risk - Adoption",
+  red_consumption = "Red: High Risk - Consumption",
   amber           = "amber: moderate adoption",
   green           = "green: strong adoption"
 )
@@ -67,8 +67,8 @@
 # of what they bought are they using?
 #
 #                    ratio < 0.25              0.25-0.75                  >= 0.75
-#   score >= 4       red: consumption risk     amber                      green
-#   score <  4       black                     red: adoption risk         amber
+#   score >= 4       red: high risk - consump.  amber                     green
+#   score <  4       black: churn risk          red: high risk - adoption amber
 #
 # A missing ratio is treated as "not yet demonstrated", not as zero: such an
 # account can still reach red on complexity alone, but no further.

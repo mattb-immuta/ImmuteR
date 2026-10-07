@@ -1,6 +1,6 @@
 # ImmuteR
 
-An R package that fuses Salesforce, Looker (via `idex`), and Google Sheets to support Immuta's customer success workflows. It pulls and enriches opportunity, renewal, expansion, and consumption data; generates risk signals; and pushes outputs to Google Sheets, Rmarkdown reports, and Asana.
+An R package that fuses Salesforce, Looker (via `idex`), and Google Sheets to support Immuta's customer success workflows. It pulls and enriches opportunity, renewal, expansion, and consumption data; generates risk signals; and pushes outputs to Google Sheets, Rmarkdown reports, and the HTML dashboard.
 
 ---
 
@@ -14,7 +14,7 @@ install.packages("devtools")
 devtools::install_deps()
 ```
 
-See [NEW_MACHINE_SETUP.md](NEW_MACHINE_SETUP.md) for a full walkthrough including auth setup for Salesforce, Google Sheets, and Asana.
+See [NEW_MACHINE_SETUP.md](NEW_MACHINE_SETUP.md) for a full walkthrough including auth setup for Salesforce, Google Sheets, and Looker.
 
 ---
 
@@ -26,7 +26,7 @@ See [NEW_MACHINE_SETUP.md](NEW_MACHINE_SETUP.md) for a full walkthrough includin
 | RStudio | Open project via `ImmuteR.Rproj` |
 | Salesforce access | Token cached in `.httr-oauth-salesforcer`; re-auth with `sf_auth()` |
 | Google account | Auth via `gs4_auth(email = "...")`; token cached in `~/.config/gargle/` |
-| Asana token | Set `ASANA_TOKEN` in `.Renviron`; get one at [app.asana.com/0/my-apps](https://app.asana.com/0/my-apps) |
+| Looker credentials | Set `LOOKER_CLIENT_ID` and `LOOKER_CLIENT_SECRET` in `.Renviron` |
 | `idex` CLI | Required for consumption data; invoked via `uvx idex` |
 
 ---
@@ -39,7 +39,7 @@ The typical workflow follows three stages:
 
 **2. Diff & Detect Changes** — `enrich_list_object()` compares the current `op_list` against a saved snapshot (`.RData`) to surface what changed: accounts added or removed, risk changes, CSM reassignments, etc.
 
-**3. Output** — A family of `output_*` and `report_*` functions push results to Google Sheets, generate Rmarkdown/HTML tables, build per-account summaries, and sync to Asana.
+**3. Output** — A family of `output_*` and `report_*` functions push results to Google Sheets, generate Rmarkdown/HTML tables, and build per-account summaries.
 
 ---
 
@@ -62,11 +62,10 @@ The typical workflow follows three stages:
 |---|---|
 | `output_account_summary()` | Builds a structured summary (account metadata, open renewals/expansions, architecture/SaaS status, active products) for a single named account. |
 | `summarize_account()` | Similar to above; includes adoption metrics (consumption rates, user counts, policy usage). |
-| `report_account_summary()` | Renders an account summary to HTML, RTF, or Markdown. HTML is designed for copy-paste into Asana. |
+| `report_account_summary()` | Renders an account summary to HTML, RTF, or Markdown. HTML can be opened in a browser and copied into any rich-text tool. |
 | `report_all_accounts()` | Returns a data frame of all accounts with ARR, CSM, region, and concatenated churn quarters. |
 | `report_all_accounts_html()` | Generates a self-contained HTML dashboard of all accounts with search, region filter, A–Z jump bar, and expandable detail cards. |
-| `output_markdown_accounts()` | Writes per-account `.md` files to `output/account_briefs/` for use in Asana task descriptions. |
-| `push_asana_account_summary()` | Pushes an account summary to an Asana task (creates or updates by account name match) via the Asana REST API. |
+| `output_markdown_accounts()` | Writes per-account `.md` files to `output/account_briefs/`. |
 
 ### Google Sheets Outputs
 
@@ -126,7 +125,7 @@ ImmuteR/
 │   ├── output_*.R            # Output functions (Sheets, Rmd, HTML)
 │   ├── report_*.R            # Account summary renderers
 │   ├── generate_*.R          # Forecast and BU table generators
-│   ├── push_asana_*.R        # Asana integration
+│   ├── push_*.R              # Google Drive publishing
 │   └── utils_internal.R      # Internal helpers (not exported)
 ├── man/                      # Roxygen-generated documentation
 ├── working_scratch/          # Scratch scripts and prototypes
