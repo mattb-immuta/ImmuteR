@@ -1,0 +1,307 @@
+---
+title: "FY28 Churn Forecast"
+subtitle: Monte Carlo simulation against the company churn plan
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  pdf_document:
+    latex_engine: xelatex
+    toc: false
+    number_sections: false
+    fig_caption: false
+geometry: margin=0.75in
+fontsize: 10pt
+# Symbols the default LaTeX font lacks (same as inst/guide/immuta_accounts_guide.Rmd).
+header-includes:
+  - \usepackage{newunicodechar}
+  - \newunicodechar{−}{\ensuremath{-}}
+  - \newunicodechar{≥}{\ensuremath{\geq}}
+params:
+  snapshot: ''
+  n_sims: 10000
+  seed: 2028
+  p_expected: 0.5
+  p_at_risk: 0.1
+  sf_amount_field: Amount
+  png_q1: /Users/matt.benigni/Documents/Pictures/q1.png
+  png_q2: /Users/matt.benigni/Documents/Pictures/q2.png
+  png_q3: /Users/matt.benigni/Documents/Pictures/q3.png
+  png_q4: /Users/matt.benigni/Documents/Pictures/q4.png
+---
+
+<!-- PDF version of FY28_churn_forecast_report.Rmd: same model (sourced from
+     FY28_churn_forecast_model.R), same numbers and wording. The tabs become
+     page-broken sections and the plotly charts become static ggplot2 charts.
+     Needs a LaTeX install with xelatex (tinytex::install_tinytex()). -->
+
+```{r setup, include = FALSE}
+# Knit from reports/; everything below runs from the project root.
+root <- normalizePath("..")
+knitr::opts_knit$set(root.dir = root)
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE,
+                      fig.width = 7.5, fig.height = 4, fig.align = "center")
+devtools::load_all(root, quiet = TRUE)
+library(dplyr)
+library(ggplot2)
+
+# Text and table values: "$" escaped so pandoc never reads a pair of them as maths.
+usd  <- function(x) paste0("\\", scales::dollar(round(x)))
+usdk <- function(x) paste0("\\", .usdk(x))
+pct  <- function(x) paste0(round(100 * x), "%")
+# Chart labels: plain "$".
+.usdk <- function(x) ifelse(abs(x) >= 1e6, paste0("$", formatC(x / 1e6, format = "f", digits = 2), "M"),
+                            paste0("$", round(x / 1e3), "K"))
+axis_usd <- scales::label_dollar(scale_cut = scales::cut_short_scale())
+
+theme_set(theme_minimal(base_size = 10) +
+            theme(panel.grid.minor = element_blank(), legend.position = "bottom",
+                  plot.title = element_text(face = "bold")))
+```
+
+```{r data}
+# Same model as the HTML report.
+source(file.path(root, "scripts", "FY28_churn_forecast_model.R"), local = knitr::knit_global())
+```
+
+# FY28
+
+**Can we hold churn to plan this year?** On the current pipeline the model gives a
+**`r pct(fy[["Chance at or under plan"]])`** chance of finishing FY28 at or under the
+**`r usd(plan_fy)`** company churn plan. Hitting plan is `r verdict(fy[["Chance at or under plan"]])`.
+
+```{r fy-cards}
+vs_plan <- function(x) ifelse(x > plan_fy, paste("+", usdk(x - plan_fy)), paste("−", usdk(plan_fy - x)))
+cards <- data.frame(
+  `Company plan`      = c(usdk(plan_fy), "FY28 churn, four quarters"),
+  `Best case (P25)`   = c(usdk(fy$P25), paste(vs_plan(fy$P25), "vs plan")),
+  `Most likely (P50)` = c(usdk(fy$P50), paste(vs_plan(fy$P50), "vs plan")),
+  `Worst case (P75)`  = c(usdk(fy$P75), paste(vs_plan(fy$P75), "vs plan")),
+  check.names = FALSE)
+cards[1, ] <- paste0("**", cards[1, ], "**")
+knitr::kable(cards, format = "pipe", align = "c")
+```
+
+**What the percentiles say.** Across `r format(params$n_sims, big.mark = ",")` simulated
+years, FY28 churn comes in at `r usd(fy$P25)` in the best case (25th percentile),
+`r usd(fy$P50)` most likely (50th percentile) and `r usd(fy$P75)` in the worst case
+(75th percentile). The plan of `r usd(plan_fy)` sits at the
+`r round(100 * fy[["Chance at or under plan"]])`th percentile of the distribution: in
+`r pct(fy[["Chance at or under plan"]])` of simulated years churn stays at or under plan,
+and in `r pct(1 - fy[["Chance at or under plan"]])` it overshoots.
+
+**What's already locked in.** `r usd(certain_fy)` of FY28 churn is certain (Closed Lost,
+Verbally Confirmed or Will Churn renewals), which uses
+`r pct(certain_fy / plan_fy)` of the annual plan before any at-risk renewal is lost.
+
+**Quarter by quarter.** `r best_q` has the best chance of landing at or under plan
+(`r pct(stats[best_q, "Chance at or under plan"])`); `r worst_q` the weakest
+(`r pct(stats[worst_q, "Chance at or under plan"])`).
+
+```{r fy-table}
+tab <- stats %>%
+  transmute(Period, Plan = usd(Plan), `Expected (mean)` = usd(Expected),
+            `Best case (P25)` = usd(P25), `Most likely (P50)` = usd(P50), `Worst case (P75)` = usd(P75),
+            `Chance at or under plan` = pct(`Chance at or under plan`))
+knitr::kable(tab, format = "pipe", row.names = FALSE, align = c("l", rep("r", 6)))
+```
+
+\footnotesize
+
+**Method.** Each renewal is an independent coin flip: Closed Lost, Verbally
+Confirmed and Will Churn always churn; Expected to Churn churns with probability
+`r p[1]`; At Risk Renewal with probability `r p[2]`; Expecting to Renew and Closed Won
+are not modelled. Q1 and Q2 come from Salesforce renewals in the
+`r snap_date` snapshot (certain and expected churn valued at
+`r params$sf_amount_field`, at-risk at Amount); Q3 and Q4 use the hand-entered amounts
+from `scripts/FY28_churn_forecast_model.R`. The year is the sum of the four quarters in each
+run. Plan figures are `load_constants()$churn_plan`.
+
+\normalsize
+
+```{r quarter-helpers}
+quarter_intro <- function(q) {
+  s <- stats[q, ]; x <- fc[[q]]
+  b <- x$table %>% group_by(Bucket) %>% summarise(n = n(), v = sum(`Modelled $`), .groups = "drop")
+  g <- function(k) { r <- b[b$Bucket == k, ]; if (nrow(r)) sprintf("%d (%s)", r$n, usdk(r$v)) else "none" }
+  knitr::asis_output(sprintf(
+    "**%s chance of landing at or under the %s plan.** Best case (P25) %s, most likely (P50) %s, worst case (P75) %s; expected %s.\n\nInputs (%s): certain churn %s, expected to churn %s, at risk %s.\n\n",
+    pct(s$`Chance at or under plan`), usd(s$Plan), usd(s$P25), usd(s$P50), usd(s$P75), usd(s$Expected),
+    x$source, g("Certain churn"), g("Expected to churn"), g("At risk")))
+}
+show_png <- function(path, q, param) {
+  if (!nzchar(path)) {
+    return(knitr::asis_output(sprintf(
+      "> *Renewal ratings PNG for %s goes here. Set `%s` in the YAML header at the top of this file.*\n\n",
+      q, param)))
+  }
+  full <- if (file.exists(path)) path else file.path(root, path)
+  if (!file.exists(full)) {
+    return(knitr::asis_output(sprintf("> *PNG not found: `%s` (set in `%s`).*\n\n", path, param)))
+  }
+  knitr::include_graphics(normalizePath(full), rel_path = FALSE)
+}
+renewal_table <- function(q) {
+  t <- fc[[q]]$table %>%
+    arrange(factor(Bucket, c("Certain churn", "Expected to churn", "At risk", "Not modelled")), desc(Amount)) %>%
+    mutate(Amount = usd(Amount), `Modelled $` = usd(`Modelled $`),
+           `Chance of churn` = case_when(Bucket == "Certain churn" ~ "100%",
+                                         Bucket == "Expected to churn" ~ pct(p[1]),
+                                         Bucket == "At risk" ~ pct(p[2]), TRUE ~ "—"))
+  if (all(is.na(t$Account))) t$Account <- NULL
+  names(t) <- sub("$", "\\$", names(t), fixed = TRUE)
+  knitr::kable(t, format = "pipe", row.names = FALSE,
+               align = ifelse(names(t) %in% c("Amount", "Modelled \\$", "Chance of churn"), "r", "l"))
+}
+```
+
+\newpage
+
+# Q1-2028
+
+```{r q1-intro}
+quarter_intro("Q1-2028")
+```
+
+```{r q1-png, out.width = "100%"}
+# PNG path: params$png_q1 (YAML header)
+show_png(params$png_q1, "Q1-2028", "png_q1")
+```
+
+```{r q1-table}
+renewal_table("Q1-2028")
+```
+
+\newpage
+
+# Q2-2028
+
+```{r q2-intro}
+quarter_intro("Q2-2028")
+```
+
+```{r q2-png, out.width = "100%"}
+# PNG path: params$png_q2 (YAML header)
+show_png(params$png_q2, "Q2-2028", "png_q2")
+```
+
+```{r q2-table}
+renewal_table("Q2-2028")
+```
+
+\newpage
+
+# Q3-2028
+
+```{r q3-intro}
+quarter_intro("Q3-2028")
+```
+
+```{r q3-png, out.width = "100%"}
+# PNG path: params$png_q3 (YAML header)
+show_png(params$png_q3, "Q3-2028", "png_q3")
+```
+
+```{r q3-table}
+renewal_table("Q3-2028")
+```
+
+\newpage
+
+# Q4-2028
+
+```{r q4-intro}
+quarter_intro("Q4-2028")
+```
+
+```{r q4-png, out.width = "100%"}
+# PNG path: params$png_q4 (YAML header)
+show_png(params$png_q4, "Q4-2028", "png_q4")
+```
+
+```{r q4-table}
+renewal_table("Q4-2028")
+```
+
+\newpage
+
+# Churn distribution
+
+## FY28 total churn
+
+```{r dist-fy, fig.height = 4.2}
+lines <- data.frame(
+  x     = c(plan_fy, fy$P25, fy$P50, fy$P75),
+  what  = c("Plan", "P25 best case", "P50 most likely", "P75 worst case"),
+  label = c(paste0("Plan ", .usdk(plan_fy), " (", pct(fy[["Chance at or under plan"]]), " at or under)"),
+            paste("P25 best case", .usdk(fy$P25)), paste("P50 most likely", .usdk(fy$P50)),
+            paste("P75 worst case", .usdk(fy$P75))),
+  y     = c(1.00, 0.92, 0.84, 0.76))
+cols <- c("Plan" = "#111111", "P25 best case" = "#16A34A", "P50 most likely" = "#B45309", "P75 worst case" = "#DC2626")
+h <- ggplot(data.frame(x = sims_fy), aes(x)) +
+  geom_histogram(bins = 60, fill = "#9CA3AF", colour = "white", linewidth = 0.2)
+ymax <- max(ggplot_build(h)$data[[1]]$count)
+h +
+  geom_vline(data = lines, aes(xintercept = x, colour = what, linetype = what), linewidth = 0.7, show.legend = FALSE) +
+  geom_text(data = lines, aes(x = x, y = y * ymax * 1.08, label = paste0(" ", label), colour = what),
+            hjust = 0, size = 3, show.legend = FALSE) +
+  scale_colour_manual(values = cols) +
+  scale_linetype_manual(values = c("Plan" = "solid", "P25 best case" = "dashed",
+                                   "P50 most likely" = "dashed", "P75 worst case" = "dashed")) +
+  scale_x_continuous(labels = axis_usd) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.12))) +
+  labs(x = "Simulated FY28 churn", y = "Simulated years")
+```
+
+## Cumulative distribution by quarter
+
+The diamond on each line is that quarter's plan: its height is the chance of
+landing at or under plan.
+
+```{r dist-ecdf}
+plan_pts <- data.frame(Quarter = quarters, Plan = unname(plan),
+                       Pct = sapply(quarters, function(q) mean(sims[[q]] <= plan[[q]])))
+ecdf_df <- do.call(rbind, lapply(quarters, function(q) {
+  x <- sort(sims[[q]]); data.frame(Quarter = q, Value = x, Percentile = seq_along(x) / length(x))
+}))
+ggplot(ecdf_df, aes(Value, Percentile, colour = Quarter)) +
+  geom_step(linewidth = 0.7) +
+  geom_point(data = plan_pts, aes(Plan, Pct, fill = Quarter), inherit.aes = FALSE,
+             shape = 23, size = 3.2, colour = "#111111", show.legend = FALSE) +
+  geom_text(data = plan_pts, aes(Plan, Pct, label = paste0("  plan: ", pct(Pct))), inherit.aes = FALSE,
+            hjust = 0, size = 2.8, colour = "#111111") +
+  scale_x_continuous(labels = axis_usd) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(x = "Simulated quarterly churn", y = "Cumulative probability", colour = NULL)
+```
+
+## Spread by quarter against plan
+
+```{r dist-box}
+long <- do.call(rbind, lapply(quarters, function(q) data.frame(Quarter = q, Churn = sims[[q]])))
+p50  <- data.frame(Quarter = quarters, P50 = stats[quarters, "P50"])
+ggplot(long, aes(Quarter, Churn)) +
+  geom_boxplot(fill = "#E5E7EB", colour = "#6B7280", outlier.shape = NA, width = 0.55) +
+  geom_errorbar(data = p50, aes(x = Quarter, ymin = P50, ymax = P50, colour = "P50 most likely"),
+                inherit.aes = FALSE, width = 0.6, linewidth = 1.2) +
+  geom_point(data = plan_pts, aes(Quarter, Plan, shape = "Plan"), inherit.aes = FALSE,
+             size = 3.5, fill = "#111111") +
+  scale_colour_manual(values = c("P50 most likely" = "#F59E0B"), name = NULL) +
+  scale_shape_manual(values = c("Plan" = 23), name = NULL) +
+  scale_y_continuous(labels = axis_usd) +
+  labs(x = NULL, y = "Simulated churn")
+```
+
+Boxes span P25 to P75 of the simulated runs; whiskers reach 1.5 times that range.
+
+## Chance of landing at or under plan
+
+```{r dist-prob, fig.height = 3.4}
+pp <- stats %>% mutate(Period = factor(Period, levels = c(quarters, "FY28")),
+                       ok = `Chance at or under plan` >= .5)
+ggplot(pp, aes(Period, `Chance at or under plan`, fill = ok)) +
+  geom_col(width = 0.6, show.legend = FALSE) +
+  geom_text(aes(label = pct(`Chance at or under plan`)), vjust = -0.4, size = 3.2) +
+  geom_hline(yintercept = .5, linetype = "dotted", colour = "#9CA3AF") +
+  scale_fill_manual(values = c(`TRUE` = "#16A34A", `FALSE` = "#DC2626")) +
+  scale_y_continuous(labels = scales::percent, limits = c(0, 1.1), breaks = seq(0, 1, .25)) +
+  labs(x = NULL, y = "Chance at or under plan")
+```

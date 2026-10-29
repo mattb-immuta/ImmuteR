@@ -11,18 +11,18 @@
 #'
 #' Three lime-headed sections are rendered:
 #' \describe{
-#'   \item{\strong{Adoption}}{Stoplight dots for PBAC, Comply, Request, and
-#'     Agentic Governance. PBAC is rated from
-#'     \code{op_list$consumption$pbac_adoption} and Request from the stage
-#'     tile the account appears on in Looker dashboard 1009, each labelled
-#'     with what the value says ("Moderate adoption", "Retained") rather than
-#'     the colour word; Comply and Agentic Governance are the Salesforce
-#'     picklists, labelled Green / Yellow / Red / Black. Both derived rows
-#'     fall back to their picklist when the pipeline ran without Looker. Then
-#'     the platforms and features behind the PBAC rating, then Registered
-#'     Users, Licensed Users, and the Consumption Ratio (colour-coded: lime at
-#'     \eqn{\ge} 50\%, amber at \eqn{\ge} 25\%, red below); then Lifecycle
-#'     Stage.}
+#'   \item{\strong{Adoption}}{Laid out like the Adoption and Products columns
+#'     of the account card in \code{\link{report_all_accounts_html}}. Top: the
+#'     product adoption mini plot (score against consumption ratio, banded by
+#'     the dashboard's rating rule, square marker for S1 accounts) with its
+#'     rating as a caption; beside it Lifecycle Stage and key/value rows for
+#'     Registered, Licensed, Ratio (lime \eqn{\ge} 50\%, amber \eqn{\ge} 25\%,
+#'     red below) and OBO sessions. Bottom: PBAC's full rating with its
+#'     evidence (platforms, IAM, external catalogue, features, complexity);
+#'     Request as its Looker stage word; Agentic as the picklist colour and
+#'     definition; Comply as the Looker-derived tier (look 1814) with whether
+#'     asset summary export is on and its usage. Derived ratings fall back to
+#'     their Salesforce picklist on a run without Looker.}
 #'   \item{\strong{Performance}}{Support cases over the trailing 90 and 360
 #'     days, customer escalations over 90 days and currently open (from
 #'     \code{op_list$support}, via BigQuery), plus deployment type, Immuta
@@ -136,12 +136,14 @@ generate_slide_tile <- function(account_name,
   dep_tag <- .tile_deploy_tag(is_saas, unsup)
 
   # ── 5. Lifecycle stage ─────────────────────────────────────────────────────
-  # One line: the platforms/features rows above pushed this block down, and a
-  # second line would run into the Performance header. The longest picklist
-  # value today is 40 characters, so nothing wraps — but a longer one would
-  # truncate with an ellipsis rather than collide.
-  lifecycle <- .tile_wrap(.coalesce_chr(a_data[["Lifecycle Stage"]], "—"),
-                          width = 46, max_lines = 1)
+  # Right half of the Adoption block, beside the product adoption plot: up to
+  # two lines, truncated with an ellipsis rather than colliding with the
+  # consumption rows beneath it.
+  lifecycle_raw <- .coalesce_chr(a_data[["Lifecycle Stage"]], "—")
+  lifecycle     <- .tile_wrap(lifecycle_raw, width = 32, max_lines = 2)
+  # S1 (Installation and Config.) accounts get a square marker, as on the
+  # dashboard (isInstallStage() in report_all_accounts_html()).
+  is_install    <- grepl("^s1|install", tolower(trimws(lifecycle_raw)))
 
   # ── 5b. QBR fields (normalised on accounts by normalize_qbr_fields()) ──────
   qbr_last <- fmt_date(a_data[["Date Last QBR"]])
@@ -156,29 +158,52 @@ generate_slide_tile <- function(account_name,
   # on one line of a half-width column.
   contact_roles <- contact_role_rows(a_data)
 
-  # ── 6. Adoption stoplights + platform strings ─────────────────────────────
-  # PBAC and Request are rated from Looker, Comply and Agentic from the
-  # Salesforce picklists — see adoption_rows(), which account_slide_payload()
-  # shares so the PNG and the slide feed can't disagree.
+  # ── 6. Adoption data ───────────────────────────────────────────────────────
+  # Ratings come from adoption_rows(), which account_slide_payload() shares so
+  # the PNG and the slide feed can't disagree: PBAC, Request and Comply from
+  # Looker (each falling back to its picklist), Agentic from Salesforce.
   p_data   <- pbac_row(op_list, account_name)
   adoption <- adoption_rows(a_data, p_data)
+  names(adoption) <- vapply(adoption, `[[`, character(1), "label")
 
-  # Features behind the PBAC rating, on one line under the stoplights.
-  # "None" is a measurement (Looker ran, nothing is in use); an em-dash is the
-  # absence of one, so an SFDC-only tile doesn't assert that a customer uses
-  # no features when the truth is that nothing was measured.
+  # Product adoption (PBAC complexity + Request points) and its rating — the
+  # mini plot. NA on an SFDC-only run; the plot then says so.
+  pa_score  <- .tile_num(p_data, "product_adoption")
+  pa_rating <- if (!is.null(p_data) && "product_adoption_rating" %in% names(p_data))
+    p_data$product_adoption_rating[1] else NA
+
+  # PBAC evidence, as listed under the rating on the dashboard card
+  # (pbacAdoptionHtml()). "None" is a measurement (Looker ran, nothing in
+  # use); an em-dash is the absence of one.
   pbac_features <- if (is.null(p_data)) {
     "—"
   } else {
     f <- pbac_feature_labels(p_data)
+    # Shortened to fit half a column; same features, terser names.
+    f <- sub("^Data \\+ subscription policies$", "Data + sub. policies", f)
+    f <- sub("^Guardrail policies$", "Guardrails", f)
     if (length(f) == 0) "None" else .tile_wrap(paste(f, collapse = " · "),
-                                               width = 52, max_lines = 1)
+                                               width = 24, max_lines = 2)
   }
+  pbac_complexity <- {
+    cs <- .tile_num(p_data, "complexity_score")
+    if (is.na(cs)) "—" else paste0(cs, " / ", .tile_pbac_score_max())
+  }
+  iam_fmt <- .tile_wrap(.coalesce_chr(a_data[["iam"]],         "None"), width = 24, max_lines = 1)
+  cat_fmt <- .tile_wrap(.coalesce_chr(a_data[["ext_catalog"]], "None"), width = 24, max_lines = 1)
 
   plat_prod <- if (!is.null(c_data) && "platform_prod" %in% names(c_data) &&
                    !is.na(c_data[["platform_prod"]])) c_data[["platform_prod"]] else "—"
   plat_dev  <- if (!is.null(c_data) && "platform_dev"  %in% names(c_data) &&
                    !is.na(c_data[["platform_dev"]]))  c_data[["platform_dev"]]  else NA_character_
+
+  # OBO sessions (Looker 1806, Production instances summed).
+  obo_fmt <- .tile_int(.tile_num(a_data, "obo_sessions"))
+
+  # Comply evidence from look 1814 (op_list_comply_adoption()).
+  .on_off <- function(v) if (is.null(v) || is.na(v[1])) "—" else if (isTRUE(v[1])) "On" else "Off"
+  cmp_on_fmt  <- .on_off(a_data[["comply_export_enabled"]])
+  cmp_use_fmt <- .on_off(a_data[["comply_feature_enabled"]])
 
   # ── 7. Canvas and layout constants (inches as coordinate units) ────────────
   W   <- 5.0    # width  (inches)
@@ -195,6 +220,14 @@ generate_slide_tile <- function(account_name,
   sz_rating    <- 3.2   # ~9 pt    contact Relationship / Influence words
   sz_tag       <- 2.8   # ~8 pt    deployment pill (0.78x body, as in the HTML)
   sz_label     <- 2.5   # ~7 pt    micro-caps
+  # Adoption block — denser, to fit the dashboard card's layout in the same
+  # height the old stoplight grid used.
+  sz_ad_body   <- 3.0   # ~8.5 pt  ratings, lifecycle
+  sz_ad_pair   <- 2.9   # ~8 pt    key/value rows
+  sz_ad_sub    <- 2.4   # ~7 pt    evidence rows, definitions
+  sz_ad_label  <- 2.2   # ~6 pt    micro-caps
+  sz_ad_cap    <- 2.5   # ~7 pt    plot caption
+  sz_ad_tick   <- 1.9   # ~5.5 pt  plot ticks
 
   col_lime  <- "#C8F135"
   col_white <- "#FFFFFF"
@@ -207,27 +240,38 @@ generate_slide_tile <- function(account_name,
   col2 <- (W - 2 * pad) / 2   # 2-column grid pitch
 
   # ── Vertical anchors, top-down ─────────────────────────────────────────────
-  # ADOPTION — stoplights, consumption, lifecycle
+  # ADOPTION — laid out like the account card's Adoption + Products columns
+  # in report_all_accounts_html(). Top half: product adoption plot (left),
+  # lifecycle + consumption rows (right). Bottom half: PBAC + evidence (left),
+  # Request / Agentic / Comply (right). Ends above y_h2, so the sections
+  # below are unchanged.
   y_h1        <- H - 0.40
   y_rule_1    <- H - 0.66
-  y_ad_row1   <- H - 0.94   # label; dot + status sit y_drop below
-  y_ad_row2   <- H - 1.42
-  y_drop      <- 0.24
+  x_r         <- pad + 2.32       # right half of the Adoption block
+  x_agentic   <- x_r + 1.08
 
-  # Evidence for the PBAC rating, directly under the stoplights: which
-  # platforms are in play (production in white, dev-only muted after it) and
-  # which features are in use. This is where the old standalone platforms row
-  # went — it says more next to the rating it explains than it did floating
-  # below Lifecycle Stage, and moving it keeps the canvas the same height.
-  y_plat_eye  <- H - 1.88
-  y_plat_val  <- H - 2.08
-  y_feat_eye  <- H - 2.30
-  y_feat_val  <- H - 2.50
+  y_pa_eye    <- H - 0.82         # PRODUCT ADOPTION | LIFECYCLE STAGE
+  pl_x0       <- pad + 0.20       # mini plot frame
+  pl_x1       <- pad + 2.00
+  pl_top      <- H - 0.92
+  pl_bot      <- H - 2.04
+  pl_pin      <- 0.12             # pinned lane for ratios past the axis max
+  y_pa_cap    <- H - 2.22
 
-  y_con_value <- H - 2.86
-  y_con_label <- H - 3.12
-  y_lc_eye    <- H - 3.38
-  y_lc_value  <- H - 3.58   # vjust = 1, so this is the top of the wrapped text
+  y_lc_value  <- H - 0.92         # vjust = 1, top of the wrapped text
+  y_pair_rule <- H - 1.32
+  y_pairs     <- H - c(1.47, 1.66, 1.85, 2.04)
+
+  y_rule_ad   <- H - 2.33         # splits plot block from product ratings
+  y_pr_eye    <- H - 2.47         # PBAC | REQUEST | AGENTIC
+  y_pr_val    <- H - 2.63
+  y_sub_0     <- H - 2.82         # first evidence row under PBAC
+  y_sub_step  <- 0.15
+  y_ag_def    <- H - 2.72         # Agentic definition, vjust = 1
+  y_cm_eye    <- H - 3.04
+  y_cm_val    <- H - 3.20
+  y_cm_def    <- H - 3.35
+  y_cm_sub    <- H - c(3.50, 3.65)
 
   # PERFORMANCE — deployment tag + version, then BigQuery incident/custx counts
   y_h2        <- H - 3.92
@@ -292,93 +336,199 @@ generate_slide_tile <- function(account_name,
   # ── Section 1: ADOPTION ────────────────────────────────────────────────────
   p <- hdr(p, "Adoption", y_h1, y_rule_1)
 
-  ad_y <- c(y_ad_row1, y_ad_row2)
-  for (i in seq_along(adoption)) {
-    ad    <- adoption[[i]]
-    x_0   <- pad + (((i - 1) %% 2)) * col2
-    y_lab <- ad_y[((i - 1) %/% 2) + 1]
-    y_val <- y_lab - y_drop
+  col_sub   <- "#D0D0D0"   # evidence values (--text-2 on the dark tile)
+  col_key   <- "#888888"   # evidence keys   (--text-3)
+  col_frame <- "#555555"
 
-    p <- p +
-      ggplot2::annotate("text",
-        x = x_0, y = y_lab, label = toupper(ad$label),
+  eyebrow <- function(plot, x, y, label) {
+    plot + ggplot2::annotate("text", x = x, y = y, label = label,
+      hjust = 0, vjust = 0.5, family = fam, fontface = "bold",
+      size = sz_ad_label, colour = col_muted)
+  }
+  txt <- function(plot, x, y, label, colour = col_white, size = sz_ad_body,
+                  face = "bold", hjust = 0, vjust = 0.5) {
+    plot + ggplot2::annotate("text", x = x, y = y, label = label,
+      hjust = hjust, vjust = vjust, family = fam, fontface = face,
+      size = size, colour = colour, lineheight = 1.1)
+  }
+  # Stoplight dot + label: the dashboard's .stoplight-badge.
+  badge <- function(plot, x, y, value, word, square = FALSE) {
+    plot +
+      ggplot2::annotate("point", x = x + 0.05, y = y,
+        size = 2.4, shape = if (square) 22 else 21,
+        fill = .tile_stoplight_colour(value), colour = col_white, stroke = 0.25) +
+      ggplot2::annotate("text", x = x + 0.17, y = y, label = word,
         hjust = 0, vjust = 0.5, family = fam, fontface = "bold",
-        size = sz_label, colour = col_muted
-      ) +
-      ggplot2::annotate("point",
-        x = x_0 + 0.05, y = y_val,
-        size = 2.8, shape = 21,
-        fill = .tile_stoplight_colour(ad$value),
-        colour = col_white, stroke = 0.25
-      ) +
-      ggplot2::annotate("text",
-        x = x_0 + 0.22, y = y_val,
-        label = ad$word,
-        hjust = 0, vjust = 0.5, family = fam, fontface = "bold",
-        size = sz_body, colour = col_white
-      )
+        size = sz_ad_body, colour = if (identical(word, "—")) col_none else col_white)
+  }
+  # Indented evidence block behind a left rule (.ov-adopt-sub).
+  sub_rows <- function(plot, x, ys, rows, x_val) {
+    plot <- plot + ggplot2::annotate("segment", x = x + 0.02, xend = x + 0.02,
+      y = max(ys) + 0.08, yend = min(ys) - 0.07,
+      colour = "#3A3A3A", linewidth = 0.6)
+    for (i in seq_along(rows)) {
+      r <- rows[[i]]
+      if (nzchar(r$k)) plot <- txt(plot, x + 0.10, ys[i], r$k, col_key, sz_ad_sub, "plain")
+      none <- r$v %in% c("—", "None")
+      plot <- txt(plot, x_val, ys[i], r$v,
+                  if (isTRUE(r$dim) || none) "#666666" else col_sub, sz_ad_sub, "plain")
+      # Dev/test-only platforms trail production in grey, as on the card.
+      if (!is.null(r$tail)) {
+        plot <- txt(plot, x_val + .tile_text_width(r$v, sz_ad_sub) + 0.03, ys[i],
+                    r$tail, "#666666", sz_ad_sub, "plain")
+      }
+    }
+    plot
   }
 
-  # Platforms + features, the evidence behind the PBAC rating above.
-  p <- p +
-    ggplot2::annotate("text",
-      x = pad, y = y_plat_eye, label = "PLATFORMS",
-      hjust = 0, vjust = 0.5, family = fam, fontface = "bold",
-      size = sz_label, colour = col_muted
-    ) +
-    ggplot2::annotate("text",
-      x = pad, y = y_plat_val, label = plat_prod,
-      hjust = 0, vjust = 0.5, family = fam, fontface = "bold",
-      size = sz_body, colour = if (identical(plat_prod, "—")) col_none else col_white
-    ) +
-    ggplot2::annotate("text",
-      x = pad, y = y_feat_eye, label = "FEATURES",
-      hjust = 0, vjust = 0.5, family = fam, fontface = "bold",
-      size = sz_label, colour = col_muted
-    ) +
-    ggplot2::annotate("text",
-      x = pad, y = y_feat_val, label = pbac_features,
-      hjust = 0, vjust = 0.5, family = fam, fontface = "bold",
-      size = sz_body,
-      colour = if (pbac_features %in% c("None", "—")) col_none else col_white
-    )
+  # ① Product adoption mini plot (adoptionMiniSvg()). Six bands from the same
+  #   rule as paRatingAt(): score split at .PRODUCT_ADOPTION_MIN, ratio at
+  #   0.25 / 0.75, ratios past 1.25 pinned to the dashed lane.
+  p <- eyebrow(p, pad, y_pa_eye, "PRODUCT ADOPTION")
 
-  # Dev/test-only platforms trail the production list in muted type, so the
-  # difference between "running it" and "trying it" stays visible.
-  if (!is.na(plat_dev) && nzchar(plat_dev)) {
+  pa_max <- .tile_pa_score_max()
+  PX <- function(v) pl_x0 + pmin(v, .TILE_RATIO_MAX) / .TILE_RATIO_MAX * (pl_x1 - pl_x0 - pl_pin)
+  PY <- function(sc) pl_bot + pmin(sc, pa_max) / pa_max * (pl_top - pl_bot)
+  y_split <- PY(.PRODUCT_ADOPTION_MIN)
+
+  if (is.na(pa_score)) {
     p <- p +
-      ggplot2::annotate("text",
-        x = pad + col2, y = y_plat_val, label = paste0("dev: ", plat_dev),
-        hjust = 0, vjust = 0.5, family = fam, fontface = "bold",
-        size = sz_body, colour = col_muted
-      )
+      ggplot2::annotate("rect", xmin = pl_x0, xmax = pl_x1, ymin = pl_bot, ymax = pl_top,
+                        fill = NA, colour = col_frame, linewidth = 0.3)
+    p <- txt(p, (pl_x0 + pl_x1) / 2, (pl_top + pl_bot) / 2,
+             "No product adoption score\nneeds a Looker run",
+             col_muted, sz_ad_sub, "plain", hjust = 0.5)
+  } else {
+    x_edges <- c(PX(0), PX(.TILE_RATIO_MINIMAL), PX(.TILE_RATIO_MODERATE), pl_x1)
+    cells   <- list(low  = c("black", "red",   "amber"),
+                    high = c("red",   "amber", "green"))
+    for (row in names(cells)) {
+      for (k in 1:3) {
+        p <- p + ggplot2::annotate("rect",
+          xmin = x_edges[k], xmax = x_edges[k + 1],
+          ymin = if (row == "high") y_split else pl_bot,
+          ymax = if (row == "high") pl_top  else y_split,
+          fill = .TILE_BAND_FILL[[cells[[row]][k]]], colour = NA)
+      }
+    }
+
+    ratio_missing <- is.na(rat_raw)
+    ratio_over    <- !ratio_missing && rat_raw > .TILE_RATIO_MAX
+    r_dot <- 0.05
+    dot_x <- if (ratio_missing) PX(0) else if (ratio_over) pl_x1 - pl_pin / 2 else PX(rat_raw)
+    dot_x <- min(max(dot_x, pl_x0 + r_dot), pl_x1 - r_dot)
+    dot_y <- min(max(PY(pa_score), pl_bot + r_dot), pl_top - r_dot)
+    pa_key <- pbac_rating_colour(pa_rating)
+    if (!nzchar(pa_key)) pa_key <- "black"
+
+    p <- p +
+      ggplot2::annotate("segment", x = PX(.TILE_RATIO_MAX), xend = PX(.TILE_RATIO_MAX),
+                        y = pl_bot, yend = pl_top, colour = col_frame,
+                        linetype = "22", linewidth = 0.3) +
+      ggplot2::annotate("segment", x = pl_x0, xend = pl_x1, y = y_split, yend = y_split,
+                        colour = col_frame, linewidth = 0.3) +
+      ggplot2::annotate("rect", xmin = pl_x0, xmax = pl_x1, ymin = pl_bot, ymax = pl_top,
+                        fill = NA, colour = col_frame, linewidth = 0.3) +
+      # Unknown ratio: grey outline, parked at 0. Past the axis: heavy outline.
+      ggplot2::annotate("point", x = dot_x, y = dot_y,
+                        size = 3.0, shape = if (is_install) 22 else 21,
+                        fill = .TILE_DOT_FILL[[pa_key]],
+                        colour = if (ratio_missing) col_muted else "#0D0D0D",
+                        stroke = if (ratio_over) 0.9 else 0.5)
+
+    ticks <- list(list(pa_max, pl_top), list(.PRODUCT_ADOPTION_MIN, y_split), list(0, pl_bot))
+    for (tk in ticks) {
+      p <- txt(p, pl_x0 - 0.04, tk[[2]], as.character(tk[[1]]), "#888888",
+               sz_ad_tick, "plain", hjust = 1)
+    }
+    y_xt <- pl_bot - 0.08
+    p <- txt(p, pl_x0, y_xt, "0", "#888888", sz_ad_tick, "plain")
+    p <- txt(p, pl_x1, y_xt, paste0(">", .TILE_RATIO_MAX), "#888888", sz_ad_tick, "plain", hjust = 1)
+    p <- txt(p, (pl_x0 + pl_x1) / 2, y_xt, "consumption ratio", "#666666",
+             sz_ad_tick, "plain", hjust = 0.5)
+
+    p <- txt(p, pad, y_pa_cap,
+             paste0(.tile_full_rating(pa_rating), " · ", pa_score, " / ", pa_max),
+             .TILE_CAPTION_INK[[pa_key]], sz_ad_cap)
   }
 
-  consumption <- list(
-    list(label = "REGISTERED", value = reg_fmt, colour = col_white),
-    list(label = "LICENSED",   value = lic_fmt, colour = col_white),
-    list(label = "RATIO",      value = rat_fmt, colour = rat_col)
+  # ② Lifecycle + consumption key/value rows (pairHtml()).
+  p <- eyebrow(p, x_r, y_pa_eye, "LIFECYCLE STAGE")
+  p <- txt(p, x_r, y_lc_value, lifecycle,
+           if (identical(lifecycle, "—")) col_none else col_white, vjust = 1)
+  p <- p + ggplot2::annotate("segment", x = x_r, xend = W - pad,
+                             y = y_pair_rule, yend = y_pair_rule,
+                             colour = col_rule, alpha = 0.08, linewidth = 0.3)
+  pairs <- list(
+    list("Registered",   reg_fmt, col_white),
+    list("Licensed",     lic_fmt, col_white),
+    list("Ratio",        rat_fmt, rat_col),
+    list("OBO sessions", obo_fmt, col_white)
   )
-
-  for (i in seq_along(consumption)) {
-    cc <- consumption[[i]]
-    p <- lab_val(p, pad + (i - 1) * col3,
-                 y_con_label, y_con_value,
-                 cc$label, cc$value,
-                 value_colour = cc$colour, value_size = sz_metric)
+  for (i in seq_along(pairs)) {
+    pr <- pairs[[i]]
+    p <- txt(p, x_r, y_pairs[i], pr[[1]], col_muted, sz_ad_pair, "plain")
+    p <- txt(p, W - pad, y_pairs[i], pr[[2]],
+             if (identical(pr[[2]], "—")) col_none else pr[[3]], sz_ad_pair, hjust = 1)
   }
 
-  p <- p +
-    ggplot2::annotate("text",
-      x = pad, y = y_lc_eye, label = "LIFECYCLE STAGE",
-      hjust = 0, vjust = 0.5, family = fam, fontface = "bold",
-      size = sz_label, colour = col_muted
-    ) +
-    ggplot2::annotate("text",
-      x = pad, y = y_lc_value, label = lifecycle,
-      hjust = 0, vjust = 1, family = fam, fontface = "bold",
-      size = sz_body, colour = col_white, lineheight = 1.15
-    )
+  p <- p + ggplot2::annotate("segment", x = pad, xend = W - pad,
+                             y = y_rule_ad, yend = y_rule_ad,
+                             colour = col_rule, alpha = 0.12, linewidth = 0.4)
+
+  # ③ PBAC: full rating, then the evidence behind it (pbacAdoptionHtml()).
+  ad_pbac <- adoption$PBAC
+  pbac_text <- if (ad_pbac$source == "looker") .tile_full_rating(ad_pbac$value) else ad_pbac$word
+  p <- eyebrow(p, pad, y_pr_eye, "PBAC")
+  p <- badge(p, pad, y_pr_val, ad_pbac$value, pbac_text, square = is_install)
+
+  # Platforms: production, then dev-only in grey on the same line when it
+  # fits, otherwise on a line of its own.
+  plat_rows <- if (is.na(plat_dev) || !nzchar(plat_dev)) {
+    list(list(k = "Platforms", v = plat_prod))
+  } else if (nchar(plat_prod) + nchar(plat_dev) <= 24) {
+    list(list(k = "Platforms", v = plat_prod, tail = paste0("· ", plat_dev)))
+  } else {
+    list(list(k = "Platforms", v = plat_prod),
+         list(k = "", v = .tile_wrap(plat_dev, width = 24, max_lines = 1), dim = TRUE))
+  }
+  feat_lines <- strsplit(pbac_features, "\n", fixed = TRUE)[[1]]
+  ev_rows <- c(
+    plat_rows,
+    list(list(k = "IAM",            v = iam_fmt),
+         list(k = "Ext. catalogue", v = cat_fmt)),
+    lapply(seq_along(feat_lines), function(i)
+      list(k = if (i == 1) "Features" else "", v = feat_lines[i])),
+    list(list(k = "Complexity", v = pbac_complexity))
+  )
+  p <- sub_rows(p, pad, y_sub_0 - (seq_along(ev_rows) - 1) * y_sub_step,
+                ev_rows, x_val = pad + 0.96)
+
+  # ④ Request (stage word) and Agentic (colour + picklist definition).
+  ad_req <- adoption$Request
+  p <- eyebrow(p, x_r, y_pr_eye, "REQUEST")
+  p <- badge(p, x_r, y_pr_val, ad_req$value, ad_req$word)
+
+  ad_agt <- adoption$Agentic
+  p <- eyebrow(p, x_agentic, y_pr_eye, "AGENTIC")
+  p <- badge(p, x_agentic, y_pr_val, ad_agt$value, ad_agt$word)
+  if (nzchar(ad_agt$def)) {
+    p <- txt(p, x_agentic, y_ag_def, .tile_wrap(ad_agt$def, width = 22, max_lines = 2),
+             col_key, sz_ad_sub, "plain", vjust = 1)
+  }
+
+  # ⑤ Comply: Looker-derived tier + its look-1814 evidence.
+  ad_cmp <- adoption$Comply
+  p <- eyebrow(p, x_r, y_cm_eye, "COMPLY")
+  p <- badge(p, x_r, y_cm_val, ad_cmp$value, ad_cmp$word)
+  if (nzchar(ad_cmp$def)) {
+    p <- txt(p, x_r, y_cm_def, .tile_wrap(ad_cmp$def, width = 44, max_lines = 1),
+             col_key, sz_ad_sub, "plain")
+  }
+  p <- sub_rows(p, x_r, y_cm_sub,
+                list(list(k = "Asset summary export", v = cmp_on_fmt),
+                     list(k = "Comply enabled",       v = cmp_use_fmt)),
+                x_val = x_r + 1.28)
 
   # ── Section 2: PERFORMANCE ─────────────────────────────────────────────────
   p <- hdr(p, "Performance", y_h2, y_rule_2)
@@ -689,4 +839,40 @@ generate_all_slide_tiles <- function(op_list,
     lines[max_lines] <- paste0(sub("\\s+$", "", lines[max_lines]), "…")
   }
   paste(lines, collapse = "\n")
+}
+
+# ── Adoption-block constants ─────────────────────────────────────────────────
+# Mirrors PA_CFG / PBAC_CFG / PBAC_COLOURS in report_all_accounts_html() so the
+# tile's mini plot draws the same bands as the dashboard's. Band fills and
+# caption inks are the dashboard colours darkened/lightened for the #0D0D0D
+# tile background.
+.TILE_RATIO_MINIMAL   <- 0.25
+.TILE_RATIO_MODERATE  <- 0.75
+.TILE_RATIO_MAX       <- 1.25
+# Score maxima are read from the scoring constants at call time (functions,
+# not values: those live in files collated after this one).
+.tile_pbac_score_max <- function() sum(.PBAC_COMPLEXITY_WEIGHTS)                         # 7
+.tile_pa_score_max   <- function() .tile_pbac_score_max() + max(.REQUEST_ADOPTION_POINTS) # 10
+
+.TILE_BAND_FILL <- list(black = "#1E1E1E", red = "#3A1616",
+                        amber = "#3A2C0C", green = "#143322")
+.TILE_DOT_FILL  <- list(black = "#111111", red = "#EF4444",
+                        amber = "#F59E0B", green = "#22C55E")
+.TILE_CAPTION_INK <- list(black = "#BBBBBB", red = "#F87171",
+                          amber = "#FBBF24", green = "#4ADE80")
+
+# "<colour>: <label>" as a full caption, colour word capitalised —
+# pbacFullLabel() in the dashboard: "amber: moderate adoption" ->
+# "Amber: Moderate adoption".
+.tile_full_rating <- function(x) {
+  col <- pbac_rating_colour(x)
+  lab <- pbac_rating_label(x)
+  if (!nzchar(col)) return(lab)
+  paste0(toupper(substring(col, 1, 1)), substring(col, 2), ": ", lab)
+}
+
+# Rough rendered width (inches) of plain Inter text at a ggplot `size`, for
+# placing a second run of text after the first. ~0.52 em per character.
+.tile_text_width <- function(x, size) {
+  nchar(x) * size / 0.353 / 72 * 0.52
 }

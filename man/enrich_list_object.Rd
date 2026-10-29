@@ -22,7 +22,7 @@ snapshots. Defaults to \code{"data/"}.}
 \code{new_list} with four additional elements:
 \describe{
   \item{changes}{Data frame summarising detected changes across all
-    op_list components (accounts, renewals, expansions, csm_table,
+    op_list components (accounts, renewals, expansions, new_logos, csm_table,
     saas_pipeline, consumption, forecast). One row per component with columns
     \code{Component}, \code{Added}, \code{Removed}, \code{Changed},
     and \code{Total_Moves}.}

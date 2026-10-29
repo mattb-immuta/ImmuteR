@@ -65,6 +65,15 @@
 #'   than this many months before \code{as_of}.
 #' @param qbr_all_accounts \code{TRUE} checks QBR/EBR recency for every account
 #'   in \code{op_list$accounts} rather than only the in-scope renewals.
+#' @param regions Character vector of regions to include, matched against
+#'   \code{Region} on each check. Default all five:
+#'   \code{c("APJ", "EMEA", "US - E", "US - W", "Public Sector")}. Rows with
+#'   a blank region are left out; \code{NULL} turns the filter off.
+#' @param include_qbr Logical. Run the QBR/EBR check. Default \code{FALSE}:
+#'   \code{no_recent_qbr} comes back with its columns but no rows, and no QBR
+#'   summary is printed. Set \code{TRUE} to include it (and pass
+#'   \code{include_qbr = TRUE} to \code{push_slack_snitch()} /
+#'   \code{output_dust_snitch()} to message it).
 #'
 #' @return A list with three data frames, each sorted by CSM:
 #'
@@ -103,7 +112,7 @@
 #'   snitch$next_steps$`Account Name`
 #'   snitch$saas_notes$`Account Name`
 #'   snitch$no_recent_qbr$`Account Name`
-#'   report_next_step_snitch(op_list, qbr_all_accounts = TRUE)$no_recent_qbr
+#'   report_next_step_snitch(op_list, include_qbr = TRUE, qbr_all_accounts = TRUE)$no_recent_qbr
 #' }
 #' @export
 report_next_step_snitch <- function(op_list,
@@ -116,7 +125,9 @@ report_next_step_snitch <- function(op_list,
                                     saas_max_days         = 14,
                                     saas_quarters         = NULL,
                                     qbr_max_months        = 5,
-                                    qbr_all_accounts      = FALSE) {
+                                    qbr_all_accounts      = FALSE,
+                                    include_qbr           = FALSE,
+                                    regions               = c("APJ", "EMEA", "US - E", "US - W", "Public Sector")) {
 
   ren <- op_list$renewals
   if (is.null(ren) || !is.data.frame(ren) || nrow(ren) == 0) {
@@ -127,6 +138,17 @@ report_next_step_snitch <- function(op_list,
   if (length(miss)) stop("op_list$renewals is missing column(s): ", paste(miss, collapse = ", "))
 
   as_of <- as.Date(as_of)
+
+  # Region scope ----------------------------------------------------------------
+  # Applied to all three checks. Rows with no region fall outside any list.
+  in_regions <- function(df) {
+    if (is.null(regions) || !is.data.frame(df) || !"Region" %in% names(df)) return(df)
+    chk <- attr(df, "checked")
+    df  <- df[trimws(as.character(df$Region)) %in% regions, , drop = FALSE]
+    attr(df, "checked") <- chk
+    df
+  }
+  ren <- in_regions(ren)
 
   # Quarters in scope ---------------------------------------------------------
   if (is.null(quarters)) {
@@ -194,12 +216,21 @@ report_next_step_snitch <- function(op_list,
   saas_q <- unique(if (is.null(saas_quarters)) quarters else saas_quarters)
   saas <- .snitch_saas(op_list$saas_pipeline, op_list$accounts, saas_q, as_of,
                        saas_max_days, future_tolerance_days)
+  saas <- in_regions(saas)
 
   # QBR / EBR recency ---------------------------------------------------------
   qbr_cutoff <- seq(as_of, length.out = 2, by = paste0("-", qbr_max_months, " months"))[2]
   qbr <- .snitch_qbr(op_list$accounts,
                      if (isTRUE(qbr_all_accounts)) NULL else scope_accounts,
                      as_of, qbr_cutoff)
+  # Off by default: keep the columns (and the "checked" count) but drop the rows,
+  # so downstream senders see "no QBR issues" rather than a missing element.
+  qbr <- in_regions(qbr)
+  if (!isTRUE(include_qbr)) {
+    chk <- attr(qbr, "checked")
+    qbr <- qbr[0, , drop = FALSE]
+    attr(qbr, "checked") <- chk
+  }
 
   res <- list(next_steps = out, saas_notes = saas, no_recent_qbr = qbr)
   attr(res, "quarters")    <- quarters
@@ -212,8 +243,10 @@ report_next_step_snitch <- function(op_list,
 
   .snitch_message(out, quarters, as_of, checked)
   .snitch_saas_message(saas, saas_q, saas_max_days, attr(saas, "checked"))
-  .snitch_qbr_message(qbr, qbr_max_months, qbr_cutoff, attr(qbr, "checked"),
-                      if (isTRUE(qbr_all_accounts)) "all accounts" else "accounts with an in-scope renewal")
+  if (isTRUE(include_qbr)) {
+    .snitch_qbr_message(qbr, qbr_max_months, qbr_cutoff, attr(qbr, "checked"),
+                        if (isTRUE(qbr_all_accounts)) "all accounts" else "accounts with an in-scope renewal")
+  }
   res
 }
 

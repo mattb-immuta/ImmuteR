@@ -26,9 +26,9 @@ Invisibly returns \code{output_path}.
 }
 \description{
 Converts the structured list from \code{output_account_summary()} into a
-formatted file. HTML is recommended for pasting into Asana (open in browser,
-Cmd+A, Cmd+C, paste). RTF can be opened in Word or TextEdit and copied from
-there. Markdown is useful for GitHub, Notion, or version-controlled docs.
+formatted file. HTML can be opened in a browser and copied into any rich-text
+tool (Cmd+A, Cmd+C, paste). RTF can be opened in Word or TextEdit and copied
+from there. Markdown is useful for GitHub, Notion, or version-controlled docs.
 }
 \examples{
 \dontrun{

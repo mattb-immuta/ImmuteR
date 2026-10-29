@@ -1,0 +1,270 @@
+---
+pagetitle: "CSM Reporting Requirements"
+output:
+  html_document:
+    self_contained: true
+    theme: null
+    highlight: null
+    mathjax: null
+    css: c360_doc.css
+    includes:
+      in_header: c360_doc_head.html
+---
+
+<!--
+CSM Reporting Requirements: the reporting half of the Google Doc
+"Customer_Success_Doctrine_v2.0" (tab "CSM Consolidated Reporting Requirements",
+https://docs.google.com/document/d/1rhmtitLGm0XsV8O1XhZYxY6qTujeqEvjbNdjiKBbM3w), split
+out of cs_doctrine.Rmd so it has its own sub-tab on the dashboard's Documentation tab.
+Static content, not synced with the Google Doc: edit the text here. Styling is shared
+with the doctrine and user guide (c360_doc.css / c360_doc_head.html, same folder).
+
+Lives in inst/ because report_csm_reporting() finds it with system.file(). Knit with:
+  report_csm_reporting()        # -> output/csm_reporting.html
+-->
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+```{=html}
+<header class="topbar">
+  <div class="topbar-logo">
+    <svg width="114" height="20" viewBox="0 0 142 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M95.968 3.99802H99.8179V11.656C99.8179 16.8192 96.57 20.0561 92.1339 20.0561C87.6978 20.0561 84.5925 16.8192 84.5925 11.656V3.99802H88.4424V11.656C88.4424 14.7508 89.7733 16.5192 92.1339 16.5192C94.4946 16.5192 95.9838 14.7508 95.9838 11.656V3.99802H95.968ZM40.675 15.635L35.0507 3.99802H30.7571V19.7561H34.6071V11.7981L38.457 19.8982H42.7505L46.6004 11.7981V19.7561H50.4503V3.99802H46.1568L40.6909 15.635H40.675ZM77.4789 3.99802H73.1854L67.7195 15.4929L62.0951 3.99802H57.8016V19.7561H61.6515V11.7981L65.5014 19.8982H69.7949L73.6448 11.7981V19.7561H77.4947V3.99802H77.4789ZM120.509 3.99802H105.426V7.53491H111.051V19.7561H114.901V7.53491H120.525V3.99802H120.509ZM141.2 19.8982H137.065L136.036 17.3877H128.352L127.322 19.8982H123.329L130.126 4.14013H134.42L141.216 19.8982H141.2ZM134.689 14.3087L132.17 8.41913L129.651 14.3087H134.673H134.689ZM24.1188 0.161133V23.7351H0.464844V0.161133H24.1188ZM19.0965 3.99802H15.2466V19.7561H19.0965V3.99802Z" fill="white"/></svg>
+    <span class="topbar-section">CSM Reporting Requirements</span>
+  </div>
+</header>
+<div class="doc-layout">
+<nav class="sidenav" aria-label="Sections"></nav>
+<main class="wrap">
+<div class="hero">
+  <h1>CSM Reporting Requirements</h1>
+  <p class="hero-sub"><span class="pill draft">Draft for review</span> What CSMs keep current, where it lives, who owns it,
+  and how we report on accounts internally and to customers. Companion to the CS Doctrine 2.0.</p>
+</div>
+```
+
+
+::: {.card #sec-health}
+
+## 1. Customer Health Tracking
+
+We need to be able to track account health across our three pillars: adoption, performance and engagement. This section consolidates what we track, the source, and who is responsible for updates between the CSM, AE and FCTO.
+
+### 1.1 Admin Data
+
+::: {.req}
+[CSM Data]{.req-tag} **Renewal Next Steps**
+
+::: {.kvs}
+[Source]{.k} [Salesforce: [CSM Renewal Input Report](https://immuta.lightning.force.com/lightning/r/Report/00OVV000007Rzxp2AC/view?queryScope=userFolders)]{.v}
+[Owner]{.k} [CSM]{.v}
+[Scope]{.k} [Open renewals whose churn quarter is the current or next fiscal quarter]{.v}
+:::
+
+| Cadence | Renewals |
+|:--|:--|
+| **Weekly** | Account Risk is "At Risk Renewal" or "Expected Churn". Matt Benigni owns the account risk; the CSM owns the next steps. |
+| **Bi-weekly** | Account Risk is "Expecting to Renew". |
+| **Monthly** | All other renewals. |
+
+**Format:** the Salesforce Next Steps field is limited to **255 characters**, so every entry must fit within that limit, including the header, spaces and separators. Write each entry as a single line (no line breaks) using this template:
+
+```text
+MM/DD | Risk: <At Risk | Likely Churn | other risk level> | Status: <where the renewal stands, including any blocker> | Next: <our actions and customer actions, each with owner and date>
+```
+
+Example (198 characters):
+
+```text
+10/05 | Risk: At Risk | Status: Champion supports; CFO needs adoption proof, budget pending | Next: Sarah workshop on access summary exports by 10/08; champion to brief CFO, confirm funding by 10/15
+```
+:::
+
+### 1.2 Adoption Metrics
+
+::: {.req}
+[CSM Data]{.req-tag} **Lifecycle Stage**
+
+::: {.kvs}
+[Source]{.k} [Salesforce: [CSM Account Input Report](https://immuta.lightning.force.com/lightning/r/Report/00OVV000007S07V2AS/edit?queryScope=userFolders)]{.v}
+[Owner]{.k} [CSM]{.v}
+[Frequency]{.k} [As required. All current customers should have an accurate lifecycle stage. Moving to a new stage is worthy of a High Five in the deployment channel and an announcement to the company.]{.v}
+:::
+
+- [S1]{.stage} **Installation and Config:** platform being installed and configured. Low usage is expected.
+- [S2]{.stage} **MVP use case:** target is 90 days from kick-off: Immuta in production with an MVP use case, with active users, policies and data sources. An account that misses this threshold escalates immediately to "at risk." Use cases are being pipelined.
+- [S3]{.stage} **Consumption:** greater than 75% license consumption, as defined in Customer360.
+- [S4]{.stage} **Multi-sales-play adoption:** as defined in Customer360.
+:::
+
+::: {.req}
+[CSM Data]{.req-tag} **Agentic Customer Data**
+
+::: {.kvs}
+[Source]{.k} [Salesforce: [CSM Agentic Input Report](https://immuta.lightning.force.com/lightning/r/Report/00OVV000007LHjN2AW/view?queryScope=userFolders)]{.v}
+[Owner]{.k} [CSM: identify the agentic owner and schedule a meeting to get Steve Touw in front of them.]{.v}
+:::
+
+[**Note:** updating the owner currently has to be done on the account tab. Matt B is working with Elisa to fix that.]{.muted}
+:::
+
+::: {.req .tele}
+[Telemetry]{.req-tag} **Telemetry-based data**
+
+| Metric | Source |
+|:--|:--|
+| Adoption Rating | Customer360 |
+| User Counts | Looker production instances |
+| Consumption Ratio | Customer360 |
+| PBAC Complexity | Customer360 |
+| PBAC Products | Looker consumption metrics in production |
+| Request Rating | Looker Dashboard 1009 |
+| Comply | Feature flag status of access summaries and comply in production, via Looker |
+| Agentic | Salesforce customer agentic data and Looker session data |
+:::
+
+### 1.3 Performance
+
+::: {.req}
+[CSM Data]{.req-tag} **Key Delivery Requirements** [Under construction]{.pill .uc-pill}
+
+Matt Benigni will define key delivery requirements and provide a format; CSMs will maintain each, by customer, by requirement, in Productboard. **Purpose:** to quickly argue ARR and timelines associated with changes in delivery commitments.
+
+::: {.kvs}
+[Frequency]{.k} [As needed]{.v}
+:::
+:::
+
+::: {.req}
+[CSM Data]{.req-tag} **Incident Response Contacts**
+
+All incident response contacts must be annotated in Salesforce for each customer, with the corresponding check box marked for each. The [CSM Incident Response Contact Report](https://immuta.lightning.force.com/lightning/r/Report/00OVV000007S1Uz2AK/view?queryScope=userFolders) should then reflect who at each customer needs to be alerted in case of a security incident.
+
+::: {.kvs}
+[Frequency]{.k} [As needed]{.v}
+:::
+:::
+
+::: {.req .tele}
+[Telemetry]{.req-tag} **Telemetry-based data**
+
+| Metric | Source |
+|:--|:--|
+| SaaS / Version | Looker |
+| Connections | Looker |
+| Incidents last 90/180d | Customer Central |
+| CUSTX last 90/180d | Customer Central |
+:::
+
+### 1.4 Engagement
+
+::: {.req}
+[CSM Data]{.req-tag} **Executive Buyer and Champion**
+
+Both the Executive Buyer and Champion must be Salesforce Contacts with the corresponding check box marked. Once those contacts are annotated, assess the influence and relationship with each and update them in the [CSM Salesforce Contact Report](https://immuta.lightning.force.com/lightning/r/Report/00OVV000007S1Zp2AK/view?queryScope=userFolders). Role and rating definitions are in the **CS Doctrine** (Engagement > Stakeholder ratings).
+:::
+
+::: {.req}
+[CSM Data]{.req-tag} **EBR/QBR Tracking and Scoring** [In design]{.pill .uc-pill}
+
+Matt Benigni is working with Elisa. Idea: make QBRs a project tied to a given account, annotated with:
+
+- Date
+- Who attended from the customer
+- Who attended from Immuta
+- Virtual or onsite
+- Key deliverables and outcomes
+:::
+
+::: {.req}
+[CSM Data]{.req-tag} **Next QBR/EBR**
+
+- Target date
+- Target audience
+- Desired outcomes
+:::
+
+::: {.req}
+[CSM Data]{.req-tag} **Lucid Org Chart**
+
+Build in Lucid. Link in SFDC.
+:::
+
+:::
+
+::: {.card #sec-reporting}
+
+## 2. Intra-Company and External Reporting
+
+### 2.1 Bi-Weekly Customer Update (all accounts)
+
+::: {.callout}
+**Every account requires an update every two weeks.** The goal is to get in the habit of communicating suspenses and ownership consistently, internally and externally, because that drives accountability. See the [CSM instructions and example](https://docs.google.com/document/d/1o0J-_Cgsk12uSUI5tp0cZhZ3DUhVlbcFrztnViZdSBA/edit?tab=t.olkiucr5vuty) (the Disney update by Lauren Lorenzo Lindberg is the model).
+:::
+
+::: {.two}
+::: {.def}
+[Distribution]{.sub}
+
+The same customer-safe body goes to both:
+
+1. **Email** to the customer champion, copying the executive buyer and Matt Benigni (VP, Customer Success).
+2. **Post** the same body in the customer deployment channel.
+:::
+::: {.def}
+[Required content]{.sub}
+
+- A short summary: progress, the most important accomplishment, and any issue needing attention
+- Completed items since the last update
+- Open items and next steps, each with **owner, suspense and status**
+- Risks, blockers, decisions or customer asks
+- Next checkpoint or meeting
+:::
+:::
+
+**Accountability rules**
+
+- One named owner and one specific suspense per open item. No shared ownership and no vague dates ("soon," "next week," "ASAP").
+- Do not silently move a suspense. If a date slips, show the **original date, the revised date and the reason**, and mark the item at risk or blocked when appropriate.
+- The goal is visibility, not blame: make progress, risk and next commitments visible early enough for both teams to act.
+
+::: {.callout .warn}
+**Confidentiality:** keep internal-only notes, staffing information and confidential commentary out of both the email and the channel post. Before sending, confirm the content is customer-safe and every open item has an owner and suspense.
+:::
+
+**Template**
+
+```text
+<Account> Bi-Weekly Update <MM/DD>
+
+Status: <one-line summary, key accomplishment, any issue needing attention>
+Completed: <items since last update>
+Open items:
+  - <item> | Owner: <name> | Suspense: <MM/DD> | Status: <On track / At risk / Blocked>
+  - <item> | Owner: <name> | Suspense: <MM/DD> (was <MM/DD>: <reason>) | Status: At risk
+Risks / asks: <blockers, decisions, customer asks>
+Next checkpoint: <meeting or date>
+```
+
+### 2.2 Escalations
+
+Annotate escalations with the flashing red light (🚨). Every escalation post must include:
+
+::: {.checks}
+[A **description** of the escalation]{.chk}
+[A **request for support**]{.chk}
+[**Mentions of all key stakeholders**]{.chk}
+:::
+
+::: {.callout .uc}
+**Under construction. Also expected:** an org chart with key personas assessed for advocacy, executive pairings (existing and needed), partner relationships, and advocacy examples (CABs, references, marketing).
+:::
+
+:::
+
+```{=html}
+<footer class="foot">Generated `r format(Sys.Date(), "%B %d, %Y")` from Customer_Success_Doctrine_v2.0 · Draft for review</footer>
+</main>
+</div>
+```

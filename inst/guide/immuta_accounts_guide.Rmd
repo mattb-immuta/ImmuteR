@@ -1,16 +1,15 @@
 ---
-title: "Immuta Customer Accounts — Reader's Guide"
+title: "Immuta Customer 360 — Reader's Guide"
 subtitle: "How to read immuta_accounts.html"
 date: "`r format(Sys.Date(), '%B %d, %Y')`"
 output:
   html_document:
-    toc: true
-    toc_depth: 2
-    toc_float: false
     theme: null
     highlight: null
     mathjax: null
-    css: guide.css
+    css: c360_doc.css
+    includes:
+      in_header: c360_doc_head.html
     self_contained: true
   pdf_document:
     toc: true
@@ -65,25 +64,56 @@ lab <- function(key) {
 pct <- function(x) paste0(round(x * 100), "%")
 ```
 
-`immuta_accounts.html` is a single, self-contained web page that brings together everything Customer Success tracks about each Immuta customer: contract and renewal data from Salesforce, product usage from Looker, support history, open escalations from Jira, and the SaaS migration pipeline. It answers three questions:
+```{=html}
+<header class="topbar">
+  <div class="topbar-logo">
+    <svg width="114" height="20" viewBox="0 0 142 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M95.968 3.99802H99.8179V11.656C99.8179 16.8192 96.57 20.0561 92.1339 20.0561C87.6978 20.0561 84.5925 16.8192 84.5925 11.656V3.99802H88.4424V11.656C88.4424 14.7508 89.7733 16.5192 92.1339 16.5192C94.4946 16.5192 95.9838 14.7508 95.9838 11.656V3.99802H95.968ZM40.675 15.635L35.0507 3.99802H30.7571V19.7561H34.6071V11.7981L38.457 19.8982H42.7505L46.6004 11.7981V19.7561H50.4503V3.99802H46.1568L40.6909 15.635H40.675ZM77.4789 3.99802H73.1854L67.7195 15.4929L62.0951 3.99802H57.8016V19.7561H61.6515V11.7981L65.5014 19.8982H69.7949L73.6448 11.7981V19.7561H77.4947V3.99802H77.4789ZM120.509 3.99802H105.426V7.53491H111.051V19.7561H114.901V7.53491H120.525V3.99802H120.509ZM141.2 19.8982H137.065L136.036 17.3877H128.352L127.322 19.8982H123.329L130.126 4.14013H134.42L141.216 19.8982H141.2ZM134.689 14.3087L132.17 8.41913L129.651 14.3087H134.673H134.689ZM24.1188 0.161133V23.7351H0.464844V0.161133H24.1188ZM19.0965 3.99802H15.2466V19.7561H19.0965V3.99802Z" fill="white"/></svg>
+    <span class="topbar-section">User Guide and Definitions</span>
+  </div>
+</header>
+<div class="doc-layout">
+<nav class="sidenav" aria-label="Sections"></nav>
+<main class="wrap">
+<div class="hero">
+  <h1>Customer 360 User Guide</h1>
+  <p class="hero-sub">How to read immuta_accounts.html · Updated `r format(Sys.Date(), "%B %d, %Y")`</p>
+</div>
+```
 
-1. **Who are our customers and what's moving?** (Accounts and Engagement)
-2. **What are they actually using?** (Adoption)
-3. **How is it running?** (Performance)
+::: {.card #sec-about}
+
+## About the page
+
+`immuta_accounts.html` is a single, self-contained web page that brings together everything Customer Success tracks about each Immuta customer: contract and renewal data from Salesforce, product usage from Looker, support history, open escalations from Jira, and the SaaS migration pipeline. It answers three questions, plus a tab of reference material:
+
+::: {.steps}
+1. **Who are our customers and what's moving?** Accounts and Engagement
+2. **What are they actually using?** Adoption
+3. **How is it running?** Performance
+4. **How do we work?** Documentation
+:::
 
 This guide explains how to read the page. You don't need any special tools, just open the file in a browser.
 
-# Getting the page and knowing how fresh it is
+:::
+
+::: {.card #sec-freshness}
+
+## Getting the page and knowing how fresh it is
 
 - **Updated date (top right).** When the underlying data was pulled, not when the file was opened or saved. If it looks old, the numbers are old.
-- **User Guide and Definitions.** Opens this guide in a new tab. The guide is built into the dashboard file, so it works offline too.
+- **This guide** is on the **Documentation** tab, next to the CS Doctrine. It's built into the dashboard file, so it works offline too.
 - **Download Update.** Downloads the latest published copy from Google Drive. Use this to get current data.
 - **Refresh.** Re-runs the data pipeline. This only works on the owner's machine (it needs a local R process running), so other readers should use **Download Update** instead. If you click Refresh without that process running, a pop-up explains what's needed. You can close it.
 - **Compare to.** Shows which earlier snapshot the **Changes** tab is compared against. The newest snapshot is selected by default. Picking a different date only takes effect when the owner refreshes the page.
 
 The page works offline once downloaded. All data is embedded in the file.
 
-# Controls that work everywhere
+:::
+
+::: {.card #sec-controls}
+
+## Controls that work everywhere
 
 | Control | What it does |
 |:--|:--|
@@ -93,7 +123,7 @@ The page works offline once downloaded. All data is embedded in the file.
 | **Sortable columns** | Click a column header to sort, and click it again to reverse. |
 | **Count badges** | The numbers on each tab show how many rows are in view after your filters are applied. |
 
-## Conventions
+### Conventions
 
 - **— (em-dash)** means the value is missing or not set in the source system. It doesn't mean zero.
 - **Stoplight colors** are used for every rating on the page: **Green** (healthy), **Amber** (moderate), **Red** (high risk), **Black** (critical churn risk).
@@ -101,11 +131,15 @@ The page works offline once downloaded. All data is embedded in the file.
 - **Fiscal quarters.** Immuta's fiscal year starts in **February**, and quarters are named for the calendar year the fiscal year *ends* in. For example, March 2026 falls in **Q1-2027**, and Nov 2026 to Jan 2027 is **Q4-2027**.
 - **Onboarding** means lifecycle stage **S1: Installation and Config.** Low usage is expected there, so onboarding accounts are marked wherever it matters: a square marker on the scatter plots, and an amber highlight on CS Coverage and the Adoption table.
 
-# 1. Accounts and Engagement
+:::
+
+::: {.card #sec-engagement}
+
+## 1. Accounts and Engagement
 
 Five sub-tabs: **Accounts**, **Renewals**, **Expansions**, **Changes**, and **CS Coverage**.
 
-## Accounts
+### Accounts
 
 One card for every customer account. You can sort them **Name (A–Z)** (with an A–Z jump bar) or **End Date** (grouped by the fiscal quarter of the account's next renewal, with the ARR renewing in each quarter).
 
@@ -137,15 +171,15 @@ On the Platforms line, platforms shown in **grey** exist only in Dev or Test, no
 
 **Expansions** lists open expansion opportunities with owner, amount, fiscal period, and next steps.
 
-## Renewals
+### Renewals
 
 A single table of every open renewal across all accounts. Summary figures at the top show the number of open renewals, total ARR, and the number of accounts. By default it's sorted by **End Date** and grouped under churn-quarter headings with subtotals. Sorting by any other column gives a flat list. The **Risk** column is colored High, Moderate, or Low.
 
-## Expansions
+### Expansions
 
 The same layout for open expansion opportunities, with summary figures for the number of expansions, pipeline value, and number of accounts. When sorted by Close Date, rows are grouped by fiscal quarter.
 
-## Changes
+### Changes
 
 Shows what's different since the snapshot named in **Compare to**. The header gives the comparison date and a count for each area. Each section can be collapsed and uses badges: **+ added**, **− removed**, **~ changed**.
 
@@ -163,7 +197,7 @@ Changed values are shown as **old → new**.
 
 In the Churn Forecast section, "added" or "removed" usually means a deal's churn quarter moved into or out of the forecast window. It doesn't necessarily mean a deal was created or deleted.
 
-## CS Coverage
+### CS Coverage
 
 Each Customer Success Manager's book of business. The **Region** pills filter it; every count below recalculates for the selected region.
 
@@ -182,11 +216,15 @@ Below it is one collapsible section per CSM, largest book (by ARR) first, with u
 
 Expand a section to see its accounts, each with the four-square adoption glyph, lifecycle stage, region, and ARR. **Onboarding accounts are listed first** and highlighted in amber with an *Onboarding* tag. Click an account name to open its card. Typing in the search box narrows the lists and opens the sections that contain a match.
 
-# 2. Adoption
+:::
+
+::: {.card #sec-adoption}
+
+## 2. Adoption
 
 Two sub-tabs: **Product Adoption Overview** and **How the Product Adoption Score Is Derived**. The Region and CSM pills at the top apply to both the plot and the table.
 
-## Product Adoption Overview
+### Product Adoption Overview
 
 Each account is scored on two separate measures and the two are crossed into one rating, because login counts alone don't say much about adoption.
 
@@ -222,11 +260,11 @@ Each account is scored on two separate measures and the two are crossed into one
 
 Every column sorts; it opens sorted by product adoption, highest first. Hovering a row rings that account's point on the plot, and clicking a row pins it in the side panel. Onboarding (S1) accounts have an amber edge. The strip above the table shows how many accounts are in view, their average score, and how many fall in each rating.
 
-## How the Product Adoption Score Is Derived
+### How the Product Adoption Score Is Derived
 
 The second sub-tab writes out the full method on the page itself. The same method is set out below.
 
-### Product adoption score
+#### Product adoption score
 
 The score runs 0–`r pa_max` and is the sum of two parts.
 
@@ -250,7 +288,7 @@ The score runs 0–`r pa_max` and is the sum of two parts.
 
 A score of **`r adopt_min` or more** counts as high adoption. Ways past it include multi-platform plus any one other signal or an adopted Request workflow, a retained Request workflow plus any one PBAC signal, or all four single-point PBAC signals. Multi-platform alone, or a retained Request workflow alone, scores 3 and does not clear it.
 
-### Product adoption rating
+#### Product adoption rating
 
 The score is crossed with the consumption ratio:
 
@@ -274,15 +312,19 @@ Adoption alone caps at red, and consumption alone caps at amber. Neither reaches
 - A missing consumption ratio stays unknown and isn't treated as zero. On the score alone, such an account can reach red at most.
 - **Zero licensed users means an ELA (unlimited seats).** The ratio is treated as 100%.
 
-### PBAC rating vs. product adoption rating
+#### PBAC rating vs. product adoption rating
 
 The PBAC rating on each account card (the first square of the four-square glyph, and the mini plot on the card's Overview tab) uses **PBAC complexity alone** (0–`r pbac_max`) against consumption, with the same thresholds (`r cx_min`, `r ratio_min`, `r ratio_mod`) and the same rating names. The product adoption rating on the Adoption tab adds Request on top, so an account can rate higher on the Adoption tab than on its card, never lower.
 
 The Request, Comply, and Agentic ratings no longer have tabs of their own. They appear as columns in the Product Adoption Overview table and on each account card.
 
-# 3. Performance
+:::
 
-## Self-Managed
+::: {.card #sec-performance}
+
+## 3. Performance
+
+### Self-Managed
 
 All customers who aren't on SaaS, with their Immuta version, **support status** (Supported, Unsupported, or Unknown), lifecycle stage, registered and licensed users, consumption ratio, data source count, and active policy count. You can filter by support status and lifecycle stage.
 
@@ -292,7 +334,7 @@ Rows that are **highlighted** are flagged **Low Consumption**, meaning at least 
 - The consumption ratio is below 25%.
 - The Production instance has zero active policies.
 
-## SaaS Migration
+### SaaS Migration
 
 A board of self-managed customers moving to SaaS, with **one column per estimated migration quarter**. The current quarter is marked **· now**, and migrations without a scheduled quarter appear in an **Unscheduled** column.
 
@@ -301,11 +343,30 @@ A board of self-managed customers moving to SaaS, with **one column per estimate
 - **TGT SaaS %** at the top of each column is the projected share of customers on SaaS by the end of that quarter: *(SaaS customers today + migrations due by that quarter) ÷ (all customers − expected churn by that quarter)*. It follows the Region and CSM filters but ignores the search box.
 - The summary figures at the top show **SaaS today** (the current share) and how many migrations are at each stage.
 
-## Escalations
+### Escalations
 
 Open CustX Jira issues, sorted by severity and then by age (oldest first). You can filter by severity, status, region, and CSM. Each row shows the Jira key (linked), summary, account, status, assignee, and when it was opened. Issues open for **90 days or more** are highlighted as stale. "No account matched" means the Jira issue couldn't be tied to a Salesforce account.
 
-# Where the data comes from
+:::
+
+::: {.card #sec-documentation}
+
+## 4. Documentation
+
+The fourth tab holds the reference material behind the page, built into the dashboard file so it works offline.
+
+- **Confluence link (top of the tab).** Opens the Customer Success Confluence space, the home for team process and anything not covered here.
+- **CS Doctrine.** The Customer Success Doctrine: how to assess account health through Adoption, Performance and Engagement, and the stoplight definitions.
+- **CSM Reporting.** What CSMs keep current in Salesforce and elsewhere (sources, owners, cadence), plus the bi-weekly customer update and escalation standards.
+- **User Guide.** This guide.
+
+Each has an **Open in new tab** button for reading or printing it on its own. Links to Salesforce, Google Docs and Confluence inside them open in a new tab.
+
+:::
+
+::: {.card #sec-sources}
+
+## Where the data comes from
 
 | Area | Source |
 |:--|:--|
@@ -317,3 +378,11 @@ Open CustX Jira issues, sorted by severity and then by age (oldest first). You c
 | "What changed" | A comparison with the saved snapshot from an earlier run |
 
 If a figure looks wrong, check the source system first. The page displays the data as it was pulled and doesn't edit it. For questions or corrections, contact Matt.
+
+:::
+
+```{=html}
+<footer class="foot">Questions or corrections: contact Matt Benigni</footer>
+</main>
+</div>
+```

@@ -8,7 +8,7 @@ Format rules the Rmd parser relies on:
   - Each segment starts with "## <n>. <Title>" (n = 1-5, in order). The
     segment number decides which metrics panel sits beside it.
   - Under it, a "- **Time:** <start>–<end> (<m> min)" line and a
-    "- **Where to look in ImmuteR:** <text>" line.
+    "- **Where to look in Customer360:** <text>" line.
   - Each question is "<number>. **(core)** <text>" or
     "<number>. **(if time)** <text>". A long question can continue on
     indented lines below it.
@@ -22,7 +22,7 @@ Format rules the Rmd parser relies on:
 ## 1. Snapshot
 
 - **Time:** 0:00–0:03 (3 min)
-- **Where to look in ImmuteR:** Account card header, Overview
+- **Where to look in Customer360:** Account card header, Overview
 
 1. **(core)** In two sentences, what is this account's story? Why did they buy Immuta, and where are they today?
 2. **(core)** What is your overall health rating for this account, and why?
@@ -31,11 +31,11 @@ Format rules the Rmd parser relies on:
 ## 2. Adoption: use cases in production
 
 - **Time:** 0:03–0:12 (9 min)
-- **Where to look in ImmuteR:** Overview: Adoption evidence and ratings; PBAC plot
+- **Where to look in Customer360:** Overview: Adoption evidence and ratings; PBAC plot
 
 4. **(core)** Walk us through the use cases: which are **in production**, **in pipeline**, **blocked**, and in the **backlog**? For each, who are the users, what data, and what policy type?
 5. **(core)** What pain point does each production use case solve, and what measurable outcome has the customer seen? Is it documented anywhere?
-6. **(core)** ImmuteR shows lifecycle stage, PBAC rating, consumption ratio, and complexity score. Do you agree with them? If PBAC is Red, is it an **enablement problem** (platform built, users not there) or a **depth problem** (users doing simple work)?
+6. **(core)** Customer360 shows lifecycle stage, PBAC rating, consumption ratio, and complexity score. Do you agree with them? If PBAC is Red, is it an **enablement problem** (platform built, users not there) or a **depth problem** (users doing simple work)?
 7. **(core)** Which of these are in production: **multi-platform, data and subscription policies, Sensitive Data Discovery, Domains, guardrails**? Which would be the next one to add, and what is in the way?
 8. **(core)** Where are **Request workflows** in the None → Tried → Adopted → Retained stages, and does the Salesforce rating match Looker?
 9. **(if time)** Is there interest or activity in **Comply** or **Agentic Governance** (OBO, Request MCP, governed agents)? What is the next step?
@@ -45,7 +45,7 @@ Format rules the Rmd parser relies on:
 ## 3. Performance: the technical success plan
 
 - **Time:** 0:12–0:19 (7 min)
-- **Where to look in ImmuteR:** Overview: Performance; Escalations; SaaS Migration
+- **Where to look in Customer360:** Overview: Performance; Escalations; SaaS Migration
 
 12. **(core)** What is the **deployment** (SaaS or self-managed), **version**, and **support status**? If self-managed, what is the **SaaS migration** status: stage, date, owner, and any assumed churn?
 13. **(core)** What **upgrades, migrations, or technical projects** are in flight or promised? Who owns each, and by when?
@@ -59,7 +59,7 @@ Format rules the Rmd parser relies on:
 ## 4. Engagement: people, cadence, and renewal
 
 - **Time:** 0:19–0:27 (8 min)
-- **Where to look in ImmuteR:** Overview: Engagement; Renewals; Expansions
+- **Where to look in Customer360:** Overview: Engagement; Renewals; Expansions
 
 20. **(core)** Who is the **Executive Buyer** (name, title, role in the decision)? What is their **relationship** with Immuta and their **influence**, and what is the **evidence** for each?
 21. **(core)** Who is the **Champion**? Same questions: relationship, influence, and what they have done to advocate for Immuta when we were not in the room.
@@ -73,7 +73,7 @@ Format rules the Rmd parser relies on:
 ## 5. Close: commitments, risks, next 90 days
 
 - **Time:** 0:27–0:30 (3 min)
-- **Where to look in ImmuteR:** n/a
+- **Where to look in Customer360:** n/a
 
 28. **(core)** What **promises or commitments**, written or verbal, are still open with this customer?
 29. **(core)** What are the **top three risks** to this account in the next 12 months?

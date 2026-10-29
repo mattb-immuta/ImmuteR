@@ -12,9 +12,11 @@ Defaults to calling \code{looker_auth()} automatically.}
 }
 \value{
 Named list of tibbles: \code{users}, \code{data_sources},
-  \code{queries}, \code{policies}, \code{sdd_active}, \code{support_cases}.
+  \code{queries}, \code{policies}, \code{sdd_active}, \code{support_cases},
+  \code{obo_sessions}, \code{comply}.
 }
 \description{
-Fetches each of the six Looker looks that back the CPO op_list consumption
-spreadsheet directly from Looker on every call.
+Fetches each look in \code{.OP_LIST_LOOKS} (the six that back the CPO
+op_list consumption spreadsheet, plus OBO sessions 1806 and Comply 1814)
+directly from Looker on every call.
 }

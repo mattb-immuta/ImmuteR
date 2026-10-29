@@ -1,0 +1,255 @@
+---
+title: "Adoption Risk by Region"
+subtitle: "Customers rated Black or Red on product adoption, and every customer in lifecycle Stage 1"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  pdf_document:
+    latex_engine: xelatex
+    toc: false
+    number_sections: false
+    fig_caption: false
+geometry: "landscape, margin=0.6in"
+fontsize: 10pt
+# Symbols the default LaTeX font lacks (same as inst/guide/immuta_accounts_guide.Rmd).
+header-includes:
+  - \usepackage{newunicodechar}
+  - \newunicodechar{−}{\ensuremath{-}}
+  - \newunicodechar{≥}{\ensuremath{\geq}}
+  - \usepackage{xcolor}
+  - \usepackage{longtable,booktabs,array}
+params:
+  snapshot: ''
+  # Ratings to include (the colour word that starts product_adoption_rating).
+  colours: ["black", "red"]
+---
+
+<!-- Printable list of every customer whose product adoption rating
+     (op_list$accounts$product_adoption_rating, op_list_product_adoption()) is
+     Black or Red, one page per region. Knit from RStudio or
+     rmarkdown::render("reports/adoption_risk_by_region.Rmd").
+     Needs a LaTeX install with xelatex (tinytex::install_tinytex()). -->
+
+```{r setup, include = FALSE}
+# Knit from reports/; everything below runs from the project root.
+root <- normalizePath("..")
+knitr::opts_knit$set(root.dir = root)
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE,
+                      fig.width = 9.5, fig.height = 3.2, fig.align = "center")
+devtools::load_all(root, quiet = TRUE)
+library(dplyr)
+library(ggplot2)
+
+# Text and table values: "$" escaped so pandoc never reads a pair of them as maths.
+usd  <- function(x) ifelse(is.na(x), "—", paste0("\\", scales::dollar(round(x))))
+usdk <- function(x) ifelse(is.na(x), "—", paste0("\\", ifelse(abs(x) >= 1e6,
+                    paste0("$", formatC(x / 1e6, format = "f", digits = 2), "M"), paste0("$", round(x / 1e3), "K"))))
+pct  <- function(x, d = 0) ifelse(is.na(x), "—", paste0(formatC(100 * x, format = "f", digits = d), "%"))
+num  <- function(x) suppressWarnings(as.numeric(x))
+key  <- function(x) tolower(trimws(as.character(x)))
+cell <- function(x) { x <- as.character(x); x[is.na(x) | !nzchar(trimws(x))] <- "—"; gsub("|", "/", x, fixed = TRUE) }
+
+rating_colour <- function(x) {
+  x <- key(x)
+  out <- ifelse(grepl("^(green|amber|yellow|red|black)", x), sub("^(green|amber|yellow|red|black).*$", "\\1", x), NA)
+  ifelse(out == "yellow", "amber", out)
+}
+HEX <- c(black = "111111", red = "DC2626", amber = "F59E0B", green = "16A34A")
+# A coloured square for the rating, in LaTeX.
+swatch <- function(col) ifelse(col %in% names(HEX), sprintf("\\textcolor[HTML]{%s}{\\rule{1.3ex}{1.3ex}}", HEX[col]), "")
+# Escape text for LaTeX (account names carry &, #, % and the like).
+tex <- function(x) {
+  x <- cell(x)
+  x <- gsub("\\", "\001", x, fixed = TRUE)            # protect backslashes until the end
+  x <- gsub("([&%$#_{}])", "\\\\\\1", x)
+  x <- gsub("~", "\\textasciitilde{}", x, fixed = TRUE)
+  x <- gsub("^", "\\textasciicircum{}", x, fixed = TRUE)
+  gsub("\001", "\\textbackslash{}", x, fixed = TRUE)
+}
+# The region tables are LaTeX longtables rather than pipe tables: fixed column
+# widths keep the numbers from overlapping on a landscape page, and the header
+# repeats if a region runs onto a second page.
+REGION_COLS <- c(
+  Account = ">{\\raggedright\\arraybackslash}p{1.65in}", Rating = ">{\\raggedright\\arraybackslash}p{1.3in}",
+  Score = "r", "Seats\\\\used" = "r", ARR = "r", CSM = ">{\\raggedright\\arraybackslash}p{1.05in}", Stage = "l",
+  "Customer\\\\for" = "r", "Next renewal" = ">{\\raggedright\\arraybackslash}p{1.1in}",
+  "Renewal\\\\amount" = "r", "Account risk" = ">{\\raggedright\\arraybackslash}p{1.2in}")
+# Stage 1 page: every row is S1, so Region replaces Stage; Score is dropped to keep the width.
+S1_COLS <- c(
+  Account = ">{\\raggedright\\arraybackslash}p{1.55in}", Region = ">{\\raggedright\\arraybackslash}p{0.8in}",
+  Rating = ">{\\raggedright\\arraybackslash}p{1.3in}", "Seats\\\\used" = "r", ARR = "r",
+  CSM = ">{\\raggedright\\arraybackslash}p{1.05in}", "Customer\\\\for" = "r",
+  "Next renewal" = ">{\\raggedright\\arraybackslash}p{1.1in}", "Renewal\\\\amount" = "r",
+  "Account risk" = ">{\\raggedright\\arraybackslash}p{1.2in}")
+latex_table <- function(cells, cols = REGION_COLS) {
+  hdr <- vapply(names(cols), function(h)
+    if (grepl("\\\\", h, fixed = TRUE)) sprintf("\\textbf{\\shortstack[l]{%s}}", h) else sprintf("\\textbf{%s}", h), "")
+  body <- apply(cells, 1, function(r) paste0(paste(r, collapse = " & "), " \\\\"))
+  paste0("\\begingroup\\small\\setlength{\\tabcolsep}{4pt}\n",
+         "\\begin{longtable}{@{}", paste(cols, collapse = ""), "@{}}\n\\toprule\n",
+         paste(hdr, collapse = " & "), " \\\\\n\\midrule\n\\endhead\n",
+         paste(body, collapse = "\n"), "\n\\bottomrule\n\\end{longtable}\n\\endgroup\n")
+}
+# "Black: Critical Churn Risk" -> "Critical churn risk"; "Red: High Risk - Adoption" -> "High risk – adoption"
+rating_label <- function(x) {
+  l <- trimws(sub("^(green|amber|yellow|red|black)\\s*[:\\-–—]*\\s*", "", x, ignore.case = TRUE, perl = TRUE))
+  l <- gsub("\\s+-\\s+", " – ", l, perl = TRUE)
+  paste0(toupper(substr(l, 1, 1)), tolower(substring(l, 2)))
+}
+
+theme_set(theme_minimal(base_size = 10) +
+            theme(panel.grid.minor = element_blank(), legend.position = "bottom",
+                  plot.title = element_text(face = "bold")))
+```
+
+```{r data}
+snap <- if (nzchar(params$snapshot)) file.path(root, params$snapshot) else {
+  f <- list.files(file.path(root, "data"), pattern = "^opportunities_\\d{4}-\\d{2}-\\d{2}\\.RData$",
+                  full.names = TRUE)
+  f[order(f, decreasing = TRUE)][1]
+}
+load(snap)   # -> op_list
+snap_date <- sub("^opportunities_(.*)\\.RData$", "\\1", basename(snap))
+
+acc <- op_list$accounts
+col_or_na <- function(df, nm) if (nm %in% names(df)) df[[nm]] else rep(NA, nrow(df))
+book <- data.frame(
+  account   = acc$`Account Name`,
+  region    = ifelse(is.na(acc$Region) | !nzchar(trimws(acc$Region)), "No region", trimws(acc$Region)),
+  csm       = col_or_na(acc, "Customer Success Manager"),
+  arr       = num(acc$`Contract ARR Rollup`),
+  rating    = col_or_na(acc, "product_adoption_rating"),
+  score     = num(col_or_na(acc, "product_adoption")),
+  lifecycle = col_or_na(acc, "Lifecycle Stage"),
+  months    = num(col_or_na(acc, "months_as_customer")),
+  stringsAsFactors = FALSE
+)
+book$colour <- rating_colour(book$rating)
+
+# Seats used (registered / licensed; ELA = 100%), from consumption$low_consumption.
+lc <- op_list$consumption$low_consumption
+m  <- match(key(book$account), key(lc$`Account Name`))
+book$ratio <- if (is.null(lc)) NA_real_ else consumption_ratio(num(lc$`Registered Users`)[m], num(lc$`Licensed Users`)[m])
+
+# Next renewal: the earliest open contract end, its quarter, amount and risk.
+ren <- op_list$renewals
+ren$end <- as.Date(ren$`Current Contract End Date`)
+nr <- ren %>% filter(!is.na(end)) %>% group_by(k = key(`Account Name`)) %>% filter(end == min(end)) %>%
+  summarise(end = min(end), amt = sum(num(Amount), na.rm = TRUE),
+            risk = paste(unique(stats::na.omit(`Account Risk`)), collapse = ", "), .groups = "drop")
+i <- match(key(book$account), nr$k)
+book$renewal_end <- nr$end[i]
+book$renewal_amt <- nr$amt[i]
+book$renewal_risk <- nr$risk[i]
+
+risk <- book %>% filter(colour %in% params$colours) %>%
+  mutate(colour = factor(colour, levels = params$colours)) %>%
+  arrange(region, colour, desc(arr))
+regions <- sort(unique(risk$region))
+
+# Lifecycle Stage 1 ("S1: Installation and Config."), any rating. Matched like the
+# dashboard's CS Coverage tab (covIsOnboarding()): "S1", "install" or "onboard".
+s1 <- book %>% filter(grepl("^\\s*S1\\b|install|onboard", lifecycle, ignore.case = TRUE)) %>%
+  arrange(region, desc(months), desc(arr))
+region_arr <- book %>% group_by(region) %>% summarise(book_arr = sum(arr, na.rm = TRUE), book_n = n(), .groups = "drop")
+```
+
+# Summary
+
+**`r nrow(risk)` of `r nrow(book)` customers** are rated
+`r paste(tools::toTitleCase(params$colours), collapse = " or ")` on product adoption, carrying
+**`r usd(sum(risk$arr, na.rm = TRUE))`** of contract ARR
+(`r pct(sum(risk$arr, na.rm = TRUE) / sum(book$arr, na.rm = TRUE))` of the book). Each region has its
+own page with every account, Black first, then by ARR. The page after this one lists the
+`r nrow(s1)` customers still in lifecycle Stage 1 (Installation and Config.), whatever their rating.
+
+```{r summary-table}
+by_r <- risk %>% group_by(Region = region) %>%
+  summarise(n_black = sum(colour == "black"), arr_black = sum(arr[colour == "black"], na.rm = TRUE),
+            n_red = sum(colour == "red"), arr_red = sum(arr[colour == "red"], na.rm = TRUE),
+            n = n(), arr = sum(arr, na.rm = TRUE), .groups = "drop") %>%
+  left_join(region_arr, by = c("Region" = "region")) %>% arrange(desc(arr))
+tot <- by_r %>% summarise(Region = "**Total**", across(c(n_black, arr_black, n_red, arr_red, n, arr, book_arr, book_n), sum))
+tot$book_arr <- sum(book$arr, na.rm = TRUE); tot$book_n <- nrow(book)   # whole book, not just regions at risk
+st <- bind_rows(by_r, tot) %>% transmute(
+  Region,
+  `Black: accounts` = n_black, `Black: ARR` = usd(arr_black),
+  `Red: accounts` = n_red, `Red: ARR` = usd(arr_red),
+  `At-risk accounts` = paste0(n, " of ", book_n), `At-risk ARR` = usd(arr),
+  `Share of region ARR` = pct(arr / book_arr))
+knitr::kable(st, format = "pipe", align = c("l", rep("r", 7)))
+```
+
+```{r summary-chart}
+ch <- risk %>% group_by(region, colour) %>% summarise(arr = sum(arr, na.rm = TRUE), n = n(), .groups = "drop") %>%
+  mutate(region = factor(region, levels = rev(by_r$Region)))
+ggplot(ch, aes(arr, region, fill = colour)) +
+  geom_col(width = 0.6) +
+  scale_fill_manual(values = c(black = "#111111", red = "#DC2626"),
+                    labels = c(black = "Black: critical churn risk", red = "Red: high risk"), name = NULL) +
+  scale_x_continuous(labels = scales::label_dollar(scale_cut = scales::cut_short_scale())) +
+  labs(x = "Contract ARR at adoption risk", y = NULL)
+```
+
+\footnotesize
+
+**Ratings.** `product_adoption_rating` crosses the product adoption score (PBAC complexity + Request + Comply
+points, 0–12) with seats used (registered ÷ licensed users; an ELA counts as 100%). **Black: Critical Churn
+Risk** is low adoption on low consumption; **Red: High Risk – Adoption** is low adoption despite consumption;
+**Red: High Risk – Consumption** is real adoption on few seats. Data: op_list snapshot `r snap_date`.
+
+\normalsize
+
+```{r stage1, results = "asis"}
+cat("\n\\newpage\n\n# Stage 1: Installation and Config.\n\n")
+if (!nrow(s1)) {
+  cat("No customers are in lifecycle Stage 1.\n\n")
+} else {
+  rc <- table(factor(ifelse(is.na(s1$colour), "unrated", as.character(s1$colour)),
+                     levels = c("black", "red", "amber", "green", "unrated")))
+  rc <- rc[rc > 0]
+  cat(sprintf("**%d customers in Stage 1, %s ARR** (%s of the book): %s. Ordered by region, then longest a customer first.\n\n",
+              nrow(s1), usd(sum(s1$arr, na.rm = TRUE)), pct(sum(s1$arr, na.rm = TRUE) / sum(book$arr, na.rm = TRUE)),
+              paste0(rc, " ", tools::toTitleCase(names(rc)), collapse = ", ")))
+  cells <- cbind(
+    tex(s1$account),
+    tex(s1$region),
+    paste(swatch(s1$colour), tex(ifelse(is.na(s1$rating), "—", rating_label(s1$rating)))),
+    gsub("%", "\\%", pct(s1$ratio), fixed = TRUE),
+    usd(s1$arr),
+    tex(s1$csm),
+    ifelse(is.na(s1$months), "—", paste0(s1$months, " mo")),
+    ifelse(is.na(s1$renewal_end), "—",
+           paste0(format(s1$renewal_end, "%b %d, %Y"), " (", date_to_fiscal_quarter(s1$renewal_end), ")")),
+    ifelse(is.na(s1$renewal_end), "—", usd(s1$renewal_amt)),
+    tex(s1$renewal_risk))
+  cat(latex_table(cells, S1_COLS))
+  cat("\n\\footnotesize\n\n*Customer for* is months since the earliest contract start (report 00OVV000007MTSL2A4), or Vitally's Days as Customer where that is longer: the contract report currently returns only the current term (accounts\\$tenure\\_source says which source was used).\n\n\\normalsize\n")
+}
+```
+
+```{r regions, results = "asis"}
+for (rg in regions) {
+  d <- risk[risk$region == rg, ]
+  ra <- region_arr$book_arr[region_arr$region == rg]
+  cat("\n\\newpage\n\n# ", rg, "\n\n", sep = "")
+  cat(sprintf("**%d at-risk accounts, %s ARR** (%s of %s's %s): %d Black (%s), %d Red (%s).\n\n",
+              nrow(d), usd(sum(d$arr, na.rm = TRUE)), pct(sum(d$arr, na.rm = TRUE) / ra), rg, usdk(ra),
+              sum(d$colour == "black"), usd(sum(d$arr[d$colour == "black"], na.rm = TRUE)),
+              sum(d$colour == "red"), usd(sum(d$arr[d$colour == "red"], na.rm = TRUE))))
+  cells <- cbind(
+    tex(d$account),
+    paste(swatch(as.character(d$colour)), tex(rating_label(d$rating))),
+    ifelse(is.na(d$score), "—", d$score),
+    gsub("%", "\\%", pct(d$ratio), fixed = TRUE),
+    usd(d$arr),                                   # already "\$1,234" (valid LaTeX)
+    tex(d$csm),
+    tex(sub("^(S\\d).*$", "\\1", d$lifecycle)),
+    ifelse(is.na(d$months), "—", paste0(d$months, " mo")),
+    ifelse(is.na(d$renewal_end), "—",
+           paste0(format(d$renewal_end, "%b %d, %Y"), " (", date_to_fiscal_quarter(d$renewal_end), ")")),
+    ifelse(is.na(d$renewal_end), "—", usd(d$renewal_amt)),
+    tex(d$renewal_risk))
+  cat(latex_table(cells))
+  cat("\n")
+}
+```

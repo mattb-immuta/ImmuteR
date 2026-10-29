@@ -47,6 +47,7 @@ run_looker_look <- function(look_id,
 
   resp <- httr2::request(url) |>
     httr2::req_headers(Authorization = paste("token", token)) |>
+    httr2::req_error(body = .looker_error_body) |>
     httr2::req_perform()
 
   if (result_format == "csv") {
@@ -54,6 +55,19 @@ run_looker_look <- function(look_id,
   } else {
     httr2::resp_body_json(resp, simplifyVector = TRUE) |> tibble::as_tibble()
   }
+}
+
+# Looker's reason for a failed call (e.g. a 400 when a look references a field
+# that no longer exists in the LookML), so httr2 errors say *why*, not just the
+# status code. Used as httr2::req_error(body = ).
+.looker_error_body <- function(resp) {
+  txt <- tryCatch(httr2::resp_body_string(resp), error = function(e) "")
+  js  <- tryCatch(jsonlite::fromJSON(txt, simplifyVector = TRUE), error = function(e) NULL)
+  if (is.list(js)) {
+    msgs <- c(js$message, unlist(js$errors$message))
+    if (length(msgs)) return(paste("Looker:", unique(msgs)))
+  }
+  if (nzchar(txt)) paste("Looker:", substr(txt, 1, 500)) else NULL
 }
 
 # ── Dashboard introspection ───────────────────────────────────────────────────
@@ -242,6 +256,7 @@ run_looker_dashboard_tile <- function(element,
 .looker_run_query_id <- function(query_id, token, base_url) {
   resp <- httr2::request(paste0(base_url, "/api/4.0/queries/", query_id, "/run/csv")) |>
     httr2::req_headers(Authorization = paste("token", token)) |>
+    httr2::req_error(body = .looker_error_body) |>
     httr2::req_perform()
   readr::read_csv(httr2::resp_body_string(resp), show_col_types = FALSE)
 }

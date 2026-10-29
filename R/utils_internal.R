@@ -72,6 +72,25 @@ fmt_date <- function(x) {
   format(d, "%B %d, %Y")
 }
 
+#' Format customer tenure in months, e.g. "50 months (since Mar 2022)".
+#'
+#' The one formatter for \code{op_list$accounts$months_as_customer} (whole
+#' months since the earliest contract start, op_list_customer_tenure()), used by
+#' every account summary so tenure reads the same everywhere. Em-dash when
+#' missing. \code{since} (the account's \code{customer_since}) is appended when
+#' given; \code{short = TRUE} gives "50 mo" for tight layouts.
+#' @noRd
+fmt_tenure <- function(months, since = NULL, short = FALSE) {
+  m <- if (is.null(months) || length(months) == 0) NA else suppressWarnings(as.numeric(months[1]))
+  if (is.na(m)) return("\u2014")
+  m <- round(m)
+  txt <- if (short) paste0(m, " mo") else paste0(m, if (m == 1) " month" else " months")
+  d <- if (is.null(since) || length(since) == 0) NA else
+    suppressWarnings(tryCatch(as.Date(since[1]), error = function(e) NA))
+  if (length(d) == 1 && !is.na(d)) txt <- paste0(txt, " (since ", format(d, "%b %Y"), ")")
+  txt
+}
+
 #' Format a number of days as "X.X years (N days)".
 #' Returns an em-dash for missing values.
 #' @noRd
@@ -222,18 +241,52 @@ adoption_rows <- function(a_data, p_data) {
     .tile_stoplight_word(req_val)
   }
 
+  # Comply: the Looker-derived tier (op_list_comply_adoption()) when present,
+  # else the picklist. Derived tiers get a short definition so it fits one line
+  # on the health tile; the picklist keeps its own wording.
+  cmp_looker <- pick("comply_adoption_looker")
+  cmp_stage  <- tolower(trimws(as.character(pick("comply_adoption_looker_stage"))))
+  has_cmp    <- !is.na(cmp_looker) && nzchar(trimws(as.character(cmp_looker)))
+  cmp_val    <- if (has_cmp) cmp_looker else pick("Comply Adoption")
+  cmp_def    <- if (has_cmp && cmp_stage %in% names(.COMPLY_SHORT_DEFS)) {
+    .COMPLY_SHORT_DEFS[[cmp_stage]]
+  } else adoption_definition(cmp_val)
+
+  agt_val <- pick("Agentic Governance Adoption")
+
   list(
     list(label = "PBAC", value = pbac_val, word = pbac_word,
+         def = if (has_pbac) "" else adoption_definition(pbac_val),
          source = if (has_pbac) "looker" else "salesforce"),
-    list(label = "Comply", value = pick("Comply Adoption"),
-         word = .tile_stoplight_word(pick("Comply Adoption")),
-         source = "salesforce"),
+    list(label = "Comply", value = cmp_val,
+         word = .tile_stoplight_word(cmp_val), def = cmp_def,
+         source = if (has_cmp) "looker" else "salesforce"),
     list(label = "Request", value = req_val, word = req_word,
+         def = if (has_req) "" else adoption_definition(req_val),
          source = if (has_req) "looker" else "salesforce"),
-    list(label = "Agentic", value = pick("Agentic Governance Adoption"),
-         word = .tile_stoplight_word(pick("Agentic Governance Adoption")),
+    list(label = "Agentic", value = agt_val,
+         word = .tile_stoplight_word(agt_val),
+         def = adoption_definition(agt_val),
          source = "salesforce")
   )
+}
+
+# One-line definitions for the derived Comply tiers, for space-constrained
+# renders (the health tile). The full strings are .COMPLY_ADOPTION_TIERS.
+.COMPLY_SHORT_DEFS <- c(
+  amber = "Comply enabled",
+  red   = "Access summary export enabled",
+  black = "Comply features not enabled"
+)
+
+#' Picklist value with its leading colour word stripped — the definition
+#' half. Mirrors adoptionHtml() in report_all_accounts_html(): "Black: No
+#' desired exploration" -> "No desired exploration". "" when blank.
+#' @noRd
+adoption_definition <- function(x) {
+  v <- trimws(safe_val(x)[1])
+  if (v == "\u2014") return("")
+  trimws(sub("^(?i)(green|amber|yellow|red|black)\\b[\\s:\u2013\u2014-]*", "", v, perl = TRUE))
 }
 
 #' Leading colour word of a "<colour>: <label>" rating, lowercased, or "".

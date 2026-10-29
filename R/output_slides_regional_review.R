@@ -178,6 +178,7 @@ output_slides_regional_review <- function(op_list,
         paste0("CSM: ",  a$csm),
         paste0("FCTO: ", a$fcto),
         paste0("Next Renewal: ", a$next_renewal),
+        paste0("Customer for: ", if (is.null(a$customer_for)) "\u2014" else a$customer_for),
         sep = "   |   ")
 }
 

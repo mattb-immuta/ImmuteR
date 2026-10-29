@@ -60,6 +60,7 @@ build_summary_body_html <- function(account_summary) {
   # ── Account Overview --------------------------------------------------------
   overview_items <- paste0(collapse = "",
     html_li("Contract ARR",  fmt_usd(acct$contract_arr)),
+    html_li("Customer for",  fmt_tenure(acct$months_as_customer, acct$customer_since)),
     html_li("Region",        acct$region),
     html_li("Account Owner", acct$account_owner),
     html_li("Field CTO",     acct$field_cto),
@@ -188,6 +189,7 @@ build_report_rtf <- function(account_summary) {
     # Account Overview
     rtf_heading("Account Overview"),
     rtf_item("Contract ARR",  fmt_usd(acct$contract_arr)),
+    rtf_item("Customer for",  fmt_tenure(acct$months_as_customer, acct$customer_since)),
     rtf_item("Region",        acct$region),
     rtf_item("Account Owner", acct$account_owner),
     rtf_item("Field CTO",     acct$field_cto),
@@ -298,6 +300,7 @@ build_report_md <- function(account_summary) {
     "## \U1F4CB Account Overview",
     "",
     build_field("Contract ARR",  fmt_usd(acct$contract_arr)),
+    build_field("Customer for",  fmt_tenure(acct$months_as_customer, acct$customer_since)),
     build_field("Region",        acct$region),
     build_field("Account Owner", acct$account_owner),
     build_field("Field CTO",     acct$field_cto),

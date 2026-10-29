@@ -11,6 +11,8 @@
 #'   \code{accounts} element.
 #'
 #' @return A data frame with columns \code{Account Name}, \code{Region},
+#'   \code{Months as Customer} (\code{months_as_customer}: whole months since
+#'   the first contract start),
 #'   \code{Lifecycle Stage}, \code{PBAC Adoption}, \code{Request Adoption},
 #'   \code{request_adoption_looker} (the tier derived from Looker dashboard
 #'   1009 — see \code{\link{op_list_request_adoption}}),
@@ -30,7 +32,7 @@ report_account_adoption <- function(op_list) {
   # picklist rather than replacing it, so the sheet shows both and the gaps are
   # visible. Missing columns are filled with NA below, so snapshots taken
   # before this field existed (or from a looker = FALSE run) still work.
-  cols <- c("Account Name", "Region", "Lifecycle Stage",
+  cols <- c("Account Name", "Region", "months_as_customer", "Lifecycle Stage",
             "PBAC Adoption", "Request Adoption", "request_adoption_looker",
             "Comply Adoption",
             "Agentic Governance Adoption", "Is SaaS Customer")
@@ -44,6 +46,7 @@ report_account_adoption <- function(op_list) {
   for (col in missing_cols) accounts[[col]] <- NA
 
   output <- accounts[, cols]
+  names(output)[names(output) == "months_as_customer"] <- "Months as Customer"
   output <- output[order(output$`Account Name`), ]
   rownames(output) <- NULL
 

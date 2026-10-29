@@ -19,17 +19,42 @@
 #'   churn forecast report (00OVV000006hrNN2AY), pulled on every run into
 #'   \code{op_list$forecast} via \code{\link{op_list_forecast}}. Set to
 #'   \code{NULL} to skip the pull.
-#' @param sf_contacts_report Character. Salesforce report ID for the contacts
-#'   report (executive buyer, champion and incident response contacts per
-#'   customer), pulled into \code{op_list$contacts} — one row per contact,
-#'   with \code{is_incident_response} etc. flags for mail merges — via
+#' @param sf_contacts_report Character. Salesforce report ID for the contact
+#'   roles report (executive buyer and champion per customer), pulled into
+#'   \code{op_list$contacts}, one row per contact, via
 #'   \code{\link{op_list_contacts}}. Executive buyer and champion names are
 #'   also appended to \code{op_list$accounts} as \code{executive_buyer} and
 #'   \code{champion}. Set to \code{NULL} to skip the pull (both columns are
 #'   then \code{NA}).
-#' @param looker Logical. If \code{TRUE}, pulls the six Looker looks that back the
-#'   CPO consumption spreadsheet and joins live metrics (users, data sources, queries,
-#'   policies, support cases) onto \code{op_list$consumption$renewals}. Requires
+#' @param sf_incident_response_report Character. Salesforce report ID for the
+#'   incident response contacts, pulled separately into
+#'   \code{op_list$incident_response_contacts} (one row per contact, all
+#'   flagged \code{is_incident_response}) for mail merges. \code{NULL} skips it.
+#' @param sf_tenure_report Character. Salesforce report ID for contract start
+#'   dates of current customers (00OVV000007MTSL2A4). The earliest start per
+#'   account is added to \code{op_list$accounts} as \code{customer_since} and
+#'   \code{months_as_customer}, and the per-account rollup is kept in
+#'   \code{op_list$customer_tenure} (see \code{\link{op_list_customer_tenure}}).
+#'   \code{NULL} skips it (both columns are then \code{NA}).
+#' @param sf_agentic_report Character. Salesforce report ID for the agentic
+#'   profile report (00OVV000007LHjN2AW: agentic owner, title, vision,
+#'   architecture, conversation date / status, evaluation / deployment status,
+#'   next steps). Kept raw, one row per report row, in
+#'   \code{op_list$agentic_profile}; \code{report_all_accounts_html()} and
+#'   \code{report_agentic_owner_html()} roll it up per account. \code{NULL}
+#'   skips it.
+#' @param sf_agentic_pov_report Character. Salesforce report ID for agentic
+#'   proof-of-value projects (00OVV000007QLj72AG: "PoV - <Account>" project
+#'   name, status, opportunity stage, expected end date, notes), matched to
+#'   accounts by \code{\link{op_list_agentic_pov}} into
+#'   \code{op_list$agentic_pov}. Every account with a project there gets
+#'   \code{op_list$accounts$OBO_revenue_TGT = TRUE} (the rest \code{FALSE};
+#'   \code{NA} if the pull fails or is skipped). \code{NULL} skips it.
+#' @param looker Logical. If \code{TRUE}, pulls the Looker looks in
+#'   \code{.OP_LIST_LOOKS} and joins live metrics (users, data sources, queries,
+#'   policies, support cases) onto \code{op_list$consumption$renewals}, and OBO
+#'   sessions (look 1806, Production instances summed) onto
+#'   \code{op_list$accounts$obo_sessions}. Requires
 #'   \code{LOOKER_CLIENT_ID} and \code{LOOKER_CLIENT_SECRET} environment variables.
 #'   Also derives \code{request_adoption_looker} (plus
 #'   \code{request_adoption_looker_stage} and \code{request_adoption_match}) on
@@ -46,9 +71,9 @@
 #' @param productboard Logical. If \code{TRUE}, pulls Productboard notes and
 #'   features and builds \code{op_list$product_board} (feedback + feature
 #'   requests summarized per account). Requires a \code{PRODUCTBOARD_API_TOKEN}
-#'   environment variable (see \code{?productboard}). This step makes one API
-#'   call per note, so it's noticeably slower than the other enrich_*() steps
-#'   — hence opt-in. Defaults to \code{FALSE}.
+#'   environment variable (see \code{?productboard}). Pulls the whole note
+#'   corpus via \code{\link{pb_pull_insights}} (paged, relationships inline),
+#'   so it adds seconds to a few minutes. Defaults to \code{FALSE}.
 #' @param critical_technologies_path Character. Path to the local JSON file
 #'   that supplies the account-level \code{iam} and \code{ext_catalog} columns
 #'   (see \code{\link{op_list_critical_technologies}}). Defaults to
@@ -62,11 +87,15 @@
 #'   e.g. \code{c("Q1-2027", "Q2-2027")}.
 #'
 #' @return A named list with elements: \code{renewals}, \code{expansions},
+#'   \code{new_logos} (\code{"New Business"} record type, filtered to
+#'   \code{fiscal.period}; see \code{\link{enrich_new_logos}}),
 #'   \code{accounts}, \code{active_orders}, \code{csm_table}, \code{saas_pipeline},
 #'   \code{orders}, \code{contacts} (see \code{\link{op_list_contacts}}),
 #'   \code{consumption}, \code{csm_coverage} (see
 #'   \code{\link{op_list_csm_coverage}}), \code{forecast} (see
-#'   \code{\link{op_list_forecast}}), \code{support} (from BigQuery — see
+#'   \code{\link{op_list_forecast}}), \code{agentic_profile} (raw rows of
+#'   \code{sf_agentic_report}), \code{agentic_pov} (see
+#'   \code{\link{op_list_agentic_pov}}), \code{support} (from BigQuery — see
 #'   \code{\link{op_list_support}}), and (if \code{productboard = TRUE})
 #'   \code{product_board}.
 #' @export
@@ -78,7 +107,11 @@ enrich_opportunities <- function(sf_opportunity_report    = "00OVH000005p6A92AI"
                                  sf_orders_report         = "00OVV000005RTxV2AW",
                                  sf_forecast_report       = "00OVV000006hrNN2AY",
                                  sf_contacts_report       = "00OVV000006TwOX2A0",
-                                 looker                   = FALSE,
+                                 sf_incident_response_report = "00OVV000007LaNp2AK",
+                                 sf_tenure_report         = "00OVV000007MTSL2A4",
+                                 sf_agentic_report        = "00OVV000007LHjN2AW",
+                                 sf_agentic_pov_report    = "00OVV000007QLj72AG",
+                                 looker                  = FALSE,
                                  low_consumption_threshold = 0.25,
                                  productboard             = FALSE,
                                  critical_technologies_path = "data/input/critical_technologies.json",
@@ -88,11 +121,11 @@ enrich_opportunities <- function(sf_opportunity_report    = "00OVH000005p6A92AI"
   message(".. enrich_opportunities initiated")
 
   # create necessary hyperlinks
-  opportunity.table<-sf_run_report(sf_opportunity_report)
+  opportunity.table<- .sf_run_report(sf_opportunity_report)
     opportunity.table$`Fiscal Period`<-factor(opportunity.table$`Fiscal Period`,levels=fiscal.period)
     opportunity.table$opportunity_url=paste("https://immuta.lightning.force.com/lightning/r/Opportunity/",as.character(opportunity.table$`Opportunity ID`),"/view",sep="")
 
-  account.table<- sf_run_report(sf_account_report)
+  account.table<- .sf_run_report(sf_account_report)
     account.table$account_url=paste("https://immuta.lightning.force.com/lightning/r/Account/",account.table$`Account ID`,"/view",sep="")
     account.table$consumption_url=paste("https://immuta.cloud.looker.com/dashboards/993?Name=",gsub(" ","+",account.table$`Account Name`),"&Account+ID=&Report+Month=6+month&Instance+Name=&Instance+Type=Production",sep="")
     account.table$customer_central_url=paste("https://customer-central.immuta.support/customers/",account.table$`Account ID 18`,sep="")
@@ -108,6 +141,15 @@ enrich_opportunities <- function(sf_opportunity_report    = "00OVH000005p6A92AI"
   # split into expansions and renewals
   renewals<-opportunity.table[as.logical(opportunity.table$`Opportunity Record Type` =='Renewal'),]
   expansions<-opportunity.table[as.logical(opportunity.table$`Opportunity Record Type` =='Expansion'),]
+  # New logos: `%in%` rather than `==` so an NA record type drops the row
+  # instead of producing an all-NA row.
+  new_logos <- opportunity.table[opportunity.table$`Opportunity Record Type` %in% "New Business", , drop = FALSE]
+  if (nrow(new_logos) == 0) {
+    warning("No 'New Business' opportunities in report ", sf_opportunity_report,
+            ". Record types present: ",
+            paste(unique(opportunity.table$`Opportunity Record Type`), collapse = ", "),
+            call. = FALSE)
+  }
 
   message("opportunity data collected...enrich opportunity data")
 
@@ -124,11 +166,12 @@ enrich_opportunities <- function(sf_opportunity_report    = "00OVH000005p6A92AI"
   output_list=list()
   output_list[["renewals"]]=renewals
   output_list[["expansions"]]=expansions
+  output_list[["new_logos"]] <- enrich_new_logos(new_logos, fiscal.period = fiscal.period)
   output_list[["accounts"]]=account.table
-  output_list[["active_orders"]]<-sf_run_report(sf_active_order_report)
-  output_list[["csm_table"]]<-sf_run_report(sf_csm_summary_report)
-  output_list[["saas_pipeline"]]<-sf_run_report(sf_saas_migration_report)
-  output_list[["orders"]] <- sf_run_report(sf_orders_report)
+  output_list[["active_orders"]]<- .sf_run_report(sf_active_order_report)
+  output_list[["csm_table"]]<- .sf_run_report(sf_csm_summary_report)
+  output_list[["saas_pipeline"]]<- .sf_run_report(sf_saas_migration_report)
+  output_list[["orders"]] <- .sf_run_report(sf_orders_report)
 
   # ── contacts child table ────────────────────────────────────────────────────
   # One row per contact (kept that way for incident-response mail merges).
@@ -150,6 +193,75 @@ enrich_opportunities <- function(sf_opportunity_report    = "00OVH000005p6A92AI"
   }
   output_list[["accounts"]] <- .accounts_add_contact_roles(
     output_list[["accounts"]], contacts)
+
+  # ── customer tenure ─────────────────────────────────────────────────────────
+  # Earliest contract start date per account -> accounts$customer_since and
+  # accounts$months_as_customer. Warns rather than aborting (columns NA).
+  tenure <- NULL
+  if (!is.null(sf_tenure_report) && nzchar(sf_tenure_report)) {
+    message(".. building op_list$customer_tenure")
+    tenure <- tryCatch(
+      op_list_customer_tenure(sf_tenure_report = sf_tenure_report),
+      error = function(e) {
+        warning("Customer tenure report skipped: ", conditionMessage(e), call. = FALSE)
+        NULL
+      }
+    )
+    output_list[["customer_tenure"]] <- tenure
+  }
+  output_list[["accounts"]] <- .accounts_add_tenure(output_list[["accounts"]], tenure)
+  # Stopgap: the tenure report only holds current contracts, so its earliest start
+  # is the current term. Where Vitally's Days as Customer is longer, use that
+  # (accounts$tenure_source says which). See .accounts_add_vitally_tenure().
+  output_list[["accounts"]] <- .accounts_add_vitally_tenure(output_list[["accounts"]], opportunity.table)
+
+  # ── incident response contacts ──────────────────────────────────────────────
+  # Their own report since Oct 2026 (the roles report above no longer carries
+  # them). One row per contact, every row flagged is_incident_response — the
+  # mail-merge list. Kept apart from op_list$contacts so the executive buyer /
+  # champion rollup never sees them.
+  if (!is.null(sf_incident_response_report) && nzchar(sf_incident_response_report)) {
+    message(".. building op_list$incident_response_contacts")
+    output_list[["incident_response_contacts"]] <- tryCatch(
+      op_list_contacts(sf_contacts_report = sf_incident_response_report,
+                       role = "incident_response"),
+      error = function(e) {
+        warning("Incident response report skipped: ", conditionMessage(e), call. = FALSE)
+        NULL
+      }
+    )
+  }
+
+  # ── agentic profile ─────────────────────────────────────────────────────────
+  # Raw rows of the agentic profile report. Rolled up per account (and churned
+  # accounts dropped) at render time by .ao_build(), since that needs renewals.
+  if (!is.null(sf_agentic_report) && nzchar(sf_agentic_report)) {
+    message(".. building op_list$agentic_profile")
+    output_list[["agentic_profile"]] <- tryCatch(
+      .sf_run_report(sf_agentic_report),
+      error = function(e) {
+        warning("Agentic profile report skipped: ", conditionMessage(e), call. = FALSE)
+        NULL
+      }
+    )
+  }
+
+  # ── agentic PoV projects ────────────────────────────────────────────────────
+  # One row per proof-of-value project, account read from "PoV - <Account>".
+  if (!is.null(sf_agentic_pov_report) && nzchar(sf_agentic_pov_report)) {
+    message(".. building op_list$agentic_pov")
+    output_list[["agentic_pov"]] <- tryCatch(
+      op_list_agentic_pov(sf_agentic_pov_report, accounts = output_list[["accounts"]]),
+      error = function(e) {
+        warning("Agentic PoV report skipped: ", conditionMessage(e), call. = FALSE)
+        NULL
+      }
+    )
+  }
+  # accounts$OBO_revenue_TGT: TRUE when the account has a project on the PoV
+  # report (OBO session revenue target), FALSE otherwise, NA if the pull failed.
+  output_list[["accounts"]] <- .accounts_add_obo_target(output_list[["accounts"]],
+                                                         output_list[["agentic_pov"]])
 
   # ── forecast child table ────────────────────────────────────────────────────
   # Renewal churn forecast, grouped by churn quarter. Diffed against the prior
@@ -212,6 +324,16 @@ enrich_opportunities <- function(sf_opportunity_report    = "00OVH000005p6A92AI"
       dplyr::mutate(multiplatform = dplyr::coalesce(multiplatform, FALSE))
   }
 
+  # OBO sessions (Looker 1806, summed over Production instances) onto accounts.
+  # Stale copy dropped first so a re-run can't produce .x/.y suffixes; NA on an
+  # SFDC-only run or for accounts absent from the look.
+  lc <- output_list[["consumption"]][["low_consumption"]]
+  output_list[["accounts"]]$obo_sessions <- NULL
+  output_list[["accounts"]]$obo_sessions <-
+    if (!is.null(lc) && "obo_sessions" %in% names(lc)) {
+      lc$obo_sessions[match(output_list[["accounts"]]$`Account Name`, lc$`Account Name`)]
+    } else NA_real_
+
   # ── IAM / external catalog integrations ─────────────────────────────────────
   # From the locally maintained data/input/critical_technologies.json, not an
   # API — so this runs on every run, Looker or not. NA for accounts the file
@@ -260,6 +382,32 @@ enrich_opportunities <- function(sf_opportunity_report    = "00OVH000005p6A92AI"
     }
   }
 
+  # ── derived Comply adoption tier ────────────────────────────────────────────
+  # From look 1814's Features List: comply_enabled -> Amber, else
+  # access_summary_export -> Red, else Black; +1 adoption point per flag.
+  if (looker) {
+    message(".. deriving Comply Adoption from Looker look 1814")
+    output_list[["accounts"]] <- output_list[["accounts"]] |>
+      dplyr::select(-dplyr::any_of(c("comply_export_enabled", "comply_feature_enabled",
+                                     "comply_points", "comply_export_usage",
+                                     "comply_adoption_looker_stage",
+                                     "comply_adoption_looker", "comply_adoption_match")))
+    ca <- tryCatch(
+      op_list_comply_adoption(accounts = output_list[["accounts"]],
+                              comply   = output_list[["consumption"]][["comply"]]),
+      error = function(e) {
+        warning("Comply Adoption derivation skipped: ", conditionMessage(e),
+                call. = FALSE)
+        NULL
+      }
+    )
+    if (!is.null(ca)) {
+      output_list[["accounts"]] <- output_list[["accounts"]] |>
+        dplyr::left_join(ca |> dplyr::distinct(`Account Name`, .keep_all = TRUE),
+                         by = "Account Name")
+    }
+  }
+
   # ── product adoption score ──────────────────────────────────────────────────
   # PBAC complexity_score + Request points (retained 3, adopted 1), appended to
   # consumption$pbac_adoption. Here rather than in op_list_consumption() because
@@ -295,6 +443,21 @@ enrich_opportunities <- function(sf_opportunity_report    = "00OVH000005p6A92AI"
     output_list[["accounts"]]$product_adoption        <- NA_real_
     output_list[["accounts"]]$product_adoption_rating <- NA_character_
   }
+
+  # ── metrics replace Salesforce adoption picklists ───────────────────────────
+  # PBAC / Request / Comply Adoption on accounts are overwritten with the
+  # metrics ratings (originals kept as `<field> (SFDC)`), so every downstream
+  # output reads metrics. salesforce_updates lists where SFDC needs changing.
+  output_list[["accounts"]] <- apply_metric_adoption(
+    output_list[["accounts"]], output_list[["consumption"]][["pbac_adoption"]])
+  output_list[["salesforce_updates"]] <- tryCatch(
+    op_list_salesforce_updates(output_list[["accounts"]],
+                               output_list[["consumption"]][["pbac_adoption"]]),
+    error = function(e) {
+      warning("Salesforce updates skipped: ", conditionMessage(e), call. = FALSE)
+      NULL
+    }
+  )
 
   # ── CSM coverage rollup ─────────────────────────────────────────────────────
   # One row per CSM: account count, ARR, summed PBAC complexity, S1 count,

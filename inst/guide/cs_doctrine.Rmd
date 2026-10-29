@@ -1,0 +1,513 @@
+---
+pagetitle: "Immuta CS Doctrine 2.0"
+output:
+  html_document:
+    self_contained: true
+    theme: null
+    highlight: null
+    mathjax: null
+    css: c360_doc.css
+    includes:
+      in_header: c360_doc_head.html
+---
+
+<!--
+Immuta CS Doctrine 2.0, knitted from the Google Doc "Customer_Success_Doctrine_v2.0"
+(https://docs.google.com/document/d/1rhmtitLGm0XsV8O1XhZYxY6qTujeqEvjbNdjiKBbM3w).
+Static content: no op_list, Salesforce or Looker calls. Edit the text here when
+the Google Doc changes; it is not synced. Styling is shared with the user guide in
+c360_doc.css / c360_doc_head.html (same folder).
+
+Lives in inst/ because report_cs_doctrine() finds it with system.file();
+report_all_accounts_html() embeds the knitted page in the dashboard's
+Documentation tab. Knit with:
+  report_cs_doctrine()          # -> output/cs_doctrine.html
+-->
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+```{=html}
+<header class="topbar">
+  <div class="topbar-logo">
+    <svg width="114" height="20" viewBox="0 0 142 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M95.968 3.99802H99.8179V11.656C99.8179 16.8192 96.57 20.0561 92.1339 20.0561C87.6978 20.0561 84.5925 16.8192 84.5925 11.656V3.99802H88.4424V11.656C88.4424 14.7508 89.7733 16.5192 92.1339 16.5192C94.4946 16.5192 95.9838 14.7508 95.9838 11.656V3.99802H95.968ZM40.675 15.635L35.0507 3.99802H30.7571V19.7561H34.6071V11.7981L38.457 19.8982H42.7505L46.6004 11.7981V19.7561H50.4503V3.99802H46.1568L40.6909 15.635H40.675ZM77.4789 3.99802H73.1854L67.7195 15.4929L62.0951 3.99802H57.8016V19.7561H61.6515V11.7981L65.5014 19.8982H69.7949L73.6448 11.7981V19.7561H77.4947V3.99802H77.4789ZM120.509 3.99802H105.426V7.53491H111.051V19.7561H114.901V7.53491H120.525V3.99802H120.509ZM141.2 19.8982H137.065L136.036 17.3877H128.352L127.322 19.8982H123.329L130.126 4.14013H134.42L141.216 19.8982H141.2ZM134.689 14.3087L132.17 8.41913L129.651 14.3087H134.673H134.689ZM24.1188 0.161133V23.7351H0.464844V0.161133H24.1188ZM19.0965 3.99802H15.2466V19.7561H19.0965V3.99802Z" fill="white"/></svg>
+    <span class="topbar-section">Customer Success Doctrine</span>
+  </div>
+</header>
+<div class="doc-layout">
+<nav class="sidenav" aria-label="Sections"></nav>
+<main class="wrap">
+<div class="hero">
+  <h1>Immuta CS Doctrine 2.0</h1>
+  <p class="hero-sub"><span class="pill draft">Draft for review</span> Supersedes v1.0 ·
+  Data source of record: the ImmuteR Customer Accounts page (Salesforce, Looker, BigQuery support data, Jira CUSTX)</p>
+</div>
+```
+
+::: {.card #sec-overview}
+
+## Overview
+
+This doctrine gives CSMs a simple, repeatable way to assess account health and build success plans. Health is evaluated through three mutually supporting **Principal Components**:
+
+::: {.pcs}
+
+::: {.pc}
+[PC 1]{.pc-num}
+
+### Adoption
+
+How the customer uses Immuta to deliver business value: users accessing protected data through policies to do something for the business, measured for each sales play (PBAC, Request, Comply, Agentic Data Governance). Request, Comply and Agentic Gov use the product team's STARS definitions. PBAC is measured two ways:
+
+- **Consumption:** registered users in the product versus users purchased.
+- **Feature Adoption (Complexity):** are the features that differentiate Immuta from competitors in production use cases? Platforms, policy types, SDD, guardrail policies and domains, organized around use cases in production, in pipeline and blocked.
+:::
+
+::: {.pc}
+[PC 2]{.pc-num}
+
+### Performance
+
+Whether the customer gets reliable, supportable technology: deployment and version status (SaaS or supported self-managed), support incident trends, CustX escalations, connections migration, blockers and SaaS migration progress. It matters most for mature customers who have already adopted at scale.
+:::
+
+::: {.pc}
+[PC 3]{.pc-num}
+
+### Engagement
+
+The strength of our relationships and review cadence with the customer and the partners who influence the account: QBR and EBR frequency, Relationship and Influence ratings for the Executive Buyer and Champion, key partner relationships (SIs, cloud and data platform partners) and renewal readiness. Its purpose is to ensure we have the access and advocacy to retain and expand the account.
+:::
+
+:::
+
+Together, these Principal Components drive the outcome that matters most and is the hardest to quantify: **Customer Perceived Value**.
+
+When we think about, talk about, or review accounts we think through each component and:
+
+::: {.steps}
+1. Review the observable metrics (ideally in the ImmuteR dashboard)
+2. Ask the diagnostic questions
+3. Assess health with the stoplight
+4. Commit to critical next steps
+:::
+
+::: {.callout}
+**End Goal: Customer Perceived Value.** The ultimate measure of health is whether customers recognize Immuta's value and build it into their long-term data and AI strategy. To create that perception, we must solve a real customer pain point, drive adoption, deliver reliable performance, and engage and expand our stakeholders across the organization.
+:::
+
+:::
+
+::: {.card #sec-adoption}
+
+## [PC 1]{.pc-num} Adoption
+
+**Adoption** measures how the customer uses Immuta to deliver business value. It involves users accessing protected data through policies to do something for the business, and we measure it for each sales play: PBAC, Request, Comply and Agentic Data Governance. Request, Comply and Agentic Gov are measured through the STARS definitions defined by the product team. PBAC is measured two ways: **Consumption** (registered versus purchased users) and **Feature Adoption (Complexity)** (differentiating features in production use cases).
+
+::: {.callout}
+**Adoption is all about use cases.** A *use case* is an access workflow that allows specific users to access specific data while protecting sensitive data through a specific policy type. Use cases can be differentiated by user type (e.g. business unit), policy type and data source (CSM discretion on taxonomy). At any point a CSM should be able to explain which use cases are in production, in pipeline and blocked, and which targeted use cases are in the backlog to strengthen the account position.
+:::
+
+### Lifecycle stage and milestones
+
+The Salesforce **Lifecycle Stage** field (shown in ImmuteR) tracks the account against four milestones.
+
+| Stage | Milestone | Definition |
+|:--|:--|:--|
+| [S1]{.stage} | Installation and Config | Platform being installed and configured. Low usage is expected. |
+| [S2]{.stage} | MVP use case | Target is 90 days from kick-off: Immuta in production with an MVP use case, with active users, policies and data sources. **An account that misses this threshold escalates immediately to "at risk."** Use cases are being pipelined. |
+| [S3]{.stage} | Consumption | Greater than 75% license consumption. |
+| [S4]{.stage} | Multi-sales-play adoption | Expanding existing access patterns and adopting more than one sales play (PBAC, Request, Comply, Agentic). |
+
+In ImmuteR, S1 accounts are shown as square markers on the PBAC plot so that expected low usage is not misread as risk.
+
+### How adoption is measured
+
+Adoption is rated per sales play. Each of the four ratings appears on the account card as the four-square glyph.
+
+#### 1. PBAC (Policy-Based Access Control): two-axis rating
+
+PBAC is rated on two independent axes and then crossed. The same method is used in ImmuteR and in the PBAC Adoption Analysis.
+
+::: {.two}
+
+::: {.axis}
+[Axis 1]{.sub}
+
+**Consumption ratio.** Registered users ÷ licensed users, **Production instances only**.
+
+- Zero licensed users means an ELA (unlimited seats); the ratio is treated as 100%.
+- If registered or licensed users cannot be resolved, the ratio stays **unknown**. It is not treated as zero.
+- On the account card the ratio is colored <span class="dot red"></span>red below 25%, <span class="dot amber"></span>amber from 25% to 50%, and <span class="dot green"></span>green at 50% or above.
+:::
+
+::: {.axis}
+[Axis 2]{.sub}
+
+**Complexity score (0–7).** Production only; each signal is yes/no.
+
+| Signal | Points |
+|:--|--:|
+| Multi-platform (more than one platform in Production) | 3 |
+| Both data and subscription policies active | 1 |
+| Sensitive Data Discovery run in the last 90 days | 1 |
+| Domains in use (governance is delegated) | 1 |
+| At least one active guardrail policy | 1 |
+:::
+
+:::
+
+A score of **4 or more is "complex."** There are exactly two routes to the bar: multi-platform plus at least one other advanced signal (3+1), or single-platform with all four of the others. A missing signal scores zero.
+
+**Rating grid**
+
+```{=html}
+<div class="tbl-wrap"><table class="grid-tbl">
+<thead><tr><th></th><th>Ratio &lt; 0.25</th><th>0.25 – 0.75</th><th>Ratio ≥ 0.75</th></tr></thead>
+<tbody>
+<tr><th>Score ≥ 4</th>
+  <td class="c-red"><span class="dot red"></span><b>Red:</b> Critical Consumption Risk</td>
+  <td class="c-amber"><span class="dot amber"></span><b>Amber</b></td>
+  <td class="c-green"><span class="dot green"></span><b>Green</b></td></tr>
+<tr><th>Score &lt; 4</th>
+  <td class="c-black"><span class="dot black"></span><b>Black</b></td>
+  <td class="c-red"><span class="dot red"></span><b>Red:</b> Critical Adoption Risk</td>
+  <td class="c-amber"><span class="dot amber"></span><b>Amber</b></td></tr>
+</tbody></table></div>
+```
+
+Neither axis can carry an account to Green alone: complexity alone caps at Red and consumption alone caps at Amber. An unknown ratio can reach Red at most, on complexity alone.
+
+**Reading the colour into a plan**
+
+| Rating | What it means | The play |
+|:--|:--|:--|
+| <span class="dot red"></span>Red, Critical Consumption Risk (high score, thin ratio) | The platform is built but people are not on it. | **Enablement:** onboard users and teams, and drive registrations. |
+| <span class="dot red"></span>Red, Critical Adoption Risk (low score, healthy ratio) | Plenty of users, but only simple work, which is easy to replace with native controls. | **Deepen use cases:** add platforms, guardrails, SDD, domains and policy types. |
+| <span class="dot black"></span>Black | Neither axis has cleared its floor. There is no adoption story to tell at renewal. | **Move fastest.** Escalate with the FCTO and executive sponsor. |
+
+#### 2. Request (data access request workflows)
+
+Rated from Looker usage stages: **None → Tried → Adopted → Retained**. The rating entered in Salesforce is displayed next to it, so mismatches are visible. A mismatch is a conversation to have, not an error to ignore.
+
+| Rating | Definition (Salesforce field) |
+|:--|:--|
+| <span class="dot green"></span>Green | Customer "retained" for 3 of the last 4 weeks. |
+| <span class="dot amber"></span>Amber | Use case in production, enabling data determinations, driving toward "retained." |
+| <span class="dot red"></span>Red | POC complete; active use case planning, testing and deployment. |
+| <span class="dot black"></span>Black | No active request workflow development. |
+
+#### 3. Comply
+
+Source: the Salesforce account record.
+
+| Rating | Definition |
+|:--|:--|
+| <span class="dot green"></span>Green | Customer consuming access summary exports **and** leveraging Copilot. |
+| <span class="dot amber"></span>Amber | Feature enabled and customer consuming access summary exports. |
+| <span class="dot red"></span>Red | Feature not enabled. |
+| <span class="dot black"></span>Black | No interest. |
+
+#### 4. Agentic Governance
+
+Source: the Salesforce account record.
+
+| Rating | Definition |
+|:--|:--|
+| <span class="dot green"></span>Green | Governed agents in production (on-behalf-of access is part of the customer's agentic strategy). |
+| <span class="dot amber"></span>Amber | Feature enabled and POC underway. |
+| <span class="dot red"></span>Red | Customer expressed interest in a POC or development partnership. |
+| <span class="dot black"></span>Black | No desired exploration. |
+
+### Critical feature adoption
+
+These are the non-connector features we track to understand differentiated adoption. Each is **unavailable, available, planned, or adopted in a production workflow**. Where the feature is a PBAC complexity signal, ImmuteR already measures it.
+
+| Feature | ImmuteR signal |
+|:--|:--|
+| Connections | Connections migration progress (Performance section of the account card) |
+| Sensitive Data Discovery | SDD run in last 90 days (+1 complexity) |
+| Guardrails | At least one active guardrail policy (+1) |
+| Domains | Domains retained-accounts tile (+1) |
+| Multi-platform | More than one platform in Production (+3) |
+| Data + subscription policies | Both policy types active (+1) |
+
+### Overall adoption rating
+
+ImmuteR gives four ratings, not one. For the Account Health Summary:
+
+::: {.lights}
+[<span class="dot green"></span>**Green:** PBAC is Green, **or** PBAC is Amber and a second play (Request, Comply or Agentic) is Green with a documented path to Green on PBAC.]{.light}
+[<span class="dot amber"></span>**Amber:** PBAC is Amber, or PBAC is Red with a credible, dated enablement or deepening plan and an engaged customer.]{.light}
+[<span class="dot red"></span>**Red:** PBAC is Red without an active plan, or the account has missed the S2 milestone.]{.light}
+[<span class="dot black"></span>**Black:** PBAC is Black.]{.light}
+:::
+
+[This roll-up is proposed. See Open decisions.]{.muted}
+
+### Key questions
+
+::: {.questions}
+- Which use cases are in production, in pipeline, and blocked? What is in the backlog?
+- Is the account Critical Consumption Risk (enablement) or Critical Adoption Risk (depth)? What is the play?
+- Which of the four complexity signals could we add next, and what does each unlock?
+- Do the Salesforce and Looker ratings for Request agree? If not, why?
+- Is the account S1 and behind schedule, or genuinely ramping?
+- Which sales plays beyond PBAC are realistic expansion paths?
+:::
+
+:::
+
+::: {.card #sec-performance}
+
+## [PC 2]{.pc-num} Performance
+
+**Performance:** customers must experience reliable, performant technology, with responsive support and proactive stability management. This component becomes the most important factor once a customer is mature and adopted at scale. For some accounts the majority of health risk is a function of Performance and Stability, because they are already committed and highly engaged; General Motors and Booking.com are prime examples.
+
+::: {.callout}
+**Shared ownership.** The **FCTO leads the technical relationship**; the **CSM owns the customer-facing narrative, coordination and follow-through**.
+:::
+
+### Observable metrics (ImmuteR)
+
+| Metric | Where in ImmuteR | Source |
+|:--|:--|:--|
+| Deployment type: SaaS, SM: Supported, or SM: Unsupported | Account tags, Architecture panel (Unsupported Version warning) | Looker |
+| Immuta version | Account card, Performance column; Self-Managed table | Looker |
+| Connections migration progress | Account card, Performance column | Looker |
+| Support incidents, last 90 and 360 days | Account card, Performance column | BigQuery support warehouse |
+| CustX escalations in last 90 days | Account card, Performance column | Jira CUSTX |
+| Open escalations: severity, status, age, assignee | Escalations tab; escalation tiles on the account card | Jira CUSTX |
+| Stale escalations (open ≥ 90 days) | Highlighted on the Escalations tab | Jira CUSTX |
+| Low Consumption flag (self-managed): no Production instance, ratio &lt; 25%, or zero active policies in Production | Self-Managed tab | Looker |
+| SaaS migration stage and expected next-stage date | SaaS Migration board | Salesforce |
+| Multi-platform (more than one Production platform) | Account name "(M)" | Looker |
+
+::: {.callout .warn}
+**Not in ImmuteR today (track manually or add):** P1 case count, Productboard features (required or requested), documented blockers and scale limitations. See Open decisions.
+:::
+
+### Self-managed and SaaS considerations
+
+- **Unsupported self-managed versions** are a performance and renewal risk in their own right.
+- Self-managed accounts are expected to **migrate to SaaS or be assumed churn**. The pipeline stages are **Pipeline → Having conversations → Verbal commitment → Migration in progress**.
+- Past-due "next stage" dates (marked **(past)** on the board) are a signal that the migration has stalled.
+- Because Immuta is middleware, evaluate changes in the technology between Immuta and the user or between Immuta and the data (platform migrations, new connectors, network changes).
+
+### Key questions
+
+::: {.questions}
+- Are we (success, product, platform, support) effectively managing open support cases and CUSTX escalations, and communicating progress back to the customer?
+- Do the 90-day versus 360-day incident counts show a **trend** (rising, flat, falling), or a one-off?
+- Are any escalations stale (≥ 90 days)? Who owns the next step?
+- Is the customer on a supported version? If self-managed, what is the SaaS migration stage and is the date current?
+- Are Connections fully migrated for all connectors in use?
+- Are there active blockers or scale limitations that cap adoption?
+- Is the customer mature enough to administer Immuta (upgrades, connections, policy lifecycle), or do they need more help?
+:::
+
+### Risk and objectives
+
+Performance does not have a single ImmuteR rating. The bands below are the standard for the Account Health Summary. Use the lowest rating the evidence supports.
+
+| Risk | Indicators | Stoplight |
+|:--|:--|:-:|
+| **Low** | Supported version or SaaS; no open Severe escalations; stable or falling incident trend; no stale escalations; positive customer feedback. | <span class="dot green"></span> |
+| **Moderate** | Rising incident volume; open escalations under 90 days; self-managed with a stalled or unscheduled SaaS migration; customer shows difficulty maintaining the product. | <span class="dot amber"></span> |
+| **High** | Unsupported version; stale escalations (≥ 90 days) or multiple open escalations; active blockers; performance degradation; customer frustration. | <span class="dot red"></span> |
+
+### Critical performance milestones
+
+::: {.checks}
+[Installation and Configuration (aligned to Adoption S1)]{.chk}
+[Connections migration complete]{.chk}
+[Feature installation: Guardrails, SDD (enabling production data or subscription policies), Domains, Connections configured for all connectors]{.chk}
+[SaaS migration, where relevant]{.chk}
+[Blocker resolved]{.chk}
+[Significant feature request delivered or dispositioned]{.chk}
+:::
+
+:::
+
+::: {.card #sec-engagement}
+
+## [PC 3]{.pc-num} Engagement
+
+The strength of our relationships and review cadence with the customer and the partners who influence the account. It covers QBR and EBR frequency, the Relationship and Influence ratings for the Executive Buyer and Champion, relationships with key partners (systems integrators, cloud or data platform partners) and renewal readiness. Its purpose is to make sure we have the access and advocacy to retain and expand the account.
+
+::: {.callout}
+Engagement answers two separate questions: **how engaged is the account** (review cadence), and **how strong are our key relationships** (stakeholder ratings). Do not blend them.
+:::
+
+### Account engagement: review cadence score (0–6)
+
+Default cadence if the customer success plan does not specify one: **four QBRs and two EBRs per year.** The documented success plan takes precedence.
+
+| Component | Points |
+|:--|:--|
+| **QBR score** | **3:** three or more QBRs in last 12 months, most recent within 120 days. **2:** two QBRs, or most recent 121–180 days ago. **1:** one QBR, or most recent 181–270 days ago. **0:** none in 12 months, or more than 270 days. |
+| **EBR score** | **2:** two or more EBRs in last 12 months, most recent within 180 days. **1:** one EBR in last 12 months. **0:** none in 12 months or more than 365 days since the last one. |
+| **Cadence execution** | **+1** when the next review is scheduled **and** prior actions and owners are documented and current. |
+
+| Score | Account engagement |
+|:--|:--|
+| 5–6 | <span class="dot green"></span>**Strong:** regular cadence, executive-level engagement, clear forward momentum. |
+| 3–4 | <span class="dot amber"></span>**Neutral:** some meaningful engagement, but cadence, executive access or follow-through is inconsistent. |
+| 0–2 | <span class="dot red"></span>**Weak:** reviews are infrequent or absent, executive engagement is limited, or there is no clear momentum. |
+
+**What counts as a held QBR or EBR:** the customer attended, the agenda was business-focused, the discussion covered outcomes, priorities, risks or value, and at least one action, decision or next step was documented. Do not count internal prep, routine status calls, email updates or canceled meetings. Count a combined meeting as both a QBR and an EBR only when both audiences and both sets of objectives were present and documented.
+
+::: {.two}
+::: {.def}
+[QBR]{.sub}
+
+**Quarterly Business Review:** progress against the success plan, outcomes and value, adoption and operational progress, open risks and blockers, upcoming priorities, and actions with owners and dates.
+:::
+::: {.def}
+[EBR]{.sub}
+
+**Executive Business Review:** strategic priorities, executive-level outcomes, the customer's broader data, security, governance and AI initiatives, executive sponsorship, and decisions or commitments needed. It must include an appropriate customer executive. It is not just a bigger QBR.
+:::
+:::
+
+::: {.callout .warn}
+**Caution:** frequency is a useful signal, not a complete measure. A strategic account may meet less often by design. Use the score alongside adoption, outcomes, support experience and renewal risk.
+:::
+
+### Stakeholder ratings: Executive Buyer and Champion {#stakeholders}
+
+Record **Relationship** and **Influence** separately for each person. Strong relationship does not imply strong influence.
+
+| | Relationship (trust, access, openness) | Influence (ability to shape decisions) |
+|:--|:--|:--|
+| **Strong** | Responds consistently, shares priorities and risks openly, discusses problems candidly, opens doors to other stakeholders, involves us early. | Controls or approves budget, mobilizes multiple teams, can remove blockers, trusted by senior decision-makers, advocates for Immuta when we are not in the room. |
+| **Neutral** | Professional and cooperative, but mostly reactive, selective in what they share, access limited to one team or level. | Influences their own team or function, can recommend but needs approval, respected but with limited executive access. |
+| **Weak** | Hard to reach, cancels meetings, limited to urgent or admin contact, little access beyond one person, damaged trust. | No meaningful decision rights, cannot secure resources, not connected to the budget owner, participates only as a user or admin. |
+
+::: {.people}
+::: {.person}
+[Role]{.p-role}
+
+[Executive Buyer]{.p-name}
+
+Owns, approves or materially influences the business decision tied to Immuta (budget, business outcome, risk, final approval, or the decision to continue, expand or reduce). **Do not assign by title alone.** Confirm through observed behavior and decision rights.
+:::
+::: {.person}
+[Role]{.p-role}
+
+[Champion]{.p-name}
+
+A customer stakeholder who actively supports Immuta internally: explains the value to others, navigates the organization, makes introductions, shares priorities and political context, and advocates when we are absent. **A friendly contact is not a champion.** Advocacy is demonstrated through action.
+:::
+:::
+
+**Classification rules**
+
+1. **Use the lowest rating the evidence supports,** not the most optimistic interpretation.
+2. **Every Strong or Weak rating needs an evidence note** describing observable behavior, for example: "Introduced us to the VP of Data after the QBR" or "Missed both scheduled EBRs, no response to follow-up." Avoid "great relationship," "strong champion," or "customer is engaged."
+3. A Strong-influence executive with a Weak relationship is a **high-power relationship at risk** and should be a named priority in the success plan.
+
+### QBR and EBR documentation standard
+
+::: {.callout}
+**As a rule, every QBR and EBR is transcribed with Krisp or Plaud, and the CSM produces summary notes from the transcript.** The summary notes are stored internally and shared with the customer. They are the record of what was discussed, decided and committed, and the evidence behind the "held" test above (documented actions, owners and dates).
+:::
+
+1. **Tools:** Krisp or Plaud. Follow customer consent and recording requirements before transcribing. If the customer declines, take manual notes and record that in the QBR note.
+2. **Summary notes** cover outcomes and value, adoption and operational progress, risks and blockers, priorities, and actions with owners and dates. For an EBR, add the strategic priorities and executive decisions or commitments.
+3. **Storage and sharing:** store the summary notes in the account's internal location, and send the same notes to the customer after the meeting.
+4. **Linking:** the summary notes are linked from the QBR note in Salesforce, so the ImmuteR "latest QBR note" leads to the full record.
+
+#### QBR note metadata (required)
+
+| Field | Value |
+|:--|:--|
+| **Date** | Date the meeting was held |
+| **Type** | QBR or EBR |
+| **Immuta attendees** | Names and roles |
+| **Customer attendees** | Names and roles (flag the executive, if any) |
+| **Location** | Onsite (site), virtual (platform), or hybrid |
+| **Summary notes** | Link to the stored notes |
+
+#### QBR note format
+
+```text
+Date: <YYYY-MM-DD>
+Type: <QBR | EBR>
+Immuta attendees: <names, roles>
+Customer attendees: <names, roles>
+Location: <onsite: site | virtual: platform | hybrid>
+Summary notes: <link>
+
+Account engagement: <Strong | Neutral | Weak>
+QBRs, rolling 12 months: <n> of <target>
+EBRs, rolling 12 months: <n> of <target>
+Last strategic review: <n> days ago
+Next review scheduled: <Yes | No>
+Executive Buyer: <name> | Relationship: <rating> | Influence: <rating> | Evidence: <note>
+Champion: <name> | Relationship: <rating> | Influence: <rating> | Evidence: <note>
+Use cases: <in production / pipeline / blocked>
+Next steps: <action, owner, date>
+```
+
+### Renewals
+
+Renewal readiness is part of Engagement. Check the **Risk** column and **Churn Quarter** in ImmuteR for every open renewal, and keep the stage current in Salesforce.
+
+| Stage | Definition |
+|:--|:--|
+| [0]{.stage} Not Started | No contact about the renewal yet. |
+| [1]{.stage} Conversation Started | Initial renewal conversation under way. |
+| [2]{.stage} Customer Agreed to Renew | Verbal or implicit commitment. |
+| [3]{.stage} Renewal Terms Agreed | Pricing, duration and scope settled. |
+| [4]{.stage} Paperwork Exchanged | Contract sent for review and signature. |
+| [5]{.stage} Paperwork Executed | Signed and returned. |
+| [6]{.stage} Closed | Renewal complete. |
+
+::: {.callout .alert}
+**Rule of thumb:** an account heading into its churn quarter with a Black or Red PBAC rating, no Strong-influence Executive Buyer, and a stage earlier than 2 is a **top-priority save plan**.
+:::
+
+### Key questions
+
+::: {.questions}
+- When was our last onsite and last business review, and who attended?
+- Who are our most influential relationships, and how strong are they (tepid, strong, "texting")?
+- Do we have an Executive Buyer and Champion, and does the evidence support those labels?
+- Who are our partners and detractors inside the customer?
+- How robust are we to organizational change (a reorg, a departing champion)?
+- Do we have the internal influence needed to drive our adoption goals?
+- How are we engaging whom to strengthen our influence on the human terrain?
+- Which executive pairings exist and which are needed?
+- Is partner engagement part of delivering value here?
+:::
+
+### Risk and objectives
+
+| Risk | Indicators | Stoplight |
+|:--|:--|:-:|
+| **Low** | Engagement score 5–6; multi-threaded relationships; Strong-influence buyer; advocacy examples (CABs, references, marketing). | <span class="dot green"></span> |
+| **Moderate** | Score 3–4; overreliance on one or two contacts; inconsistent reviews; no executive sponsorship; central team lacking authority across business units. | <span class="dot amber"></span> |
+| **High** | Score 0–2; missed engagements; no executive access; lack of strategic buy-in; Weak ratings on both Executive Buyer and Champion. | <span class="dot red"></span> |
+
+**Critical tasks:** QBRs and EBRs on cadence · Executive Buyer and Champion relationships · Partner relationships · Active renewals.
+
+:::
+
+::: {.card #sec-assessment}
+
+## Data Informed Assessment
+
+::: {.callout .uc}
+**Under construction.** This section is empty in the source document.
+:::
+
+:::
+
+```{=html}
+<footer class="foot">Generated `r format(Sys.Date(), "%B %d, %Y")` from Customer_Success_Doctrine_v2.0 · Draft for review · CSM reporting requirements are on their own page</footer>
+</main>
+</div>
+```
+

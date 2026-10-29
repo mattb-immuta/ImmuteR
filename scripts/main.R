@@ -52,7 +52,11 @@ sf_saas_migration_report <- "00OVV000006FbWr2AK"
 sf_csm_summary_report    <- "00OVV000006FbNB2A0"
 sf_orders_report         <- "00OVV000005RTxV2AW"
 sf_forecast_report       <- "00OVV000006hrNN2AY"  # renewal churn forecast
-sf_contacts_report       <- "00OVV000006TwOX2A0"  # contacts -> op_list$contacts, accounts$champion / executive_buyer
+sf_contacts_report       <- "00OVV000006TwOX2A0"  # exec buyer / champion -> op_list$contacts, accounts$champion / executive_buyer
+sf_incident_response_report <- "00OVV000007LaNp2AK"  # incident response contacts -> op_list$incident_response_contacts
+sf_tenure_report         <- "00OVV000007MTSL2A4"  # contract start dates -> accounts$customer_since / months_as_customer
+sf_agentic_report        <- "00OVV000007LHjN2AW"  # agentic profile -> op_list$agentic_profile (Adoption > Agentic Engagement Overview tab)
+sf_agentic_pov_report    <- "00OVV000007QLj72AG"  # agentic PoV projects -> op_list$agentic_pov (same tab)
 
 # Google Sheet URLs
 account_doc_tracker        <- "https://docs.google.com/spreadsheets/d/1Rxl25OyKEW1W1ny8Vbv3TDa2QCqR9VSpTN0QVPu6o9w/edit?usp=sharing"
@@ -82,6 +86,10 @@ new_op_list <- enrich_opportunities(
   sf_orders_report         = sf_orders_report,
   sf_forecast_report       = sf_forecast_report,
   sf_contacts_report       = sf_contacts_report,
+  sf_incident_response_report = sf_incident_response_report,
+  sf_tenure_report         = sf_tenure_report,
+  sf_agentic_report        = sf_agentic_report,
+  sf_agentic_pov_report    = sf_agentic_pov_report,
   fiscal.period            = fiscal.period,
   looker                   = TRUE,
   # -> accounts$iam / accounts$ext_catalog
@@ -99,17 +107,40 @@ op_list[["constants"]] <- load_constants()
 # Produce outputs
 # -----------------------------------------------------------------------------
 
-# Reader's guide first: report_all_accounts_html() embeds it behind the "User
-# Guide and Definitions" button. Edit inst/guide/immuta_accounts_guide.Rmd, not
-# the output. For a shareable PDF: report_user_guide(formats = "pdf").
+# Documentation pages first (CS Doctrine, CSM Reporting, reader's guide):
+# report_all_accounts_html() embeds them in its Documentation tab. Edit the
+# Rmds in inst/guide/, not the output. For a shareable PDF of the guide:
+# report_user_guide(formats = "pdf").
 tryCatch(
   report_user_guide(),                # -> output/immuta_accounts_guide.html
   error = function(e) {
     warning("Reader's guide skipped: ", conditionMessage(e), call. = FALSE)
   }
 )
+tryCatch(
+  report_cs_doctrine(),               # -> output/cs_doctrine.html
+  error = function(e) {
+    warning("CS Doctrine skipped: ", conditionMessage(e), call. = FALSE)
+  }
+)
+tryCatch(
+  report_csm_reporting(),             # -> output/csm_reporting.html
+  error = function(e) {
+    warning("CSM Reporting skipped: ", conditionMessage(e), call. = FALSE)
+  }
+)
 
 report_all_accounts_html(op_list)   # -> output/immuta_accounts.html
+
+# Agentic owner coverage (report 00OVV000007LHjN2AW), published to Drive next
+# to immuta_accounts.html below. Reuses op_list$agentic_profile when the pull
+# succeeded (falls back to its own pull), and warns rather than stopping the run.
+tryCatch(
+  report_agentic_owner_html(op_list = op_list, open = FALSE),   # -> output/agentic_owner_summary.html
+  error = function(e) {
+    warning("Agentic owner summary skipped: ", conditionMessage(e), call. = FALSE)
+  }
+)
 
 # Same records as the HTML page, as JSON, for the Dust frame experiment.
 # -> output/dust_frame/{accounts,changes,consumption}.json + schema.md
@@ -130,9 +161,10 @@ if (!is.null(op_list$consumption$pbac_adoption) &&
 
 # Slide assets, written locally only (see the Drive section at the bottom —
 # these are deliberately NOT uploaded).
-#   output/slide_content/headers/<n>_<account_name>_header.png
-#   output/slide_content/health_summaries/<n>_<account_name>_health.png
-#   output/slide_content/slide_assets_manifest.csv
+#   output/slide_content/<region>/headers/<n>_<account_name>_header.png
+#   output/slide_content/<region>/health_summaries/<n>_<account_name>_health.png
+#   output/slide_content/<region>/slide_assets_manifest.csv
+# (generate_region_slide_assets(); see scripts/slide_content_generator_script.R)
 # One matched pair per account, numbered 1..N with no gaps. Both files share the
 # same <n>_<account_name> stem, which is what the Google Slides builder pairs on
 # — so generate both together rather than calling generate_all_slide_headers()
@@ -174,6 +206,27 @@ sheet_write(
   ss   = op_list_inspector,
   sheet = "policies"
 )
+
+# Feature x account matrix (look 1814). Row names hold the feature, so move
+# them into a column — sheet_write() drops row names.
+if (!is.null(op_list$consumption$enabled_features)) {
+  sheet_write(
+    data  = tibble::rownames_to_column(op_list$consumption$enabled_features, "Feature"),
+    ss    = op_list_inspector,
+    sheet = "enabled_features"
+  )
+}
+
+# Salesforce updates: one row per account/field where the SFDC PBAC / Request /
+# Comply Adoption picklist disagrees (by colour) with the metrics rating that
+# now replaces it in every output. "Set Salesforce To" is the picklist value.
+if (!is.null(op_list$salesforce_updates)) {
+  sheet_write(
+    data  = op_list$salesforce_updates,
+    ss    = op_list_inspector,
+    sheet = "salesforce_updates"
+  )
+}
 # -----------------------------------------------------------------------------
 # Save list object for next run's diff
 # -----------------------------------------------------------------------------
@@ -198,15 +251,35 @@ tryCatch(
     warning("op_list.json write skipped: ", conditionMessage(e), call. = FALSE)
   }
 )
+# Field guide for agents (Dust) reading op_list.json from Drive. The source of
+# truth is OP_LIST_JSON.md at the repo root; this copy just rides along to Drive.
+if (file.exists("OP_LIST_JSON.md")) {
+  file.copy("OP_LIST_JSON.md", "output/current_state/OP_LIST_JSON.md",
+            overwrite = TRUE)
+}
+
+# Data dictionary: every op_list object and field with its source, type, fill
+# rate and description -> output/op_list_dictionary.html (+ .csv). Descriptions
+# and sources are edited in data/input/op_list_dictionary.csv.
+tryCatch(
+  report_op_list_dictionary(op_list, open = FALSE),
+  error = function(e) {
+    warning("op_list dictionary skipped: ", conditionMessage(e), call. = FALSE)
+  }
+)
+
+snitch <-report_next_step_snitch_all(op_list)   # QBR back on
 
 # -----------------------------------------------------------------------------
 # Publish the dashboard to the shared Google Drive folder
 # -----------------------------------------------------------------------------
-# immuta_accounts.html plus the Dust frame payload (output/dust_frame/, ~365 KB
+# immuta_accounts.html, agentic_owner_summary.html, plus the Dust frame payload (output/dust_frame/, ~365 KB
 # across four files) — the JSON that a Dust agent is handed to rebuild the
 # dashboard, so it belongs next to the dashboard it is being compared against.
 # push_output_to_drive() recreates local subdirectories as Drive subfolders, so
 # these land in a `dust_frame` folder rather than cluttering the shared root.
+# output/current_state/op_list.json (the full-run dump written above) and its
+# field guide OP_LIST_JSON.md go too, into a `current_state` Drive subfolder.
 #
 # The slide PNGs stay local — they're regenerated every run, there are 144 of
 # them, and re-uploading the set each time is slow for no benefit. Push them by
@@ -221,7 +294,9 @@ tryCatch(
 # Wrapped in tryCatch so a Drive failure warns rather than killing the run (or
 # the plumber /refresh request) after everything else already succeeded.
 tryCatch(
-  push_output_to_drive(pattern = "^(immuta_accounts\\.html|dust_frame/)"),
+  push_output_to_drive(
+    pattern = "^(immuta_accounts\\.html|agentic_owner_summary\\.html|dust_frame/|current_state/(op_list\\.json|OP_LIST_JSON\\.md)$)"
+  ),
   error = function(e) {
     warning("Drive push skipped: ", conditionMessage(e), call. = FALSE)
   }

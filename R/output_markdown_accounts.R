@@ -51,7 +51,13 @@ output_markdown_accounts <- function(op_list, output_dir = "output/account_brief
       build_field("Field CTO",     acct$`Field CTO`),
       build_field("CSM",           acct$`Customer Success Manager`),
       build_field("Adoption Phase", acct$`Adoption Phase`),
-      build_field("Days as Customer", fmt_days(acct$`Vitally Days as Customer`)),
+      # Tenure from the contract-start report; Vitally's day count only when an
+      # older snapshot has no months_as_customer.
+      if (!is.null(acct$months_as_customer) && !is.na(acct$months_as_customer[1])) {
+        build_field("Customer for", fmt_tenure(acct$months_as_customer, acct$customer_since))
+      } else {
+        build_field("Days as Customer", fmt_days(acct$`Vitally Days as Customer`))
+      },
       build_field("Engagement Risk",  fmt_risk(acct$engagement_risk)),
       build_field("Onboarding Risk",  fmt_risk(acct$onboarding_risk)),
       ""

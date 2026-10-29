@@ -46,7 +46,7 @@ op_list_forecast <- function(sf_forecast_report = "00OVV000006hrNN2AY",
                              opportunity_table  = NULL,
                              quiet              = FALSE) {
 
-  fc <- salesforcer::sf_run_report(sf_forecast_report)
+  fc <- .sf_run_report(sf_forecast_report)
   fc <- as.data.frame(fc, check.names = FALSE, stringsAsFactors = FALSE)
 
   # ── Normalise the grouping column name ──────────────────────────────────────
@@ -121,7 +121,7 @@ op_list_forecast <- function(sf_forecast_report = "00OVV000006hrNN2AY",
     conv <- paste0(base, " (converted)")
     if (conv %in% names(fc)) {
       plain_empty <- !base %in% names(fc) ||
-        all(is.na(suppressWarnings(as.numeric(gsub("[$,]", "", as.character(fc[[base]]))))))
+        all(is.na(extract_usd_amount(fc[[base]])))
       if (plain_empty) fc[[base]] <- fc[[conv]]
     }
   }
@@ -134,9 +134,7 @@ op_list_forecast <- function(sf_forecast_report = "00OVV000006hrNN2AY",
   # ── Coerce the numeric metrics ──────────────────────────────────────────────
   for (col in c("Churn Forecast", "Amount", "Vitally Days as Customer")) {
     if (col %in% names(fc)) {
-      fc[[col]] <- suppressWarnings(as.numeric(
-        gsub("[$,]", "", as.character(fc[[col]]))
-      ))
+      fc[[col]] <- extract_usd_amount(fc[[col]])
     }
   }
   # A blank churn forecast is zero forecast churn, not unknown churn — the diff

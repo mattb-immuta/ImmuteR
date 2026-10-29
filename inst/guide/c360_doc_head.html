@@ -1,0 +1,87 @@
+<!-- Included in the <head> of the inst/guide/ documentation pages (cs_doctrine.Rmd,
+     immuta_accounts_guide.Rmd), styled by c360_doc.css.
+
+     1. Side navigation: fills <nav class="sidenav"> from the page itself, one
+        link per section card (its h2) and an indented link per h3 in it, and
+        highlights the section in view. Add a card or heading and the nav follows.
+     2. Embedded mode: when the page is shown inside the dashboard's
+        Documentation tab (an iframe), mark it .embedded so c360_doc.css drops
+        the duplicate Immuta bar, and open outbound links in a new tab
+        (Salesforce, Google and Confluence refuse to load inside a frame).
+     3. Section links (#...) are scrolled by hand: the dashboard loads these
+        pages through srcdoc, whose base URL is the dashboard's, so a plain
+        #link would reload the dashboard inside the frame. -->
+<script>
+(function () {
+  var embedded = false;
+  try { embedded = window.self !== window.top; } catch (e) { embedded = true; }
+  if (embedded) document.documentElement.classList.add("embedded");
+
+  // Section id: rmarkdown puts it on the heading's wrapper div, pandoc on a <section>.
+  function idOf(h) { return h.id || (h.parentElement && h.parentElement.id) || ""; }
+
+  function buildNav() {
+    var nav = document.querySelector(".sidenav");
+    if (!nav) return;
+    var html = '<div class="sidenav-h">On this page</div>';
+    var targets = [];
+    document.querySelectorAll(".card").forEach(function (card) {
+      var h2 = card.querySelector("h2");
+      if (!card.id || !h2) return;
+      var badge = h2.querySelector(".pc-num");
+      var label = h2.cloneNode(true);
+      var b = label.querySelector(".pc-num"); if (b) b.remove();
+      html += '<a class="l2" href="#' + card.id + '" data-target="' + card.id + '">' +
+              (badge ? '<span class="pc-num">' + badge.textContent + '</span>' : '') +
+              '<span>' + label.textContent.trim() + '</span></a>';
+      targets.push(card);
+      card.querySelectorAll("h3").forEach(function (h3) {
+        // Skip the small headings inside the Overview's component tiles and two-up blocks.
+        if (h3.closest(".pc, .def, .axis, .person")) return;
+        var id = idOf(h3);
+        if (!id) return;
+        html += '<a class="l3" href="#' + id + '" data-target="' + id + '">' + h3.textContent.trim() + '</a>';
+        targets.push(document.getElementById(id));
+      });
+    });
+    nav.innerHTML = html;
+
+    // Highlight the last section whose top has scrolled past the upper fifth of the viewport.
+    var links = nav.querySelectorAll("a");
+    function spy() {
+      var line = window.innerHeight * 0.2, current = null;
+      targets.forEach(function (el) { if (el && el.getBoundingClientRect().top <= line) current = el.id; });
+      if (!current && targets[0]) current = targets[0].id;
+      links.forEach(function (a) {
+        var on = a.getAttribute("data-target") === current;
+        a.classList.toggle("active", on);
+        if (on && a.scrollIntoView && nav.scrollHeight > nav.clientHeight) {
+          var r = a.getBoundingClientRect(), n = nav.getBoundingClientRect();
+          if (r.top < n.top || r.bottom > n.bottom) a.scrollIntoView({ block: "nearest" });
+        }
+      });
+    }
+    window.addEventListener("scroll", spy, { passive: true });
+    spy();
+  }
+
+  document.addEventListener("DOMContentLoaded", function () {
+    buildNav();
+    if (!embedded) return;
+    document.querySelectorAll("a[href]").forEach(function (a) {
+      if (a.getAttribute("href").charAt(0) === "#") return;
+      a.target = "_blank";
+      a.rel = "noopener";
+    });
+  });
+
+  document.addEventListener("click", function (e) {
+    var a = e.target.closest ? e.target.closest('a[href^="#"]') : null;
+    if (!a) return;
+    e.preventDefault();
+    var id = decodeURIComponent(a.getAttribute("href").slice(1));
+    var el = id ? document.getElementById(id) : null;
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+})();
+</script>

@@ -7,7 +7,8 @@
 report_all_accounts_html(
   op_list,
   output_path = "output/immuta_accounts.html",
-  favicon = .rah_default_favicon()
+  favicon = .rah_default_favicon(),
+  guide_path = file.path(dirname(output_path), "immuta_accounts_guide.html")
 )
 }
 \arguments{
@@ -25,6 +26,13 @@ it shows offline and in downloaded copies, or a URL the browser fetches
 when the page opens. Defaults to \code{inst/assets/immuta_favicon.svg} (the
 Immuta mark, black, white in dark-mode tabs) if that file exists, otherwise Immuta's own
 \code{https://www.immuta.com/favicon.ico}. \code{NULL} omits it.}
+
+\item{guide_path}{Character. The knitted reader's guide
+(\code{\link{report_user_guide}}), embedded in the page behind the
+"User Guide and Definitions" button. Defaults to
+\code{immuta_accounts_guide.html} next to \code{output_path}. If it is
+missing the page still renders, with a warning, and the button links to
+that file name instead.}
 }
 \value{
 Invisibly returns \code{output_path}.

@@ -1,85 +1,76 @@
 #' Build the \code{op_list$product_board} child object
 #'
-#' Pulls Productboard notes (customer feedback) and features (roadmap), then
-#' resolves each note's customer relationship down to a company and
-#' fuzzy-matches that company name against the Immuta account table (name
-#' matching is case/punctuation/suffix-insensitive — see
-#' \code{.pb_normalize_name()} — since Productboard's company names and
-#' Salesforce's Account Names aren't guaranteed to be byte-identical).
-#'
-#' This is the slow step of the pipeline: Productboard's API only exposes
-#' note relationships one note at a time (see \code{pb_get_note_relationships()}),
-#' so this makes roughly \code{nrow(notes)} additional API calls. At the
-#' default 50 req/s rate limit that's a few thousand notes per minute.
+#' Pulls the Productboard note corpus with \code{\link{pb_pull_insights}}
+#' (notes with their inline relationships, plus companies, users and
+#' features), matches each note's company to an Immuta account with
+#' \code{\link{pb_match_accounts}} (Salesforce Account ID where Productboard
+#' has it, otherwise a case/punctuation/suffix-insensitive name match — see
+#' \code{.pb_normalize_name()}), and summarises by account and by feature.
 #'
 #' @param accounts Data frame of Immuta accounts (typically
-#'   \code{op_list$accounts}). Must contain an \code{Account Name} column.
+#'   \code{op_list$accounts}). Must contain \code{Account Name} and
+#'   \code{Account ID}.
+#' @param pb Optional list from \code{pb_pull_insights()} /
+#'   \code{pb_load_insights()}, to reuse a pull instead of calling the API.
+#' @param customers_only Logical. Default \code{TRUE}: keep only notes tied
+#'   to an account in \code{accounts} (existing customers), dropping
+#'   prospects, partners, unmatched companies and notes with no customer.
+#'   \code{FALSE} keeps the whole corpus.
 #' @return A named list:
 #'   \describe{
-#'     \item{notes}{Tibble of all notes pulled from Productboard.}
-#'     \item{features}{Tibble of all features pulled from Productboard.}
+#'     \item{notes}{Tibble of notes (see \code{\link{pb_pull_insights}}) with
+#'       \code{account_name} / \code{account_id}; customers only by default.}
+#'     \item{features}{Tibble of features and subfeatures.}
 #'     \item{note_links}{Tibble: one row per note, with \code{note_id},
 #'       \code{company_name} (as resolved from Productboard), \code{account_name}
 #'       (matched Immuta account, or \code{NA} if unmatched), and
-#'       \code{feature_ids} (list-column of linked feature UUIDs).}
+#'       \code{feature_ids} (list-column of linked feature/subfeature ids).}
 #'     \item{by_account}{Tibble: one row per Immuta account that has any
 #'       linked Productboard activity, with \code{account_name},
 #'       \code{note_count}, \code{feature_request_count}, and list-columns
 #'       \code{feature_names} / \code{note_names} for display.}
 #'     \item{feature_requests}{Tibble: one row per feature that has at least
 #'       one linked note, with \code{feature_id}, \code{feature_name},
-#'       \code{status} (if available), \code{request_count}, and a
-#'       \code{accounts} list-column of requesting Immuta account names
-#'       (unmatched companies are listed under their raw Productboard name).}
-#'     \item{unmatched_companies}{Character vector of resolved company names
-#'       that didn't match any Immuta account — useful for spotting naming
-#'       drift between Productboard and Salesforce.}
+#'       \code{status}, \code{request_count}, and an \code{accounts}
+#'       list-column of requesting accounts (unmatched companies are listed
+#'       under their raw Productboard name).}
+#'     \item{unmatched_companies}{Tibble (\code{company_name}, \code{notes}) of
+#'       Productboard companies on notes that didn't match any account —
+#'       reported even when \code{customers_only = TRUE}, since a name
+#'       mismatch here can hide a real customer's notes.}
 #'   }
 #' @export
-op_list_product_board <- function(accounts) {
+op_list_product_board <- function(accounts, pb = NULL, customers_only = TRUE) {
 
-  empty_result <- list(
-    notes = tibble::tibble(), features = tibble::tibble(),
-    note_links = tibble::tibble(), by_account = tibble::tibble(),
-    feature_requests = tibble::tibble(), unmatched_companies = character(0)
-  )
+  if (is.null(pb)) pb <- pb_pull_insights()
+  pb <- pb_match_accounts(pb, accounts, customers_only = customers_only)
 
-  message(".. pulling Productboard notes")
-  notes <- pb_get_notes()
+  notes    <- pb$notes
+  features <- pb$features
 
-  message(".. pulling Productboard features")
-  features <- pb_get_features()
-
-  if (nrow(notes) == 0) {
-    message(".. no Productboard notes found; skipping relationship resolution")
-    return(utils::modifyList(empty_result, list(notes = notes, features = features)))
+  if (is.null(notes) || nrow(notes) == 0) {
+    message(".. no Productboard notes", if (customers_only) " tied to existing customers", "")
+    return(list(notes = tibble::tibble(), features = features,
+                note_links = tibble::tibble(), by_account = tibble::tibble(),
+                feature_requests = tibble::tibble(), unmatched_companies = pb$unmatched_companies))
   }
 
-  message(".. resolving relationships for ", nrow(notes), " notes (one API call each)")
-  note_links <- dplyr::bind_rows(lapply(notes$id, .pb_resolve_note_links))
+  feat_links <- pb$links[pb$links$target_type %in% c("feature", "subfeature"), , drop = FALSE]
+  note_links <- tibble::tibble(
+    note_id      = notes$note_id,
+    company_name = notes$company_name,
+    account_name = notes$account_name,
+    feature_ids  = lapply(notes$note_id, function(id) feat_links$target_id[feat_links$note_id == id])
+  )
 
-  acct_names <- accounts$`Account Name`
-  norm_acct  <- .pb_normalize_name(acct_names)
-
-  note_links$account_name <- vapply(note_links$company_name, function(nm) {
-    if (is.na(nm) || !nzchar(nm)) return(NA_character_)
-    idx <- match(.pb_normalize_name(nm), norm_acct)
-    if (is.na(idx)) NA_character_ else acct_names[idx]
-  }, character(1))
-
-  unmatched <- unique(note_links$company_name[
-    !is.na(note_links$company_name) & is.na(note_links$account_name)
-  ])
-
-  by_account       <- .pb_summarize_by_account(note_links, notes, features)
-  feature_requests <- .pb_summarize_feature_requests(note_links, notes, features)
+  unmatched <- pb$unmatched_companies
 
   list(
     notes               = notes,
     features            = features,
     note_links          = note_links,
-    by_account          = by_account,
-    feature_requests    = feature_requests,
+    by_account          = .pb_summarize_by_account(note_links, notes, features),
+    feature_requests    = .pb_summarize_feature_requests(note_links, notes, features),
     unmatched_companies = unmatched
   )
 }
@@ -94,46 +85,15 @@ op_list_product_board <- function(accounts) {
 }
 
 #' @noRd
-.pb_resolve_note_links <- function(note_id) {
-  rels <- tryCatch(pb_get_note_relationships(note_id), error = function(e) tibble::tibble())
-
-  company_name <- NA_character_
-  feature_ids  <- character(0)
-
-  if (nrow(rels) > 0 && "type" %in% names(rels)) {
-    cust <- rels[rels$type == "customer", , drop = FALSE]
-    if (nrow(cust) > 0) {
-      target_type <- cust[["target.type"]][1]
-      target_id   <- cust[["target.id"]][1]
-      company_name <- if (identical(target_type, "company")) {
-        .pb_company_name(target_id)
-      } else if (identical(target_type, "user")) {
-        .pb_user_company_name(target_id)
-      } else {
-        NA_character_
-      }
-    }
-
-    links <- rels[rels$type == "link" & rels[["target.type"]] %in% c("feature", "subfeature"), , drop = FALSE]
-    if (nrow(links) > 0) feature_ids <- links[["target.id"]]
-  }
-
-  tibble::tibble(
-    note_id      = note_id,
-    company_name = company_name,
-    feature_ids  = list(feature_ids)
-  )
-}
-
-#' @noRd
 .pb_note_display_name <- function(notes, id) {
-  nm <- notes[["fields.name"]][match(id, notes$id)]
+  nm <- notes$title[match(id, notes$note_id)]
   if (is.null(nm) || length(nm) == 0 || is.na(nm)) "(untitled note)" else nm
 }
 
 #' @noRd
 .pb_feature_display_name <- function(features, id) {
-  nm <- features[["fields.name"]][match(id, features$id)]
+  if (is.null(features) || !nrow(features)) return("(unnamed feature)")
+  nm <- features$name[match(id, features$id)]
   if (is.null(nm) || length(nm) == 0 || is.na(nm)) "(unnamed feature)" else nm
 }
 
@@ -187,8 +147,7 @@ op_list_product_board <- function(accounts) {
     requesters <- ifelse(is.na(sub$account_name), sub$company_name, sub$account_name)
     requesters <- unique(requesters[!is.na(requesters)])
 
-    status <- features[["fields.status.name"]][match(fid, features$id)]
-    if (is.null(status) || length(status) == 0) status <- NA_character_
+    status <- if (!is.null(features) && nrow(features)) features$status[match(fid, features$id)] else NA_character_
 
     tibble::tibble(
       feature_id    = fid,

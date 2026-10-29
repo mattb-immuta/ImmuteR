@@ -50,18 +50,18 @@ any zoom level. The default \code{dpi = 600} produces a 3000 × 4800 px PNG.
 
 Three lime-headed sections are rendered:
 \describe{
-  \item{\strong{Adoption}}{Stoplight dots for PBAC, Comply, Request, and
-    Agentic Governance. PBAC is rated from
-    \code{op_list$consumption$pbac_adoption} and Request from the stage
-    tile the account appears on in Looker dashboard 1009, each labelled
-    with what the value says ("Moderate adoption", "Retained") rather than
-    the colour word; Comply and Agentic Governance are the Salesforce
-    picklists, labelled Green / Yellow / Red / Black. Both derived rows
-    fall back to their picklist when the pipeline ran without Looker. Then
-    the platforms and features behind the PBAC rating, then Registered
-    Users, Licensed Users, and the Consumption Ratio (colour-coded: lime at
-    \eqn{\ge} 50\%, amber at \eqn{\ge} 25\%, red below); then Lifecycle
-    Stage.}
+  \item{\strong{Adoption}}{Laid out like the Adoption and Products columns
+    of the account card in \code{\link{report_all_accounts_html}}. Top: the
+    product adoption mini plot (score against consumption ratio, banded by
+    the dashboard's rating rule, square marker for S1 accounts) with its
+    rating as a caption; beside it Lifecycle Stage and key/value rows for
+    Registered, Licensed, Ratio (lime \eqn{\ge} 50\%, amber \eqn{\ge} 25\%,
+    red below) and OBO sessions. Bottom: PBAC's full rating with its
+    evidence (platforms, IAM, external catalogue, features, complexity);
+    Request as its Looker stage word; Agentic as the picklist colour and
+    definition; Comply as the Looker-derived tier (look 1814) with whether
+    asset summary export is on and its usage. Derived ratings fall back to
+    their Salesforce picklist on a run without Looker.}
   \item{\strong{Performance}}{Support cases over the trailing 90 and 360
     days, customer escalations over 90 days and currently open (from
     \code{op_list$support}, via BigQuery), plus deployment type, Immuta

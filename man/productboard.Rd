@@ -2,24 +2,30 @@
 % Please edit documentation in R/productboard_utils.R
 \name{productboard}
 \alias{productboard}
-\title{Productboard API integration (Personal Access Token)}
+\title{Productboard API integration}
 \description{
-Read-only, internal use doesn't need the full OAuth 2.0 Authorization Code
-dance (app registration, client ID/secret, browser consent). Productboard
-offers a much simpler Personal Access Token method for exactly this case —
-"best for internal tools, scripts, and getting started quickly" per their
-own docs — so that's what this module uses.
+Two ways to authenticate, set in \code{.Renviron}
+(\code{usethis::edit_r_environ()}, then restart R). The API token wins if
+both are present.
 }
 \details{
-## One-time setup
-1. In Productboard, go to Settings > Integrations > Public APIs > Access
-   Token (requires the Pro plan or higher).
-2. Click the "+" icon to generate a token, and copy it immediately — you
-   won't be able to see it again.
-3. Add it to your \code{.Renviron} (\code{usethis::edit_r_environ()}):
-   \code{PRODUCTBOARD_API_TOKEN=your_token_here}, then restart R.
+## Option A: Personal access token
+Productboard Settings > Integrations > Public APIs > Access Token, click
+"+", copy it, and set \code{PRODUCTBOARD_API_TOKEN=...}.
 
-That's it — no browser flow, no app registration, no client ID. The token
-is sent as a Bearer token on every request. Treat it like a password: it's
-valid until you revoke it in Workspace Settings.
+## Option B: Registered OAuth app (authorization code)
+Set \code{PRODUCTBOARD_CLIENT_ID} and \code{PRODUCTBOARD_CLIENT_SECRET} from
+\url{https://app.productboard.com/oauth2/applications}. On the app:
+\itemize{
+  \item add \code{http://localhost:1410/} as a redirect URI (or set
+    \code{PRODUCTBOARD_REDIRECT_URI} to one already registered — it must
+    match exactly);
+  \item grant \code{notes:read} and \code{entities:read}, plus
+    \code{members_pii:read} to see owner/creator emails.
+}
+The first request opens a browser; approve the app (only "Makers with admin
+access" can). httr2 caches the tokens on disk and refreshes them silently;
+after 180 days unused you'll be asked to approve again.
+
+Run \code{pb_check_connection()} to confirm access before a full pull.
 }

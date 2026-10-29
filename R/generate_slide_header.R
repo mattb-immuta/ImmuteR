@@ -13,15 +13,18 @@
 #'
 #' Three rows are rendered:
 #' \enumerate{
-#'   \item Account name (left, large) and Contract ARR rollup (right, lime).
+#'   \item Account name (left, large), customer age ("CUSTOMER FOR", months
+#'     since the first contract start) and Contract ARR rollup (right, lime).
 #'   \item Account team: AE, CSM, and FCTO separated by dividers.
-#'   \item "Next Renewal: \$Amount, Q#-YYYY" inline text.
+#'   \item "Next Renewal: \$Amount, YYYY-MM-DD" and, beneath it, the next open
+#'     expansion ("Expansion: \$Amount, close date", "+N more" when there are
+#'     several, or "Expansion: None in SFDC").
 #' }
 #'
 #' @param account_name Character. Exact Salesforce account name as it appears
 #'   in \code{op_list$accounts}.
 #' @param op_list Named list returned by \code{enrich_opportunities()}, expected
-#'   to contain \code{accounts} and \code{renewals} elements.
+#'   to contain \code{accounts}, \code{renewals} and \code{expansions} elements.
 #' @param output_dir Character. Directory to write the PNG into. Created
 #'   recursively if it does not exist. Defaults to
 #'   \code{"output/slide_content/headers"}.
@@ -72,6 +75,8 @@ generate_slide_header <- function(account_name,
   ae   <- .coalesce_chr(a_data[["Account Owner"]],            "—")
   csm  <- .coalesce_chr(a_data[["Customer Success Manager"]], "—")
   fcto <- .coalesce_chr(a_data[["Field CTO"]],                "—")
+  # Customer age, short form for the banner ("50 mo"); em-dash when unknown.
+  tenure <- fmt_tenure(a_data[["months_as_customer"]], short = TRUE)
 
   # ── 2. Identify next renewal ───────────────────────────────────────────────
   next_ren <- op_list$renewals |>
@@ -93,6 +98,29 @@ generate_slide_header <- function(account_name,
     renewal_label <- paste0("Next Renewal:  ", renewal_amt_fmt, ",  ", contract_end_fmt)
   } else {
     renewal_label <- "No open renewal"
+  }
+
+  # ── 2b. Identify next expansion ────────────────────────────────────────────
+  # Earliest open expansion by Close Date, with a count when there are more.
+  # Absence is stated rather than left blank, so a slide read later can't be
+  # mistaken for a missing field.
+  acct_exp <- if (is.data.frame(op_list$expansions) && nrow(op_list$expansions) > 0) {
+    op_list$expansions |>
+      dplyr::filter(`Account Name` == account_name) |>
+      dplyr::arrange(suppressWarnings(as.Date(`Close Date`)))
+  } else {
+    data.frame()
+  }
+
+  if (nrow(acct_exp) > 0) {
+    exp_amt_raw <- suppressWarnings(as.numeric(acct_exp[["Amount"]][1]))
+    exp_amt_fmt <- if (!is.na(exp_amt_raw)) scales::dollar(exp_amt_raw, accuracy = 1000) else "—"
+    exp_close   <- suppressWarnings(as.Date(acct_exp[["Close Date"]][1]))
+    exp_close_fmt <- if (!is.na(exp_close)) format(exp_close, "%Y-%m-%d") else "—"
+    expansion_label <- paste0("Expansion:  ", exp_amt_fmt, ",  ", exp_close_fmt,
+                              if (nrow(acct_exp) > 1) paste0("  (+", nrow(acct_exp) - 1, " more)") else "")
+  } else {
+    expansion_label <- "Expansion:  None in SFDC"
   }
 
   # ── 3. Canvas and layout constants (inches as coordinate units) ────────────
@@ -154,6 +182,26 @@ generate_slide_header <- function(account_name,
       size = sz_arr, colour = "#C8F135"
     )
 
+  # Row 1 — customer age, a smaller block left of the ARR one (same label /
+  # value stack). Right-aligned clear of the ARR value, so long account names on
+  # the left still have the width they had before.
+  tenure_x <- W - pad - 1.45
+  p <- p +
+    ggplot2::annotate("text",
+      x = tenure_x, y = div_y + (H - div_y) * 0.80,
+      label = "CUSTOMER FOR",
+      hjust = 1, vjust = 0.5,
+      family = fam, fontface = "bold",
+      size = sz_label, colour = "#999999"
+    ) +
+    ggplot2::annotate("text",
+      x = tenure_x, y = div_y + (H - div_y) * 0.36,
+      label = tenure,
+      hjust = 1, vjust = 0.5,
+      family = fam, fontface = "bold",
+      size = sz_body * 1.15, colour = if (identical(tenure, "\u2014")) "#999999" else "#FFFFFF"
+    )
+
   # Horizontal divider
   p <- p +
     ggplot2::annotate("segment",
@@ -200,14 +248,24 @@ generate_slide_header <- function(account_name,
     }
   }
 
-  # Row 2 — renewal info
+  # Row 2 — renewal info, with the next expansion on a second line beneath it
+  # (same vertical positions as the team label / value pair to the left).
+  # Slightly smaller than sz_body so two lines fit the row.
   p <- p +
     ggplot2::annotate("text",
-      x = renewal_x, y = div_y * 0.50,
+      x = renewal_x, y = div_y * 0.69,
       label = renewal_label,
       hjust = 0, vjust = 0.5,
       family = fam, fontface = "bold",
-      size = sz_body, colour = "#FFFFFF"
+      size = sz_body * 0.92, colour = "#FFFFFF"
+    ) +
+    ggplot2::annotate("text",
+      x = renewal_x, y = div_y * 0.31,
+      label = expansion_label,
+      hjust = 0, vjust = 0.5,
+      family = fam, fontface = "bold",
+      size = sz_body * 0.92,
+      colour = if (nrow(acct_exp) > 0) "#FFFFFF" else "#999999"
     )
 
   # Row 2 — when op_list was built, bottom-right. The top-right corner is the

@@ -1,7 +1,14 @@
 #' Pull the Salesforce contacts report into a one-row-per-contact table.
 #'
-#' The contacts report lists each customer's executive buyer, champion, and
-#' incident response contacts. This keeps every report column as-is (so a
+#' Used for two Salesforce reports, kept apart in \code{op_list}:
+#' \itemize{
+#'   \item the contact-roles report (\code{00OVV000006TwOX2A0}): each
+#'     customer's executive buyer and champion -> \code{op_list$contacts};
+#'   \item the incident response report (\code{00OVV000007LaNp2AK}), pulled
+#'     with \code{role = "incident_response"} so every row is flagged as an
+#'     incident response contact -> \code{op_list$incident_response_contacts}.
+#' }
+#' This keeps every report column as-is (so a
 #' mail merge can use the email / name fields directly) and appends a stable
 #' set of normalised columns, so downstream code doesn't depend on the exact
 #' Salesforce labels.
@@ -21,6 +28,10 @@
 #'   \code{"00OVV000006TwOX2A0"}.
 #' @param contacts_table Optional data frame. Supply an already-pulled report
 #'   to skip the Salesforce call (useful for testing).
+#' @param role Optional role key (\code{"executive_buyer"}, \code{"champion"}
+#'   or \code{"incident_response"}) that every row in the report holds, for a
+#'   report filtered to one role. Added to whatever roles are detected from
+#'   the row itself.
 #'
 #' @return A tibble, one row per contact: the report's own columns plus
 #'   \code{contact_account_id} (15-character Account ID), \code{contact_account_name},
@@ -32,14 +43,16 @@
 #' @examples
 #' \dontrun{
 #'   # Incident response recipients for a mail merge
-#'   ir <- dplyr::filter(op_list$contacts, is_incident_response)
+#'   ir <- op_list$incident_response_contacts
 #' }
 #' @export
 op_list_contacts <- function(sf_contacts_report = "00OVV000006TwOX2A0",
-                             contacts_table     = NULL) {
+                             contacts_table     = NULL,
+                             role               = NULL) {
+  if (!is.null(role)) role <- match.arg(role, names(.CONTACT_ROLES))
 
   ct <- if (is.null(contacts_table)) {
-    salesforcer::sf_run_report(sf_contacts_report)
+    .sf_run_report(sf_contacts_report)
   } else {
     contacts_table
   }
@@ -97,8 +110,9 @@ op_list_contacts <- function(sf_contacts_report = "00OVV000006TwOX2A0",
     from_text | from_box
   })
   names(flags) <- names(.CONTACT_ROLES)
+  if (!is.null(role)) flags[[role]] <- rep(TRUE, n)
 
-  if (!any(unlist(flags))) {
+  if (n > 0 && !any(unlist(flags))) {
     warning("Contacts report ", sf_contacts_report, ": no contact could be ",
             "identified as executive buyer / champion / incident response. ",
             "Columns: ", paste(cols, collapse = ", "), call. = FALSE)

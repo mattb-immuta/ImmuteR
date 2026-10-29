@@ -6,8 +6,90 @@
   users         = 1746L,   # RAW DATA - USERS
   policies      = 1747L,   # RAW DATA - POLICIES
   sdd_active    = 1748L,   # RAW DATA - SDD ACTIVE
-  support_cases = 1776L    # RAW DATA - SUPPORT CASES
+  support_cases = 1776L,   # RAW DATA - SUPPORT CASES
+  obo_sessions  = 1806L,   # OBO sessions per instance -> accounts$obo_sessions
+  comply        = 1814L    # Comply metrics + Features List (asset summary export)
 )
+
+# OBO session counts from look 1806, summed across each account's Production
+# instances (same convention as users/policies). Columns are resolved by shape
+# rather than pinned by full name, since Looker's view prefix varies by explore.
+# Returns `Account Name`, `obo_sessions`; NULL when the look is unusable.
+.build_obo_sessions <- function(obo) {
+  if (is.null(obo) || nrow(obo) == 0) return(NULL)
+
+  acct_col <- .looker_account_col(obo)
+  sess_col <- .looker_col(obo, c("obo.*session", "on.behalf.*session", "session"),
+                          exclude = "account name")
+  if (is.na(acct_col) || is.na(sess_col)) {
+    warning("Look 1806: couldn't find account/session columns (have: ",
+            paste(names(obo), collapse = ", "), ") — obo_sessions left NA.",
+            call. = FALSE)
+    return(NULL)
+  }
+
+  type_col <- .looker_col(obo, "instance type")
+  if (!is.na(type_col)) {
+    obo <- obo[obo[[type_col]] %in% "Production", , drop = FALSE]
+  } else {
+    warning("Look 1806 has no Instance Type column — obo_sessions sums all ",
+            "instances, not just Production.", call. = FALSE)
+  }
+
+  tibble::tibble(`Account Name` = trimws(as.character(obo[[acct_col]])),
+                 .sess          = obo[[sess_col]]) |>
+    dplyr::group_by(`Account Name`) |>
+    dplyr::summarise(obo_sessions = .sum_or_na(.sess), .groups = "drop")
+}
+
+# Query volume from look 1745 (RAW DATA - QUERIES), summed across each
+# account's Production instances, the same convention as obo_sessions. The
+# look's exact column names haven't been pinned, so they're resolved by shape:
+# the first numeric column whose name mentions queries (not users, data
+# sources or BigQuery). If the look carries a date column, only the latest 31
+# days are counted, so the figure is a monthly volume rather than all history.
+# Returns `Account Name`, `query_volume` (attr "column" / "window" say what was
+# used); NULL when the look is unusable.
+.build_query_volume <- function(q) {
+  if (is.null(q) || !is.data.frame(q) || nrow(q) == 0) return(NULL)
+  acct_col <- .looker_account_col(q)
+  nms <- names(q)
+  cand <- nms[grepl("quer", nms, ignore.case = TRUE) &
+              !grepl("account name|user|bigquery|data source|instance id|date|time", nms, ignore.case = TRUE)]
+  is_num <- vapply(cand, function(n) {
+    v <- suppressWarnings(as.numeric(gsub(",", "", as.character(q[[n]]))))
+    mean(!is.na(v)) > 0.5
+  }, logical(1))
+  cand <- cand[is_num]
+  # Prefer a count / total over averages and rates.
+  cand <- c(cand[grepl("count|total|sum|number|#", cand, ignore.case = TRUE)], cand)
+  qcol <- if (length(cand)) cand[1] else NA_character_
+  if (is.na(acct_col) || is.na(qcol)) {
+    warning("Look 1745: couldn't find account/query-count columns (have: ",
+            paste(nms, collapse = ", "), ") \u2014 query_volume left NA.", call. = FALSE)
+    return(NULL)
+  }
+  type_col <- .looker_col(q, "instance type")
+  if (!is.na(type_col)) q <- q[q[[type_col]] %in% "Production", , drop = FALSE]
+
+  window <- "all rows on the look"
+  date_col <- .looker_col(q, c("date$", "day$", "month$", "week$", "date", "day"), exclude = "account|last attempted")
+  if (!is.na(date_col)) {
+    d <- suppressWarnings(as.Date(substr(as.character(q[[date_col]]), 1, 10)))
+    if (sum(!is.na(d)) > 0) {
+      keep <- !is.na(d) & d > max(d, na.rm = TRUE) - 31
+      q <- q[keep, , drop = FALSE]
+      window <- paste0("31 days to ", format(max(d, na.rm = TRUE)), " (", date_col, ")")
+    }
+  }
+  out <- tibble::tibble(`Account Name` = trimws(as.character(q[[acct_col]])), .q = q[[qcol]]) |>
+    dplyr::group_by(`Account Name`) |>
+    dplyr::summarise(query_volume = .sum_or_na(.q), .groups = "drop")
+  attr(out, "column") <- qcol
+  attr(out, "window") <- window
+  message("  query_volume: look 1745 column '", qcol, "', ", window, ", ", nrow(out), " accounts")
+  out
+}
 
 # Short display names mapped to their Look 1744 column names.
 .PLATFORM_COLS <- c(
@@ -101,7 +183,7 @@
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
 .parse_currency <- function(x) {
-  as.numeric(gsub(",", "", gsub("[$]", "", x)))
+  extract_usd_amount(x)
 }
 
 .parse_pct <- function(x) {
@@ -129,14 +211,16 @@
 
 #' Load raw op_list data from Looker
 #'
-#' Fetches each of the six Looker looks that back the CPO op_list consumption
-#' spreadsheet directly from Looker on every call.
+#' Fetches each look in \code{.OP_LIST_LOOKS} (the six that back the CPO
+#' op_list consumption spreadsheet, plus OBO sessions 1806 and Comply 1814)
+#' directly from Looker on every call.
 #'
 #' @param token Character. Bearer token from \code{looker_auth()}.
 #'   Defaults to calling \code{looker_auth()} automatically.
 #'
 #' @return Named list of tibbles: \code{users}, \code{data_sources},
-#'   \code{queries}, \code{policies}, \code{sdd_active}, \code{support_cases}.
+#'   \code{queries}, \code{policies}, \code{sdd_active}, \code{support_cases},
+#'   \code{obo_sessions}, \code{comply}.
 #' @export
 load_op_list_raw <- function(token = NULL) {
   if (is.null(token)) token <- looker_auth()
@@ -427,6 +511,19 @@ op_list_consumption <- function(op_list,
     low_consumption$`Data Policies`            <- data_policies
     low_consumption$`Subscription Policies`    <- sub_policies
     low_consumption$`Active Policies (Total)`  <- active_policies
+    # OBO sessions (look 1806), summed across Production instances. NA when
+    # the account isn't on the look — "no data", not zero.
+    obo_agg <- .build_obo_sessions(raw$obo_sessions)
+    low_consumption$obo_sessions <- if (is.null(obo_agg)) NA_real_ else
+      obo_agg$obo_sessions[match(trimws(low_consumption$`Account Name`),
+                                 obo_agg$`Account Name`)]
+
+    # Query volume (look 1745), summed across Production instances; NA when the
+    # account isn't on the look. A proxy for OBO session volume.
+    q_agg <- .build_query_volume(raw$queries)
+    low_consumption$query_volume <- if (is.null(q_agg)) NA_real_ else
+      q_agg$query_volume[match(trimws(low_consumption$`Account Name`), q_agg$`Account Name`)]
+
     low_consumption$`Low Consumption`          <- ifelse(
       !has_prod_instance, TRUE,                        # no Production instance at all
       ifelse(has_signal, low_ratio | no_policies, NA)   # otherwise: ratio or zero-policy check
@@ -508,8 +605,13 @@ op_list_consumption <- function(op_list,
     policy_metrics  = policy_metrics,  # look 1747 — all instances, all columns
     sdd_consumption = sdd_consumption, # look 1748 — all instances, all columns
     data_sources    = data_sources,    # look 1744 — all instances, all columns
+    obo_sessions    = if (has_looker) raw$obo_sessions else NULL, # look 1806
+    queries         = if (has_looker) raw$queries      else NULL, # look 1745 -> low_consumption$query_volume
+    comply          = if (has_looker) raw$comply       else NULL, # look 1814
 
     # ── Derived ─────────────────────────────────────────────────────────────────
+    # feature x account matrix from look 1814's Features List (1 = enabled)
+    enabled_features = if (has_looker) op_list_enabled_features(raw$comply) else NULL,
     low_consumption = low_consumption,  # one row per customer, accounts + Looker
     metrics         = op_list_metrics(data_sources),  # one row per account, scoring inputs
     pbac_adoption   = pbac_adoption,  # one row per account, PBAC rating + inputs

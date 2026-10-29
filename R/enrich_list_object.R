@@ -17,7 +17,7 @@
 #' @return \code{new_list} with four additional elements:
 #' \describe{
 #'   \item{changes}{Data frame summarising detected changes across all
-#'     op_list components (accounts, renewals, expansions, csm_table,
+#'     op_list components (accounts, renewals, expansions, new_logos, csm_table,
 #'     saas_pipeline, consumption, forecast). One row per component with columns
 #'     \code{Component}, \code{Added}, \code{Removed}, \code{Changed},
 #'     and \code{Total_Moves}.}
@@ -69,6 +69,11 @@ enrich_list_object <- function(new_list, diff_date, data_dir = "data/") {
   old_list <- tmp_env$op_list
   rm(tmp_env)
 
+  # Snapshots saved before currency columns were converted at ingest still hold
+  # "USD 1,234.00" strings. Convert both sides so the diff compares numbers.
+  old_list <- .convert_usd_deep(old_list)
+  new_list <- .convert_usd_deep(new_list)
+
   message(".. diffing against snapshot from ", diff_date)
 
   changes <- list(diff_date = diff_date)
@@ -81,6 +86,12 @@ enrich_list_object <- function(new_list, diff_date, data_dir = "data/") {
 
   # ── 3. Expansions ────────────────────────────────────────────────────────────
   changes$expansions <- .diff_expansions(new_list$expansions, old_list$expansions)
+
+  # ── 3b. New logos ────────────────────────────────────────────────────────────
+  # Same shape and keys as expansions. Snapshots saved before new_logos existed
+  # have no element, so the diff is empty (not "everything added") on that run.
+  changes$new_logos <- .diff_expansions(new_list$new_logos, old_list$new_logos,
+                                        label = "new logos", noun = "opportunity")
 
   # ── 4. CSM table ─────────────────────────────────────────────────────────────
   changes$csm_table <- .diff_csm(new_list$csm_table, old_list$csm_table)
@@ -101,6 +112,12 @@ enrich_list_object <- function(new_list, diff_date, data_dir = "data/") {
   # Snapshots saved before op_list$forecast existed simply have no forecast
   # element, and .diff_forecast() returns an empty list for that case.
   changes$forecast <- .diff_forecast(new_list$forecast, old_list$forecast)
+
+  # ── 8. Agentic engagement ───────────────────────────────────────────────────
+  # Accounts entering / leaving the Agentic Engagement Overview and their agentic
+  # field changes, plus the previous rollup so the page can show deltas on every
+  # roll-up number (R/diff_agentic.R). NULL when either side predates the report.
+  changes$agentic <- .diff_agentic(new_list, old_list, diff_date)
 
   # Surface the compact summary as $changes; full diff detail at $changes_detail
   change_summary               <- .build_change_summary(changes)
@@ -137,11 +154,13 @@ enrich_list_object <- function(new_list, diff_date, data_dir = "data/") {
     new_df[, intersect(c("Account ID", "Account Name", "Contract ARR Rollup",
                           "Customer Success Manager", "Account Owner",
                           "Field CTO", "Region", "Adoption Phase",
-                          "request_adoption_looker_stage"), names(new_df))],
+                          "request_adoption_looker_stage",
+                          "comply_adoption_looker_stage"), names(new_df))],
     old_df[, intersect(c("Account ID", "Contract ARR Rollup",
                           "Customer Success Manager", "Account Owner",
                           "Field CTO", "Region", "Adoption Phase",
-                          "request_adoption_looker_stage"), names(old_df))],
+                          "request_adoption_looker_stage",
+                          "comply_adoption_looker_stage"), names(old_df))],
     by = "Account ID", suffixes = c(".new", ".old")
   )
 
@@ -149,7 +168,7 @@ enrich_list_object <- function(new_list, diff_date, data_dir = "data/") {
   # sentence, so a reworded picklist string can't register as a change.
   watch_fields <- c("Contract ARR Rollup", "Customer Success Manager",
                     "Account Owner", "Field CTO", "Region", "Adoption Phase",
-                    "request_adoption_looker_stage")
+                    "request_adoption_looker_stage", "comply_adoption_looker_stage")
 
   # .field_changed() returns all-FALSE for a field that isn't on both sides,
   # which is the case for request_adoption_looker_stage against any snapshot
@@ -236,7 +255,7 @@ enrich_list_object <- function(new_list, diff_date, data_dir = "data/") {
 }
 
 
-.diff_expansions <- function(new_df, old_df) {
+.diff_expansions <- function(new_df, old_df, label = "expansions", noun = "expansion") {
   if (is.null(new_df) || is.null(old_df)) return(list())
 
   key     <- "Opportunity ID"
@@ -265,12 +284,12 @@ enrich_list_object <- function(new_list, diff_date, data_dir = "data/") {
   field_changes$period_changed <- period_changed[any_changed]
 
   msg_parts <- c(
-    if (nrow(added) > 0)          paste(nrow(added),          "new expansion(s)"),
-    if (nrow(removed) > 0)        paste(nrow(removed),        "closed/removed expansion(s)"),
+    if (nrow(added) > 0)          paste0(nrow(added),         " new ", noun, "(s)"),
+    if (nrow(removed) > 0)        paste0(nrow(removed),       " closed/removed ", noun, "(s)"),
     if (sum(amount_changed) > 0)  paste(sum(amount_changed),  "amount change(s)"),
     if (sum(period_changed) > 0)  paste(sum(period_changed),  "fiscal period change(s)")
   )
-  if (length(msg_parts)) message("  expansions: ", paste(msg_parts, collapse = ", "))
+  if (length(msg_parts)) message("  ", label, ": ", paste(msg_parts, collapse = ", "))
 
   list(added = added, removed = removed, field_changes = field_changes)
 }
@@ -486,7 +505,7 @@ enrich_list_object <- function(new_list, diff_date, data_dir = "data/") {
   # but older snapshots may predate that, so normalise both sides here too).
   norm_num <- function(df, col) {
     if (!col %in% names(df)) return(df)
-    df[[col]] <- suppressWarnings(as.numeric(gsub("[$,]", "", as.character(df[[col]]))))
+    df[[col]] <- extract_usd_amount(df[[col]])
     df[[col]][is.na(df[[col]])] <- 0
     df
   }
@@ -564,8 +583,8 @@ enrich_list_object <- function(new_list, diff_date, data_dir = "data/") {
 # ── Summary table ─────────────────────────────────────────────────────────────
 
 .build_change_summary <- function(changes) {
-  components <- c("accounts", "renewals", "expansions", "csm_table", "saas_pipeline",
-                   "escalations", "consumption", "forecast")
+  components <- c("accounts", "renewals", "expansions", "new_logos", "csm_table", "saas_pipeline",
+                   "escalations", "consumption", "forecast", "agentic")
 
   rows <- lapply(components, function(comp) {
     ch <- changes[[comp]]

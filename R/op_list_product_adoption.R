@@ -1,5 +1,5 @@
-# Product adoption: PBAC complexity plus Request adoption points, per account,
-# and the stoplight rating derived from it.
+# Product adoption: PBAC complexity plus Request and Comply adoption points,
+# per account, and the stoplight rating derived from it.
 #
 # Adds columns to op_list$consumption$pbac_adoption rather than living in a
 # table of its own, because it shares that table's grain (one row per account)
@@ -40,7 +40,7 @@
 #'
 #' Extends \code{op_list$consumption$pbac_adoption} (see
 #' \code{\link{op_list_pbac_adoption}}) with a combined product adoption score:
-#' PBAC \code{complexity_score} plus points for Request adoption.
+#' PBAC \code{complexity_score} plus points for Request and Comply adoption.
 #'
 #' \describe{
 #'   \item{\code{request_stage}}{\code{"retained"}, \code{"adopted"},
@@ -50,8 +50,11 @@
 #'     amber = adopted).}
 #'   \item{\code{request_points}}{\code{3} for retained, \code{1} for adopted,
 #'     \code{0} otherwise (including unknown).}
-#'   \item{\code{product_adoption}}{\code{complexity_score + request_points},
-#'     0-10.}
+#'   \item{\code{comply_points}}{\code{1} each for \code{access_summary_export}
+#'     and \code{comply_enabled} in look 1814's Features List (0-2), from
+#'     \code{op_list$accounts$comply_points}; \code{0} when absent.}
+#'   \item{\code{product_adoption}}{\code{complexity_score + request_points +
+#'     comply_points}, 0-12.}
 #'   \item{\code{product_adoption_rating}}{The same two-axis stoplight as
 #'     \code{pbac_adoption}, with \code{product_adoption} in place of
 #'     \code{complexity_score}: threshold \code{4} on the score, \code{0.25} /
@@ -72,7 +75,7 @@
 #' @param adoption_min Numeric. \code{product_adoption} at or above which the
 #'   account counts as high adoption for the rating. Default \code{4}.
 #'
-#' @return \code{pbac_adoption} with the four columns above appended (replaced
+#' @return \code{pbac_adoption} with the five columns above appended (replaced
 #'   if already present).
 #' @examples
 #' \dontrun{
@@ -102,10 +105,19 @@ op_list_product_adoption <- function(pbac_adoption,
   pts <- unname(points[stage])
   pts[is.na(pts)] <- 0
 
+  # Comply points (op_list_comply_adoption(), on accounts). 0 when absent.
+  cpts <- if ("comply_points" %in% names(accts)) {
+    suppressWarnings(as.numeric(accts$comply_points))[
+      match(trimws(as.character(pbac_adoption$`Account Name`)),
+            trimws(as.character(accts$`Account Name`)))]
+  } else rep(0, nrow(pbac_adoption))
+  cpts[is.na(cpts)] <- 0
+
   out <- pbac_adoption
   out$request_stage           <- stage
   out$request_points          <- pts
-  out$product_adoption        <- suppressWarnings(as.numeric(out$complexity_score)) + pts
+  out$comply_points           <- cpts
+  out$product_adoption        <- suppressWarnings(as.numeric(out$complexity_score)) + pts + cpts
   out$product_adoption_rating <- .pbac_rating(out$product_adoption,
                                               out$consumption_ratio,
                                               complexity_min = adoption_min)

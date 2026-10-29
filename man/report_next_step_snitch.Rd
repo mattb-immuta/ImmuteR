@@ -2,7 +2,8 @@
 % Please edit documentation in R/report_next_step_snitch.R
 \name{report_next_step_snitch}
 \alias{report_next_step_snitch}
-\title{Snitch report: stale renewal Next Steps and overdue QBR/EBRs.}
+\title{Snitch report: stale renewal Next Steps, SaaS migration notes, and overdue
+QBR/EBRs.}
 \usage{
 report_next_step_snitch(
   op_list,
@@ -12,8 +13,12 @@ report_next_step_snitch(
   at_risk_max_days = 7,
   renew_max_days = 14,
   future_tolerance_days = 7,
+  saas_max_days = 14,
+  saas_quarters = NULL,
   qbr_max_months = 5,
-  qbr_all_accounts = FALSE
+  qbr_all_accounts = FALSE,
+  include_qbr = FALSE,
+  regions = c("APJ", "EMEA", "US - E", "US - W", "Public Sector")
 )
 }
 \arguments{
@@ -35,14 +40,31 @@ quarter entirely. Leave \code{NULL} for the default.}
 \item{future_tolerance_days}{How far past \code{as_of} a lead date may be
 and still count as this year rather than last year.}
 
+\item{saas_max_days}{Maximum age in days for SaaS migration notes. Default
+\code{14} (bi-weekly).}
+
+\item{saas_quarters}{Character vector of estimated migration quarters to
+check. \code{NULL} (default) uses the same quarters as the renewal check.}
+
 \item{qbr_max_months}{An account is flagged when its latest QBR/EBR is more
 than this many months before \code{as_of}.}
 
 \item{qbr_all_accounts}{\code{TRUE} checks QBR/EBR recency for every account
 in \code{op_list$accounts} rather than only the in-scope renewals.}
+
+\item{include_qbr}{Logical. Run the QBR/EBR check. Default \code{FALSE}:
+\code{no_recent_qbr} comes back with its columns but no rows, and no QBR
+summary is printed. Set \code{TRUE} to include it (and pass
+\code{include_qbr = TRUE} to \code{push_slack_snitch()} /
+\code{output_dust_snitch()} to message it).}
+
+\item{regions}{Character vector of regions to include, matched against
+\code{Region} on each check. Default all five:
+\code{c("APJ", "EMEA", "US - E", "US - W", "Public Sector")}. Rows with
+a blank region are left out; \code{NULL} turns the filter off.}
 }
 \value{
-A list with two data frames, both sorted by CSM:
+A list with three data frames, each sorted by CSM:
 
   \code{next_steps}: one row per renewal that needs its Next Step updated,
   at-risk first, then most stale. Columns:
@@ -52,6 +74,14 @@ A list with two data frames, both sorted by CSM:
   \code{Allowed Days}, \code{Issue}, \code{Next Step}, \code{Region},
   \code{Opportunity Owner}, \code{opportunity_url}.
 
+  \code{saas_notes}: one row per in-scope SaaS migration whose notes need
+  an update, most stale first. Columns: \code{Customer Success Manager},
+  \code{Account Name}, \code{Estimated SaaS Migration Period},
+  \code{SaaS Migration Pipeline Stage}, \code{Est. Date to Move Out of Stage},
+  \code{Notes Date}, \code{Days Since Update}, \code{Allowed Days},
+  \code{Issue}, \code{SaaS Migration Pipeline Notes}, \code{Region},
+  \code{account_url}.
+
   \code{no_recent_qbr}: one row per account with no QBR/EBR in the window,
   most overdue first. Columns: \code{Customer Success Manager},
   \code{Account Name}, \code{Region}, \code{Contract ARR},
@@ -60,13 +90,17 @@ A list with two data frames, both sorted by CSM:
   \code{Issue}, \code{account_url}.
 
   Attributes \code{quarters}, \code{as_of}, \code{checked} (renewals
+  examined), \code{saas_quarters}, \code{saas_checked} (migrations
   examined), \code{qbr_cutoff} and \code{qbr_checked} (accounts examined)
   are attached to the list, and a by-CSM summary of both is printed.
 }
 \description{
-Two checks, returned together:
+Three checks, returned together:
 \enumerate{
   \item \strong{next_steps}: open renewals whose Next Step is out of date.
+  \item \strong{saas_notes}: SaaS migrations due in the quarters in scope
+    whose pipeline notes are older than \code{saas_max_days} (default 14 —
+    bi-weekly).
   \item \strong{no_recent_qbr}: accounts with no QBR or EBR in the last
     \code{qbr_max_months} months (default 5).
 }
@@ -93,6 +127,14 @@ or before \code{as_of} (a few days into the future are tolerated, for an
 update written ahead of a meeting). "12/11" read on 6 October 2026 is
 therefore 11 December 2025, about ten months stale.
 
+The SaaS migration check reads \code{op_list$saas_pipeline}: migrations
+whose \code{Estimated SaaS Migration Period} is in the same quarters as the
+renewal check (or \code{saas_quarters}), skipping ones the customer declined
+(stage starting "0") and ones whose notes say "assumed churn" / "will churn"
+(the SaaS Migration board's own churn rule). \code{SaaS Migration Pipeline
+Notes} must start with an \code{MM/DD} date, read the same way as Next Step,
+no more than \code{saas_max_days} old.
+
 The QBR/EBR check takes the more recent of \code{Date Last QBR} and
 \code{Date of last EBR} on \code{op_list$accounts}. By default it covers the
 accounts with a renewal checked above (open, in the quarters in scope, in a
@@ -104,7 +146,8 @@ account. An account with neither date is flagged too.
   snitch <- report_next_step_snitch(op_list)
   snitch <- report_next_step_snitch(op_list, additional_quarters = "Q1-2028")
   snitch$next_steps$`Account Name`
+  snitch$saas_notes$`Account Name`
   snitch$no_recent_qbr$`Account Name`
-  report_next_step_snitch(op_list, qbr_all_accounts = TRUE)$no_recent_qbr
+  report_next_step_snitch(op_list, include_qbr = TRUE, qbr_all_accounts = TRUE)$no_recent_qbr
 }
 }

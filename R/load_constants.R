@@ -15,8 +15,9 @@ load_constants <- function() {
   c$arr_index <- c(0, 150000, 500000)
 
   c$churn_plan <- data.frame(
-    fiscal.period = c("Q2-2026", "Q3-2026", "Q4-2026", "Q1-2027", "Q2-2027"),
-    company_plan  = c(350000, 1950000, 1611519, 814000, 0)
+    fiscal.period = c("Q1-2027", "Q2-2027","Q3-2027","Q4-2027","Q1-2028", "Q2-2028","Q3-2028","Q4-2028"),
+    company_plan  = c(1919761,505930,813808,1413967,
+                      650000,650000,800000, 1100000)
   )
 
   return(c)

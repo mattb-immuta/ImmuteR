@@ -1,0 +1,437 @@
+---
+title: "Agentic Revenue Analysis"
+subtitle: "OBO revenue targets (accounts with an agentic PoV): consumption, adoption, ARR and target forecast"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  html_document:
+    self_contained: true
+    toc: true
+    toc_float: true
+    theme: flatly
+params:
+  snapshot: ''
+  # The cohort is every account with op_list$accounts$OBO_revenue_TGT = TRUE (an
+  # agentic PoV on report 00OVV000007QLj72AG), and each target lands in the fiscal
+  # quarter of its PoV's Expected End Date. This hand-maintained list (Account Name,
+  # POC Completion Estimate, FY28-Q1 style) fills in a quarter where a PoV has no
+  # expected end date, and is the cohort for snapshots built before OBO_revenue_TGT.
+  poc_file: data/input/obo_pocs.csv
+  # Right-sizing rule for the contract-rework scenario: seats = registered users x this.
+  seat_buffer: 1.25
+  # Price per OBO session (USD). 0 = not set yet: the report shows the revenue
+  # OBO sessions must cover, but not a session count.
+  obo_price: 0
+  # Consumption below this ratio is "low" (same threshold as low_consumption).
+  low_threshold: 0.25
+  # Session-based expansion target as a share of ARR, added to every account's OBO
+  # revenue target on top of rework and open agentic pipeline. 0 = targets are the
+  # rework gap + pipeline only (healthy and ELA accounts then show what's in pipeline).
+  expansion_pct: 0
+---
+
+<!-- Question (from "Agentic Revenue Analysis", Google Doc): customers with low
+     consumption will be harder to drive agentic expansion with; we will likely
+     have to rework contracts, reduce user counts and add OBO sessions, which is
+     how we charge for agentic data access. This report looks at the active OBO
+     POCs by consumption, adoption rating and ARR, then sizes the rework. -->
+
+```{r setup, include = FALSE}
+# Knit from reports/; everything below runs from the project root.
+root <- normalizePath("..")
+knitr::opts_knit$set(root.dir = root)
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+devtools::load_all(root, quiet = TRUE)
+library(dplyr)
+library(plotly)
+
+usd  <- function(x) ifelse(is.na(x), "—", scales::dollar(round(x)))
+usdk <- function(x) ifelse(is.na(x), "—",
+                    ifelse(abs(x) >= 1e6, paste0("$", formatC(x / 1e6, format = "f", digits = 2), "M"),
+                           paste0("$", round(x / 1e3), "K")))
+pct  <- function(x, d = 0) ifelse(is.na(x), "—", paste0(formatC(100 * x, format = "f", digits = d), "%"))
+int  <- function(x) ifelse(is.na(x), "—", format(round(x), big.mark = ",", trim = TRUE))
+num  <- function(x) suppressWarnings(as.numeric(x))
+key  <- function(x) tolower(trimws(as.character(x)))
+
+# FY28-Q1 (how the POC list is written) <-> Q1-2028 (date_to_fiscal_quarter()).
+fq_std  <- function(x) {
+  x <- toupper(trimws(x))
+  ifelse(grepl("^FY\\d{2}-Q[1-4]$", x), sub("^FY(\\d{2})-Q([1-4])$", "Q\\2-20\\1", x), x)
+}
+fq_show <- function(q) ifelse(is.na(q), "—", sub("^Q([1-4])-20(\\d{2})$", "FY\\2-Q\\1", q))
+fq_rank <- function(q) as.integer(sub("^Q[1-4]-", "", q)) * 4 + as.integer(sub("^Q([1-4]).*$", "\\1", q))
+
+rating_colour <- function(x) {
+  x <- key(x)
+  out <- ifelse(grepl("^(green|amber|yellow|red|black)", x), sub("^(green|amber|yellow|red|black).*$", "\\1", x), NA)
+  ifelse(out == "yellow", "amber", out)
+}
+COL <- c(green = "#16A34A", amber = "#F59E0B", red = "#DC2626", black = "#111111")
+
+# "A", "A and B", "A, B and C".
+and_list <- function(x) if (length(x) <= 1) paste(x) else paste(paste(x[-length(x)], collapse = ", "), "and", x[length(x)])
+# Seats used. ELAs (0 licensed = unlimited seats) count as 100% consumption
+# (consumption_ratio()): company strategy is to drive session-based expansion there.
+seats_used <- function(ratio, licensed, d = 1) pct(ratio, d)
+```
+
+```{r data}
+# ── op_list: the snapshot named in params, else the newest one ──────────────
+snap <- if (nzchar(params$snapshot)) file.path(root, params$snapshot) else {
+  f <- list.files(file.path(root, "data"), pattern = "^opportunities_\\d{4}-\\d{2}-\\d{2}\\.RData$",
+                  full.names = TRUE)
+  f[order(f, decreasing = TRUE)][1]
+}
+load(snap)   # -> op_list
+snap_date <- sub("^opportunities_(.*)\\.RData$", "\\1", basename(snap))
+this_q    <- date_to_fiscal_quarter(as.Date(snap_date))
+
+# ── Every account: ARR, adoption, consumption ──────────────────────────────
+acc <- op_list$accounts
+col_or_na <- function(df, nm) if (nm %in% names(df)) df[[nm]] else rep(NA, nrow(df))
+book <- data.frame(
+  account   = acc$`Account Name`,
+  arr       = num(acc$`Contract ARR Rollup`),
+  csm       = col_or_na(acc, "Customer Success Manager"),
+  rating    = col_or_na(acc, "product_adoption_rating"),
+  score     = num(col_or_na(acc, "product_adoption")),
+  lifecycle = col_or_na(acc, "Lifecycle Stage"),
+  agentic   = col_or_na(acc, "Agentic Governance Adoption"),
+  months    = num(col_or_na(acc, "months_as_customer")),
+  stringsAsFactors = FALSE
+)
+book$colour <- rating_colour(book$rating)
+
+lc <- op_list$consumption$low_consumption
+m  <- match(key(book$account), key(lc$`Account Name`))
+lcv <- function(nm) if (!is.null(lc) && nm %in% names(lc)) num(lc[[nm]])[m] else rep(NA_real_, nrow(book))
+book$registered <- lcv("Registered Users")
+book$licensed   <- lcv("Licensed Users")
+book$active31   <- lcv("[Usage Metrics] Users with Native Platform Query (Last 31 Days)")
+# Query volume on Production instances (Looker look 1745, low_consumption$query_volume):
+# with licensed users, the proxy for OBO session volume. NA on snapshots built before it.
+book$query_volume <- lcv("query_volume")
+book$ratio      <- consumption_ratio(book$registered, book$licensed)   # ELA (0 licensed) -> 1
+book$band       <- cut(book$ratio, c(-Inf, params$low_threshold, 0.75, Inf), right = FALSE,
+                       labels = c(paste0("Low (<", pct(params$low_threshold), ")"),
+                                  paste0("Moderate (", pct(params$low_threshold), "–75%)"), "High (≥75%)"))
+
+# ── OBO usage (Looker obo_sessions: one row per instance) ──────────────────
+ob <- op_list$consumption$obo_sessions
+obo <- if (is.data.frame(ob) && nrow(ob)) {
+  acol <- if ("...1" %in% names(ob)) "...1" else names(ob)[1]
+  data.frame(k = key(ob[[acol]]), agents = num(col_or_na(ob, "enabledAgentUsers")),
+             roles = num(col_or_na(ob, "totalVendedRoles"))) %>%
+    group_by(k) %>% summarise(agents = sum(agents, na.rm = TRUE), roles = sum(roles, na.rm = TRUE), .groups = "drop")
+} else data.frame(k = character(0), agents = numeric(0), roles = numeric(0))
+book$obo_agents <- obo$agents[match(key(book$account), obo$k)]
+book$obo_roles  <- obo$roles[match(key(book$account), obo$k)]
+
+# ── Agentic profile (one row per account, same rollup as the dashboard tab) ─
+ap <- tryCatch(.ao_build(op_list$agentic_profile, op_list = op_list, exclude_risk = character(0))$data,
+               error = function(e) NULL)
+apv <- function(nm) if (is.null(ap)) rep(NA_character_, nrow(book)) else
+  ap[[nm]][match(key(book$account), key(ifelse(is.na(ap$account), ap$name, ap$account)))]
+book$conv   <- apv("status")
+book$eval   <- apv("eval")
+book$deploy <- apv("deploy")
+book$next_steps <- apv("next_steps")
+
+# ── Next renewal per account ───────────────────────────────────────────────
+ren <- op_list$renewals
+ren$end <- as.Date(ren$`Current Contract End Date`)
+next_ren <- ren %>% filter(!is.na(end)) %>% group_by(k = key(`Account Name`)) %>%
+  filter(end == min(end)) %>%
+  summarise(renewal_end = min(end), renewal_amt = sum(num(Amount), na.rm = TRUE),
+            renewal_risk = paste(unique(`Account Risk`), collapse = ", "), .groups = "drop")
+book$renewal_end  <- next_ren$renewal_end[match(key(book$account), next_ren$k)]
+book$renewal_amt  <- next_ren$renewal_amt[match(key(book$account), next_ren$k)]
+book$renewal_risk <- next_ren$renewal_risk[match(key(book$account), next_ren$k)]
+book$renewal_q    <- ifelse(is.na(book$renewal_end), NA, date_to_fiscal_quarter(book$renewal_end))
+
+# Open agentic expansions (opportunity name mentions agentic / OBO).
+ex <- op_list$expansions
+agx_exp <- ex %>% filter(grepl("agentic|\\bobo\\b|on.behalf", `Opportunity Name`, ignore.case = TRUE)) %>%
+  group_by(k = key(`Account Name`)) %>%
+  summarise(agentic_pipeline = sum(num(Amount), na.rm = TRUE), agentic_opps = n(), .groups = "drop")
+book$agentic_pipeline <- agx_exp$agentic_pipeline[match(key(book$account), agx_exp$k)]
+
+# ── The cohort: every OBO revenue target account ──────────────────────────
+# accounts$OBO_revenue_TGT (TRUE = a project on the agentic PoV report). Older
+# snapshots without it fall back to the hand-maintained list in params$poc_file.
+pov <- op_list$agentic_pov
+pocs <- if (nzchar(params$poc_file) && file.exists(file.path(root, params$poc_file))) {
+  read.csv(file.path(root, params$poc_file), check.names = FALSE, stringsAsFactors = FALSE)
+} else data.frame(`Account Name` = character(0), `POC Completion Estimate` = character(0), check.names = FALSE)
+csv_q <- setNames(fq_std(pocs$`POC Completion Estimate`), key(pocs$`Account Name`))
+
+has_tgt <- "OBO_revenue_TGT" %in% names(acc) && any(!is.na(acc$OBO_revenue_TGT))
+if (has_tgt) {
+  tgt_names  <- acc$`Account Name`[!is.na(acc$OBO_revenue_TGT) & acc$OBO_revenue_TGT]
+  cohort_src <- "op_list$accounts$OBO_revenue_TGT (agentic PoV report 00OVV000007QLj72AG)"
+  unmatched  <- if (is.data.frame(pov)) unique(pov$pov_account[!pov$matched]) else character(0)
+} else {
+  tgt_names  <- pocs$`Account Name`
+  cohort_src <- paste0(params$poc_file, " (this snapshot predates OBO_revenue_TGT)")
+  unmatched  <- pocs$`Account Name`[!key(pocs$`Account Name`) %in% key(book$account)]
+}
+
+# PoV completion: the earliest Expected End Date across the account's projects.
+pov_acc <- if (is.data.frame(pov) && nrow(pov) && any(pov$matched)) {
+  pov[pov$matched, , drop = FALSE] %>% mutate(end = as.Date(expected_end)) %>%
+    group_by(k = key(account)) %>%
+    summarise(poc_end = if (all(is.na(end))) as.Date(NA) else min(end, na.rm = TRUE),
+              pov_status = paste(unique(stats::na.omit(status)), collapse = ", "),
+              pov_projects = n(), .groups = "drop")
+} else data.frame(k = character(0), poc_end = as.Date(character(0)), pov_status = character(0), pov_projects = integer(0))
+
+poc <- book[key(book$account) %in% key(tgt_names), ]
+pi_ <- match(key(poc$account), pov_acc$k)
+poc$poc_end    <- pov_acc$poc_end[pi_]
+poc$pov_status <- pov_acc$pov_status[pi_]
+csvq           <- unname(csv_q[key(poc$account)])
+poc$poc_q      <- ifelse(!is.na(poc$poc_end), date_to_fiscal_quarter(poc$poc_end), csvq)
+poc$poc_q_src  <- ifelse(!is.na(poc$poc_end), "PoV expected end date",
+                  ifelse(!is.na(csvq), "Estimate (obo_pocs.csv)", "No completion date"))
+book$is_poc <- key(book$account) %in% key(poc$account)
+
+# ── Contract rework scenario ───────────────────────────────────────────────
+# Price per seat = ARR / licensed seats (blended: it also carries platform fees).
+# Right-size to registered users x seat_buffer (never above today's seats), and
+# the ARR those seats no longer carry is what OBO sessions must make up to keep
+# the account flat.
+poc$ela          <- !is.na(poc$licensed) & poc$licensed == 0
+poc$price_seat   <- ifelse(poc$ela | is.na(poc$licensed), NA, poc$arr / poc$licensed)
+poc$unused       <- pmax(0, poc$licensed - poc$registered)
+poc$right_seats  <- ifelse(poc$ela, NA, pmin(poc$licensed, ceiling(pmax(poc$registered, 1) * params$seat_buffer)))
+poc$seat_arr     <- ifelse(poc$ela, poc$arr, poc$right_seats * poc$price_seat)   # ELA = 100% consumed: nothing to rework
+poc$obo_needed   <- pmax(0, poc$arr - poc$seat_arr)
+poc$sessions     <- if (params$obo_price > 0) poc$obo_needed / params$obo_price else NA
+poc$low          <- !is.na(poc$ratio) & poc$ratio < params$low_threshold
+poc$timing <- with(poc, ifelse(is.na(poc_q), "No PoV completion date", ifelse(is.na(renewal_q), "No open renewal",
+  ifelse(fq_rank(renewal_q) < fq_rank(poc_q), "Renewal before POC ends",
+  ifelse(fq_rank(renewal_q) == fq_rank(poc_q), "Renewal in the POC quarter", "Renewal after POC ends")))))
+# ── OBO revenue target, forecast into the PoV completion quarter ──────────
+# Target = OBO revenue needed to hold ARR after seat rework + open agentic
+# pipeline + expansion_pct x ARR. It lands in poc_q.
+poc$pipeline0     <- ifelse(is.na(poc$agentic_pipeline), 0, poc$agentic_pipeline)
+poc$expansion_tgt <- poc$arr * params$expansion_pct
+poc$obo_tgt       <- ifelse(is.na(poc$obo_needed), 0, poc$obo_needed) + poc$pipeline0 + ifelse(is.na(poc$expansion_tgt), 0, poc$expansion_tgt)
+poc <- poc[order(-poc$arr), ]
+
+fc <- poc %>% mutate(Quarter = ifelse(is.na(poc_q), "No date", fq_show(poc_q))) %>%
+  group_by(Quarter) %>%
+  summarise(rank = if (all(is.na(poc_q))) Inf else min(fq_rank(poc_q)), Accounts = n(),
+            accts = and_list(account), ARR = sum(arr, na.rm = TRUE),
+            rework = sum(obo_needed, na.rm = TRUE), pipeline = sum(pipeline0), expansion = sum(expansion_tgt, na.rm = TRUE),
+            licensed = sum(licensed, na.rm = TRUE), elas = sum(ela), registered = sum(registered, na.rm = TRUE),
+            queries = if (all(is.na(query_volume))) NA_real_ else sum(query_volume, na.rm = TRUE),
+            tgt = sum(obo_tgt), .groups = "drop") %>%
+  arrange(rank) %>% mutate(cum = cumsum(tgt))
+tot_tgt <- sum(poc$obo_tgt)
+
+low_poc <- poc[poc$low, ]
+tot_arr <- sum(poc$arr, na.rm = TRUE)
+```
+## Assertion
+
+**Assertion:** If a customer has low consumption, we will not be able to drive a session-based expansion and will need to rework an existing contract and sacrifice growth in order to quantify session-based revenue.
+
+The following study uses all `r nrow(poc)` OBO revenue target accounts, every customer with an agentic PoV
+(`r and_list(poc$account)`), and tests the assertion against their consumption, product adoption rating and ARR,
+with every other customer as the backdrop. Each account's OBO revenue target is then forecast into the fiscal
+quarter its PoV is expected to complete.
+
+## Summary
+
+```{r summary, results = "asis"}
+bullets <- c(
+  sprintf("**%d OBO revenue target accounts, %s ARR** (%s of the %s book).", nrow(poc), usd(tot_arr),
+          pct(tot_arr / sum(book$arr, na.rm = TRUE), 1), usdk(sum(book$arr, na.rm = TRUE))),
+  sprintf("**OBO revenue target: %s**, by PoV completion quarter: %s.", usd(tot_tgt),
+          paste0(fc$Quarter, " ", usd(fc$tgt), collapse = ", ")),
+  if (nrow(low_poc)) sprintf(
+    "**%s of that ARR (%s) sits with low-consumption customers**: %s. Between them they pay for %s seats and have %s registered users (%s).",
+    usd(sum(low_poc$arr)), pct(sum(low_poc$arr) / tot_arr),
+    and_list(paste0(low_poc$account, " (", pct(low_poc$ratio, 1), " of seats used)")),
+    int(sum(low_poc$licensed)), int(sum(low_poc$registered)), pct(sum(low_poc$registered) / sum(low_poc$licensed), 1)),
+  if (nrow(low_poc)) sprintf(
+    "**Rework exposure.** Right-sizing their seats to registered users × %s leaves %s of seat ARR; OBO sessions would have to cover the other **%s** just to hold them flat.",
+    params$seat_buffer, usd(sum(low_poc$seat_arr, na.rm = TRUE)), usd(sum(low_poc$obo_needed, na.rm = TRUE))),
+  if (any(!poc$low)) sprintf(
+    "**%s** %s consuming at or above the low threshold (%s ARR), so OBO sessions there can be additive rather than a replacement for seat revenue.",
+    and_list(paste0(poc$account[!poc$low], " (", pct(poc$ratio[!poc$low]), ifelse(poc$ela[!poc$low], ", ELA", ""), ")")),
+    if (sum(!poc$low) == 1) "is" else "are", usd(sum(poc$arr[!poc$low]))),
+  sprintf("**Timing.** %s.", paste0(poc$account, ": POC ", fq_show(poc$poc_q), ", contract ends ",
+          fq_show(poc$renewal_q), " (", tolower(poc$timing), ")", collapse = "; ")),
+  if (length(unmatched)) sprintf("*PoV projects / names with no account match: %s.*", paste(unmatched, collapse = ", "))
+)
+cat(paste0("- ", bullets[nzchar(bullets)], collapse = "\n"), "\n")
+```
+
+## OBO Revenue Target Accounts
+
+```{r cohort-table}
+tab <- poc %>% transmute(
+  Account = account, `PoV status` = ifelse(is.na(pov_status) | !nzchar(pov_status), "—", pov_status),
+  `PoV ends` = paste0(ifelse(is.na(poc_end), "—", format(poc_end, "%b %d, %Y")), " (", fq_show(poc_q), ")"),
+  ARR = usd(arr),
+  `Seats used` = seats_used(ratio, licensed), Registered = int(registered),
+  Licensed = ifelse(!is.na(licensed) & licensed == 0, "Unlimited", int(licensed)),
+  `Active (31d)` = int(active31),
+  `Product adoption` = paste0(ifelse(is.na(rating), "—", rating), ifelse(is.na(score), "", paste0(" (", score, ")"))),
+  `Lifecycle` = lifecycle,
+  `Agentic eval / deploy` = paste(ifelse(is.na(eval), "—", eval), ifelse(is.na(deploy), "—", deploy), sep = " / "),
+  `OBO agent users` = int(obo_agents),
+  `Agentic pipeline` = usd(agentic_pipeline))
+knitr::kable(tab, row.names = FALSE, align = c("l", "l", "l", "r", "r", "r", "r", "r", "l", "l", "l", "r", "r"))
+```
+
+<small>PoV ends = earliest Expected End Date on the account's agentic PoV project(s) and its fiscal
+quarter (an `obo_pocs.csv` estimate where the PoV has no date). Seats used = registered ÷ licensed users (`consumption_ratio()`); ELA = unlimited seats.
+Active (31d) = users querying through a native platform integration in the last 31 days.
+Product adoption = `product_adoption_rating` (score 0–12). OBO agent users = enabled agent
+users across instances (Looker OBO look). Agentic pipeline = open expansions whose name mentions
+Agentic / OBO.</small>
+
+## Consumption against ARR, whole book
+
+Every customer by seats used and ARR, coloured by product adoption rating; the OBO revenue target
+accounts are labelled. Left of the dashed line is low consumption.
+
+```{r scatter}
+b <- book %>% filter(!is.na(ratio), !is.na(arr), arr > 0) %>%
+  mutate(x = pmin(ratio, 1.5), col = ifelse(is.na(colour), "#9CA3AF", COL[colour]),
+         hover = paste0("<b>", account, "</b><br>ARR ", usd(arr), "<br>Seats used ", seats_used(ratio, licensed),
+                        " (", int(registered), " / ", ifelse(licensed == 0, "unlimited", int(licensed)), ")<br>",
+                        ifelse(is.na(rating), "", rating)))
+p_b <- b %>% filter(!is_poc); p_p <- b %>% filter(is_poc)
+plot_ly() %>%
+  add_markers(data = p_b, x = ~x, y = ~arr, text = ~hover, hoverinfo = "text", name = "Other customers",
+              marker = list(color = p_b$col, size = 9, opacity = 0.45, line = list(width = 0))) %>%
+  add_markers(data = p_p, x = ~x, y = ~arr, text = ~hover, hoverinfo = "text", name = "OBO revenue target",
+              marker = list(color = p_p$col, size = 17, symbol = "diamond", line = list(color = "#111111", width = 1.5))) %>%
+  add_text(data = p_p, x = ~x, y = ~arr, text = ~account, textposition = "top center", showlegend = FALSE,
+           textfont = list(size = 12, color = "#111111"), hoverinfo = "none") %>%
+  layout(xaxis = list(title = "Seats used (registered ÷ licensed, capped at 150%; ELAs count as 100%)", tickformat = ".0%"),
+         yaxis = list(title = "Contract ARR", type = "log", tickformat = "$,.2s"),
+         shapes = list(list(type = "line", x0 = params$low_threshold, x1 = params$low_threshold, y0 = 0, y1 = 1,
+                            yref = "paper", line = list(dash = "dash", color = "#9CA3AF"))),
+         legend = list(orientation = "h", y = -0.2))
+```
+
+```{r arr-by-band}
+bb <- book %>% filter(!is.na(band)) %>% group_by(Consumption = band) %>%
+  summarise(Customers = n(), ARR = sum(arr, na.rm = TRUE), `OBO targets` = sum(is_poc),
+            `Target ARR` = sum(arr[is_poc], na.rm = TRUE), .groups = "drop") %>%
+  mutate(`Share of ARR` = pct(ARR / sum(ARR)), ARR = usd(ARR), `Target ARR` = usd(`Target ARR`))
+knitr::kable(bb, align = c("l", "r", "r", "r", "r", "r"))
+```
+
+## Contract Rework Candidates
+
+With relative consumption as a value metric, the plot below depicts how much of a gap session-based revenue would have to mitigate to avoid downsell.   Alternatively, how difficult it would be to sell a session based expansion.
+
+```{r rework-table}
+rw <- poc %>% transmute(
+  Account = account, ARR = usd(arr), `Licensed seats` = int(licensed), `Registered` = int(registered),
+  `Unused seats` = int(unused), `Price / seat` = ifelse(ela, "ELA", usd(price_seat)),
+  `Right-sized seats` = int(right_seats), `Seat ARR after` = usd(seat_arr),
+  `OBO revenue to hold ARR` = usd(obo_needed), `Share of ARR` = pct(obo_needed / arr))
+if (params$obo_price > 0) rw$`OBO sessions needed` <- int(poc$sessions)
+knitr::kable(rw, row.names = FALSE, align = c("l", rep("r", ncol(rw) - 1)))
+```
+
+```{r rework-chart}
+rc <- poc %>% filter(!is.na(seat_arr)) %>% mutate(account = factor(account, levels = rev(account)))
+plot_ly(rc, y = ~account, x = ~seat_arr, type = "bar", orientation = "h", name = "Seat ARR after right-sizing",
+        marker = list(color = "#9CA3AF"), hovertemplate = "%{y}: seats %{x:$,.0f}<extra></extra>") %>%
+  add_trace(x = ~obo_needed, name = "OBO revenue needed to hold ARR", marker = list(color = "#7C3AED"),
+            hovertemplate = "%{y}: OBO %{x:$,.0f}<extra></extra>") %>%
+  layout(barmode = "stack", xaxis = list(title = "Current ARR, split", tickformat = "$,.2s"),
+         yaxis = list(title = ""), legend = list(orientation = "h", y = -0.25))
+```
+
+<small>Price per seat is blended: it includes platform and other fees, so treat the split as
+an upper bound on what moves from seats to OBO. ELA accounts count as 100% consumption: no
+seats to right-size, so all of their ARR stays as is and OBO sessions are pure expansion. Change `seat_buffer` (and `obo_price`, once there is one) in
+the YAML header to re-run the scenario.</small>
+
+
+
+## OBO Revenue Target Forecast
+
+Each account's OBO revenue target lands in the fiscal quarter its agentic PoV is expected to complete
+(the PoV's Expected End Date). The target is the OBO revenue needed to hold ARR after seat rework, plus
+open agentic pipeline`r if (params$expansion_pct > 0) paste0(", plus a ", pct(params$expansion_pct), " of ARR session-based expansion") else ""`.
+
+```{r forecast-chart}
+fcp <- fc %>% mutate(Quarter = factor(Quarter, levels = Quarter))
+p_fc <- plot_ly(fcp, x = ~Quarter, y = ~rework, type = "bar", name = "OBO revenue to hold ARR (rework)",
+                marker = list(color = "#7C3AED"), text = ~accts,
+                hovertemplate = "%{x}: rework %{y:$,.0f}<br>%{text}<extra></extra>") %>%
+  add_trace(y = ~pipeline, name = "Open agentic pipeline", marker = list(color = "#A8CC18"),
+            hovertemplate = "%{x}: pipeline %{y:$,.0f}<extra></extra>")
+if (params$expansion_pct > 0) p_fc <- p_fc %>%
+  add_trace(y = ~expansion, name = paste0("Expansion (", pct(params$expansion_pct), " of ARR)"),
+            marker = list(color = "#F59E0B"), hovertemplate = "%{x}: expansion %{y:$,.0f}<extra></extra>")
+p_fc %>%
+  add_trace(y = ~cum, type = "scatter", mode = "lines+markers", name = "Cumulative target",
+            line = list(color = "#111111"), marker = list(color = "#111111"),
+            hovertemplate = "%{x}: cumulative %{y:$,.0f}<extra></extra>") %>%
+  layout(barmode = "stack", xaxis = list(title = "PoV completion quarter"),
+         yaxis = list(title = "OBO revenue target", tickformat = "$,.2s"), legend = list(orientation = "h", y = -0.25))
+```
+
+```{r forecast-table}
+ft <- fc %>% transmute(Quarter, Accounts = paste0(Accounts, ": ", accts), ARR = usd(ARR),
+                       `Licensed users` = paste0(int(licensed), ifelse(elas > 0, paste0(" + ", elas, " ELA"), "")),
+                       `Query volume` = int(queries),
+                       `OBO to hold ARR` = usd(rework), `Agentic pipeline` = usd(pipeline),
+                       Expansion = usd(expansion), `OBO revenue TGT` = usd(tgt), Cumulative = usd(cum))
+if (params$expansion_pct <= 0) ft$Expansion <- NULL
+knitr::kable(ft, row.names = FALSE, align = c("l", "l", rep("r", ncol(ft) - 2)))
+```
+
+```{r forecast-accounts}
+fa <- poc %>% arrange(is.na(poc_q), fq_rank(poc_q), -obo_tgt) %>% transmute(
+  Account = account, Quarter = fq_show(poc_q),
+  `PoV ends` = ifelse(is.na(poc_end), "—", format(poc_end, "%b %d, %Y")), Source = poc_q_src,
+  `Seats used` = seats_used(ratio, licensed), ARR = usd(arr),
+  `Licensed users` = ifelse(ela, paste0("Unlimited (", int(registered), " registered)"), int(licensed)),
+  `Query volume` = int(query_volume),
+  `OBO to hold ARR` = usd(obo_needed), `Agentic pipeline` = usd(pipeline0),
+  Expansion = usd(expansion_tgt), `OBO revenue TGT` = usd(obo_tgt))
+if (params$expansion_pct <= 0) fa$Expansion <- NULL
+knitr::kable(fa, row.names = FALSE, align = c("l", "l", "l", "l", rep("r", ncol(fa) - 4)))
+```
+
+<small>Licensed users and query volume are proxies for OBO session volume: how many people an
+agent could act on behalf of, and how much data access already runs through Immuta. Licensed users
+are the contracted seats (an ELA has unlimited seats, so registered users stand in); query volume is
+queries on Production instances from Looker look 1745 (RAW DATA - QUERIES, the latest 31 days where
+the look is dated). Query volume shows as — until the next `main.R` run stores it in the snapshot.
+
+Accounts with a $0 target have no rework gap (seats used at or above the low threshold, or an
+ELA) and no open agentic pipeline: the session-based expansion there is still unsized. Set
+`expansion_pct` in the YAML header to give every account an expansion target as a share of its ARR.</small>
+
+## Method and data
+
+- Data: the `r snap_date` op_list snapshot (`r basename(snap)`): `accounts` (ARR, product adoption
+  rating, lifecycle, Agentic Governance Adoption), `consumption$low_consumption` (registered and
+  licensed users, native-query users), `consumption$obo_sessions` (OBO agent users and vended
+  roles), `agentic_profile` (conversation / evaluation / deployment status), `renewals` (next
+  contract end) and `expansions` (open agentic pipeline).
+- Cohort: `r cohort_src`. PoV completion = earliest Expected End Date on the account's agentic PoV
+  project(s) (`agentic_pov`), as a fiscal quarter; where a PoV has no date, the estimate in
+  `r params$poc_file`. FY28-Q1 is Q1-2028 in the package's fiscal labels (Feb–Apr 2027).
+- OBO revenue target = OBO revenue to hold ARR (rework, below) + open agentic pipeline (expansions
+  named Agentic / OBO) + `expansion_pct` × ARR (`r pct(params$expansion_pct)`), forecast into the PoV
+  completion quarter.
+- Rework scenario: price per seat = ARR ÷ licensed seats; right-sized seats = registered ×
+  `r params$seat_buffer` (capped at today's seats); OBO revenue to hold ARR = ARR − right-sized
+  seats × price per seat. ELA accounts (0 licensed seats) count as 100% consumption, per company
+  strategy to drive session-based expansion there: nothing to rework, OBO revenue needed = $0.
+- `r nrow(poc)` OBO target accounts are a case study, not a sample: read the cohort tables as account plans,
+  and the whole-book consumption chart for how they sit against every other customer.

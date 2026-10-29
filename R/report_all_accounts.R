@@ -15,6 +15,8 @@
 #'     \item{Account Owner}{Assigned account owner.}
 #'     \item{Field CTO}{Assigned field CTO.}
 #'     \item{Region}{Sales region.}
+#'     \item{Months as Customer}{Whole months since the earliest contract
+#'       start (\code{months_as_customer}); \code{NA} if unknown.}
 #'     \item{Churn Quarters}{Comma-separated churn quarters for open renewals,
 #'       ordered by contract end date. \code{NA} if no open renewals.}
 #'   }
@@ -29,6 +31,8 @@ report_all_accounts <- function(op_list) {
   accounts <- op_list$accounts[, c("Account ID", "Account Name", "Contract ARR Rollup",
                                     "Customer Success Manager", "Account Owner",
                                     "Field CTO", "Region")]
+  accounts$`Months as Customer` <- if (is.null(op_list$accounts$months_as_customer)) NA_integer_ else
+    op_list$accounts$months_as_customer
   renewals <- op_list$renewals
 
   # For each account, collect churn quarters ordered by contract end date
@@ -56,7 +60,7 @@ report_all_accounts <- function(op_list) {
   output <- output[order(output$`Account Name`), ]
   output <- output[, c("Account Name", "Contract ARR Rollup",
                        "Customer Success Manager", "Account Owner",
-                       "Field CTO", "Region", "Churn Quarters")]
+                       "Field CTO", "Region", "Months as Customer", "Churn Quarters")]
   rownames(output) <- NULL
 
   return(output)

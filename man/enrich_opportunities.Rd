@@ -13,10 +13,14 @@ enrich_opportunities(
   sf_orders_report = "00OVV000005RTxV2AW",
   sf_forecast_report = "00OVV000006hrNN2AY",
   sf_contacts_report = "00OVV000006TwOX2A0",
+  sf_incident_response_report = "00OVV000007LaNp2AK",
+  sf_tenure_report = "00OVV000007MTSL2A4",
+  sf_agentic_report = "00OVV000007LHjN2AW",
   looker = FALSE,
   low_consumption_threshold = 0.25,
   productboard = FALSE,
   critical_technologies_path = "data/input/critical_technologies.json",
+  slack_channels_path = "data/input/slack_channels.csv",
   fiscal.period
 )
 }
@@ -41,18 +45,39 @@ churn forecast report (00OVV000006hrNN2AY), pulled on every run into
 \code{op_list$forecast} via \code{\link{op_list_forecast}}. Set to
 \code{NULL} to skip the pull.}
 
-\item{sf_contacts_report}{Character. Salesforce report ID for the contacts
-report (executive buyer, champion and incident response contacts per
-customer), pulled into \code{op_list$contacts} — one row per contact,
-with \code{is_incident_response} etc. flags for mail merges — via
+\item{sf_contacts_report}{Character. Salesforce report ID for the contact
+roles report (executive buyer and champion per customer), pulled into
+\code{op_list$contacts}, one row per contact, via
 \code{\link{op_list_contacts}}. Executive buyer and champion names are
 also appended to \code{op_list$accounts} as \code{executive_buyer} and
 \code{champion}. Set to \code{NULL} to skip the pull (both columns are
 then \code{NA}).}
 
-\item{looker}{Logical. If \code{TRUE}, pulls the six Looker looks that back the
-CPO consumption spreadsheet and joins live metrics (users, data sources, queries,
-policies, support cases) onto \code{op_list$consumption$renewals}. Requires
+\item{sf_incident_response_report}{Character. Salesforce report ID for the
+incident response contacts, pulled separately into
+\code{op_list$incident_response_contacts} (one row per contact, all
+flagged \code{is_incident_response}) for mail merges. \code{NULL} skips it.}
+
+\item{sf_tenure_report}{Character. Salesforce report ID for contract start
+dates of current customers (00OVV000007MTSL2A4). The earliest start per
+account is added to \code{op_list$accounts} as \code{customer_since} and
+\code{months_as_customer}, and the per-account rollup is kept in
+\code{op_list$customer_tenure} (see \code{\link{op_list_customer_tenure}}).
+\code{NULL} skips it (both columns are then \code{NA}).}
+
+\item{sf_agentic_report}{Character. Salesforce report ID for the agentic
+profile report (00OVV000007LHjN2AW: agentic owner, title, vision,
+architecture, conversation date / status, evaluation / deployment status,
+next steps). Kept raw, one row per report row, in
+\code{op_list$agentic_profile}; \code{report_all_accounts_html()} and
+\code{report_agentic_owner_html()} roll it up per account. \code{NULL}
+skips it.}
+
+\item{looker}{Logical. If \code{TRUE}, pulls the Looker looks in
+\code{.OP_LIST_LOOKS} and joins live metrics (users, data sources, queries,
+policies, support cases) onto \code{op_list$consumption$renewals}, and OBO
+sessions (look 1806, Production instances summed) onto
+\code{op_list$accounts$obo_sessions}. Requires
 \code{LOOKER_CLIENT_ID} and \code{LOOKER_CLIENT_SECRET} environment variables.
 Also derives \code{request_adoption_looker} (plus
 \code{request_adoption_looker_stage} and \code{request_adoption_match}) on
@@ -71,25 +96,34 @@ any kind. Defaults to \code{0.25} (25\%). Passed through to
 \item{productboard}{Logical. If \code{TRUE}, pulls Productboard notes and
 features and builds \code{op_list$product_board} (feedback + feature
 requests summarized per account). Requires a \code{PRODUCTBOARD_API_TOKEN}
-environment variable (see \code{?productboard}). This step makes one API
-call per note, so it's noticeably slower than the other enrich_*() steps
-— hence opt-in. Defaults to \code{FALSE}.}
+environment variable (see \code{?productboard}). Pulls the whole note
+corpus via \code{\link{pb_pull_insights}} (paged, relationships inline),
+so it adds seconds to a few minutes. Defaults to \code{FALSE}.}
 
 \item{critical_technologies_path}{Character. Path to the local JSON file
 that supplies the account-level \code{iam} and \code{ext_catalog} columns
 (see \code{\link{op_list_critical_technologies}}). Defaults to
 \code{"data/input/critical_technologies.json"}.}
 
+\item{slack_channels_path}{Character. Path to the hand-maintained CSV of
+each customer's internal Slack channel, joined onto \code{op_list$accounts}
+as \code{slack_channel} and \code{slack_channel_id} (see
+\code{\link{op_list_slack_channels}}). Defaults to
+\code{"data/input/slack_channels.csv"}.}
+
 \item{fiscal.period}{Character vector of fiscal periods to retain in expansions,
 e.g. \code{c("Q1-2027", "Q2-2027")}.}
 }
 \value{
 A named list with elements: \code{renewals}, \code{expansions},
+  \code{new_logos} (\code{"New Business"} record type, filtered to
+  \code{fiscal.period}; see \code{\link{enrich_new_logos}}),
   \code{accounts}, \code{active_orders}, \code{csm_table}, \code{saas_pipeline},
   \code{orders}, \code{contacts} (see \code{\link{op_list_contacts}}),
   \code{consumption}, \code{csm_coverage} (see
   \code{\link{op_list_csm_coverage}}), \code{forecast} (see
-  \code{\link{op_list_forecast}}), \code{support} (from BigQuery — see
+  \code{\link{op_list_forecast}}), \code{agentic_profile} (raw rows of
+  \code{sf_agentic_report}), \code{support} (from BigQuery — see
   \code{\link{op_list_support}}), and (if \code{productboard = TRUE})
   \code{product_board}.
 }

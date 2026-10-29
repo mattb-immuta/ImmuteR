@@ -18,11 +18,19 @@
 #'   Parent directories are created automatically.
 #'   Defaults to \code{"output/immuta_accounts.html"}.
 #' @param guide_path Character. The knitted reader's guide
-#'   (\code{\link{report_user_guide}}), embedded in the page behind the
-#'   "User Guide and Definitions" button. Defaults to
+#'   (\code{\link{report_user_guide}}), embedded in the page's Documentation
+#'   tab. Defaults to
 #'   \code{immuta_accounts_guide.html} next to \code{output_path}. If it is
-#'   missing the page still renders, with a warning, and the button links to
+#'   missing the page still renders, with a warning, and the tab links to
 #'   that file name instead.
+#' @param doctrine_path Character. The knitted CS Doctrine
+#'   (\code{\link{report_cs_doctrine}}), embedded in the Documentation tab.
+#'   Defaults to \code{cs_doctrine.html} next to \code{output_path}; missing is
+#'   handled the same way as \code{guide_path}.
+#' @param reporting_path Character. The knitted CSM Reporting Requirements
+#'   (\code{\link{report_csm_reporting}}), the Documentation tab's CSM
+#'   Reporting sub-tab. Defaults to \code{csm_reporting.html} next to
+#'   \code{output_path}; missing is handled the same way as \code{guide_path}.
 #' @param favicon Character. The browser-tab icon. Either a local image file
 #'   (\code{.ico}, \code{.png}, \code{.svg}), which is embedded in the page so
 #'   it shows offline and in downloaded copies, or a URL the browser fetches
@@ -42,7 +50,11 @@ report_all_accounts_html <- function(op_list,
                                      output_path = "output/immuta_accounts.html",
                                      favicon     = .rah_default_favicon(),
                                      guide_path  = file.path(dirname(output_path),
-                                                             "immuta_accounts_guide.html")) {
+                                                             "immuta_accounts_guide.html"),
+                                     doctrine_path = file.path(dirname(output_path),
+                                                               "cs_doctrine.html"),
+                                     reporting_path = file.path(dirname(output_path),
+                                                                "csm_reporting.html")) {
 
   # Ensure output directory exists
   out_dir <- dirname(output_path)
@@ -87,28 +99,37 @@ report_all_accounts_html <- function(op_list,
   consumption_json <- .build_consumption_json(op_list)
   saas_json        <- .build_saas_json(op_list)
   escalations_json <- .build_escalations_json(op_list)
+  new_logos_json   <- .build_new_logos_json(op_list)
+  agentic_json     <- .build_agentic_json(op_list)
 
-  # Reader's guide -------------------------------------------------------------
-  # The knitted guide (report_user_guide()) is embedded whole, base64-encoded,
-  # so the "User Guide and Definitions" button works in a downloaded copy with
-  # nothing else alongside it. Missing guide = button falls back to a relative
-  # link, with a warning so the build order gets fixed.
-  guide_b64 <- ""
-  if (!is.null(guide_path) && file.exists(guide_path)) {
-    guide_b64 <- jsonlite::base64_enc(readBin(guide_path, "raw", file.info(guide_path)$size))
-    guide_b64 <- gsub("[\r\n]", "", guide_b64)
-  } else {
-    warning("Reader's guide not found at ", guide_path,
-            " - run report_user_guide() before report_all_accounts_html().",
-            call. = FALSE)
+  # Documentation tab: reader's guide + CS Doctrine ---------------------------
+  # Both knitted pages (report_user_guide(), report_cs_doctrine()) are embedded
+  # whole, base64-encoded, and shown in iframes on the Documentation tab, so
+  # they work in a downloaded copy with nothing else alongside it. A missing
+  # page falls back to a relative link, with a warning so the build order gets
+  # fixed.
+  .embed_b64 <- function(path, what, fn) {
+    if (!is.null(path) && file.exists(path)) {
+      return(gsub("[\r\n]", "", jsonlite::base64_enc(readBin(path, "raw", file.info(path)$size))))
+    }
+    warning(what, " not found at ", path, " - run ", fn,
+            " before report_all_accounts_html().", call. = FALSE)
+    ""
   }
+  guide_b64    <- .embed_b64(guide_path,    "Reader's guide", "report_user_guide()")
+  doctrine_b64 <- .embed_b64(doctrine_path, "CS Doctrine",    "report_cs_doctrine()")
+  reporting_b64 <- .embed_b64(reporting_path, "CSM Reporting", "report_csm_reporting()")
 
   # Build HTML -----------------------------------------------------------------
   html <- .rah_html(json_data, regions, csms, snap_dates, changes_json, consumption_json,
                     lifecycle_stages, saas_json, escalations_json,
+                    new_logos_json = new_logos_json,
+                    agentic_json = agentic_json,
                     updated = .op_list_updated(op_list),
                     favicon = favicon,
-                    guide_b64 = guide_b64)
+                    guide_b64 = guide_b64,
+                    doctrine_b64 = doctrine_b64,
+                    reporting_b64 = reporting_b64)
 
   writeLines(html, output_path, useBytes = FALSE)
   message(".. wrote account HTML dashboard to ", output_path)
@@ -302,6 +323,13 @@ report_all_accounts_html <- function(op_list,
       region        = safe_val(acct$Region),
       arr           = fmt_usd(acct$`Contract ARR Rollup`),
       arr_raw       = suppressWarnings(as.numeric(acct$`Contract ARR Rollup`)),
+      # Tenure from the earliest contract start (op_list_customer_tenure()).
+      # Snapshots built before tenure existed lack the columns -> NA / em-dash.
+      months_as_customer = if (is.null(acct$months_as_customer)) NA_real_ else
+                             suppressWarnings(as.numeric(acct$months_as_customer[1])),
+      customer_since     = fmt_date(acct$customer_since),
+      # TRUE when the account has an agentic PoV (op_list_agentic_pov()): an OBO revenue target.
+      obo_revenue_tgt    = isTRUE(acct$OBO_revenue_TGT[1]),
       csm           = safe_val(acct$`Customer Success Manager`),
       account_owner = safe_val(acct$`Account Owner`),
       field_cto        = safe_val(acct$`Field CTO`),
@@ -326,7 +354,7 @@ report_all_accounts_html <- function(op_list,
       # PBAC scatter plots it on y, against consumption_ratio_raw on x.
       pbac_score      = if (is.null(p_row)) NA_real_ else
                           suppressWarnings(as.numeric(p_row$complexity_score[1])),
-      # Product adoption = pbac_score + Request points (op_list_product_adoption()).
+      # Product adoption = pbac_score + Request + Comply points (op_list_product_adoption()).
       # The Adoption page scatter plots it on y and colours by its rating.
       product_adoption = if (is.null(p_row) || !("product_adoption" %in% names(p_row))) NA_real_ else
                            suppressWarnings(as.numeric(p_row$product_adoption[1])),
@@ -334,6 +362,8 @@ report_all_accounts_html <- function(op_list,
                                   else p_row$product_adoption_rating[1]),
       request_points   = if (is.null(p_row) || !("request_points" %in% names(p_row))) NA_real_ else
                            suppressWarnings(as.numeric(p_row$request_points[1])),
+      comply_points    = if (is.null(p_row) || !("comply_points" %in% names(p_row))) NA_real_ else
+                           suppressWarnings(as.numeric(p_row$comply_points[1])),
       pbac_features   = {
         f <- pbac_feature_labels(p_row)
         if (length(f) == 0) "" else paste(f, collapse = " · ")
@@ -345,6 +375,14 @@ report_all_accounts_html <- function(op_list,
       request_adoption_derived = safe_val(.blank_dash(.first_col(acct, c("request_adoption_looker")))),
       request_status           = safe_val(.blank_dash(.first_col(acct, c("request_adoption_looker_stage")))),
       agentic_governance_adoption = safe_val(.blank_dash(.first_col(acct, c("Agentic Governance Adoption")))),
+      # Agentic profile, from the account report (fallback for Adoption > Agentic Engagement Overview).
+      # Em-dash when blank or when the report predates the fields.
+      agentic_owner        = safe_val(.blank_dash(.first_col(acct, c("Agentic Owner - Customer",
+                                                                     "Agentic Owner")))),
+      agentic_owner_title  = safe_val(.blank_dash(.first_col(acct, c("Title",
+                                                                     "Agentic Owner - Customer: Title")))),
+      agentic_vision       = safe_val(.blank_dash(.first_col(acct, c("Customer Agentic Vision")))),
+      agentic_architecture = safe_val(.blank_dash(.first_col(acct, c("Agentic Architecture")))),
 
       # --- Health-summary blocks, mirroring generate_slide_tile() ---
       platform_html = {
@@ -534,7 +572,9 @@ report_all_accounts_html <- function(op_list,
                           "Region.new",                   "Region.old",
                           "Adoption Phase.new",           "Adoption Phase.old",
                           "request_adoption_looker_stage.new",
-                          "request_adoption_looker_stage.old"))
+                          "request_adoption_looker_stage.old",
+                          "comply_adoption_looker_stage.new",
+                          "comply_adoption_looker_stage.old"))
     ),
     renewals      = list(
       added         = .df_to_rows(cd$renewals$added,
@@ -560,6 +600,19 @@ report_all_accounts_html <- function(op_list,
                         c("Opportunity Name", "Account Name", "Amount",
                           "Fiscal Period", "Close Date", "Opportunity Owner")),
       field_changes = .df_to_rows(cd$expansions$field_changes,
+                        c("Opportunity Name", "Account Name",
+                          "Amount.new", "Amount.old",
+                          "Fiscal Period.new", "Fiscal Period.old",
+                          "amount_changed", "period_changed"))
+    ),
+    new_logos     = list(
+      added         = .df_to_rows(cd$new_logos$added,
+                        c("Opportunity Name", "Account Name", "Amount",
+                          "Fiscal Period", "Close Date", "Opportunity Owner")),
+      removed       = .df_to_rows(cd$new_logos$removed,
+                        c("Opportunity Name", "Account Name", "Amount",
+                          "Fiscal Period", "Close Date", "Opportunity Owner")),
+      field_changes = .df_to_rows(cd$new_logos$field_changes,
                         c("Opportunity Name", "Account Name",
                           "Amount.new", "Amount.old",
                           "Fiscal Period.new", "Fiscal Period.old",
@@ -611,6 +664,12 @@ report_all_accounts_html <- function(op_list,
                           "quarter_changed", "forecast_changed", "risk_changed",
                           "amount_changed", "stage_changed", "date_changed",
                           "forecast_delta"))
+    ),
+    # Agentic engagement (R/diff_agentic.R); NULL until both snapshots have it.
+    agentic       = if (is.null(cd$agentic)) NULL else list(
+      added         = .df_to_rows(cd$agentic$added),
+      removed       = .df_to_rows(cd$agentic$removed),
+      field_changes = .df_to_rows(cd$agentic$field_changes)
     )
   ))
 }
@@ -683,9 +742,88 @@ report_all_accounts_html <- function(op_list,
   .to_json(list(has_data = TRUE, rows = .df_to_rows(sp)))
 }
 
+# New logo (New Business) opportunities — op_list$new_logos. These sit on
+# prospects rather than customer accounts, so they can't hang off ACCOUNTS the
+# way renewals/expansions do; the page gets its own presentation-ready rows.
+.build_new_logos_json <- function(op_list) {
+  nl <- op_list$new_logos
+  if (is.null(nl) || !is.data.frame(nl) || nrow(nl) == 0) {
+    return(.to_json(list(has_data = !is.null(nl), rows = list())))
+  }
+  col <- function(df, nm) if (nm %in% names(df)) df[[nm]] else rep(NA, nrow(df))
+
+  nl <- nl[order(suppressWarnings(as.Date(col(nl, "Close Date")))), , drop = FALSE]
+  rows <- lapply(seq_len(nrow(nl)), function(i) {
+    r    <- nl[i, , drop = FALSE]
+    prob <- suppressWarnings(as.numeric(col(r, "Probability (%)")))
+    list(
+      account        = safe_val(col(r, "Account Name")),
+      name           = safe_val(col(r, "Opportunity Name")),
+      url            = safe_val(col(r, "opportunity_url")),
+      owner          = safe_val(col(r, "Opportunity Owner")),
+      region         = safe_val(col(r, "Region")),
+      stage          = safe_val(col(r, "Stage")),
+      probability    = if (length(prob) == 0 || is.na(prob)) "—" else paste0(round(prob * 100), "%"),
+      amount         = fmt_usd(col(r, "Amount")),
+      amount_raw     = suppressWarnings(as.numeric(col(r, "Amount"))),
+      fiscal_period  = safe_val(as.character(col(r, "Fiscal Period"))),
+      close_date     = fmt_date(col(r, "Close Date")),
+      close_date_raw = tryCatch(format(as.Date(col(r, "Close Date")), "%Y-%m-%d"),
+                                error = function(e) ""),
+      next_steps     = safe_val(if ("Next Step" %in% names(r)) r[["Next Step"]] else col(r, "Next Steps"))
+    )
+  })
+  .to_json(list(has_data = TRUE, rows = rows))
+}
+
+# Agentic profile (op_list$agentic_profile, the raw 00OVV000007LHjN2AW rows)
+# rolled up one row per account by .ao_build() — the same builder as
+# report_agentic_owner_html(), so both pages count the same accounts. Churned
+# accounts (Account Risk Verbally Confirmed / Will Churn) go to `removed`.
+# has_data = FALSE (an op_list built before the pull existed, or a failed
+# pull) makes the tab fall back to the four agentic fields on ACCOUNTS.
+.build_agentic_json <- function(op_list,
+                                exclude_risk = c("Verbally Confirmed", "Will Churn")) {
+  ap <- op_list$agentic_profile
+  if (!is.data.frame(ap) || nrow(ap) == 0) return(.to_json(list(has_data = FALSE)))
+  built <- tryCatch(
+    .ao_build(ap, op_list = op_list, exclude_risk = exclude_risk),
+    error = function(e) {
+      warning("Agentic Engagement Overview tab: ", conditionMessage(e), call. = FALSE)
+      NULL
+    })
+  if (is.null(built)) return(.to_json(list(has_data = FALSE)))
+  .agx_json(built, exclude_risk, povs = op_list$agentic_pov,
+            delta = op_list$changes_detail$agentic)
+}
+
+# .ao_build() output -> the AGENTIC_DATA payload the shared Agentic Engagement
+# Overview script reads (R/agentic_overview_assets.R). Also used by
+# report_agentic_owner_html().
+.agx_json <- function(built, exclude_risk, povs = NULL, delta = NULL) {
+  # delta = op_list$changes_detail$agentic (.diff_agentic()): the previous
+  # rollup and what changed, for the deltas on the page's roll-up numbers.
+  has_delta <- is.list(delta) && is.data.frame(delta$prev)
+  j <- .to_json(list(
+    has_data = TRUE,
+    exclude  = if (length(exclude_risk)) paste(exclude_risk, collapse = " or ") else "",
+    rows     = .df_to_rows(built$data),
+    removed  = .df_to_rows(built$removed),
+    # Agentic PoV projects (op_list$agentic_pov), joined to rows in the page by account.
+    povs     = if (is.data.frame(povs)) .df_to_rows(povs) else list(),
+    prev_date = if (has_delta) delta$prev_date else NULL,
+    prev      = if (has_delta) .df_to_rows(delta$prev) else NULL,
+    prev_povs = if (has_delta && is.data.frame(delta$prev_povs)) .df_to_rows(delta$prev_povs) else NULL,
+    changes   = if (has_delta) list(added = .df_to_rows(delta$added), removed = .df_to_rows(delta$removed),
+                                    field_changes = .df_to_rows(delta$field_changes)) else NULL
+  ))
+  # Free text from Salesforce must not close the page's <script> block.
+  gsub("</", "<\\/", j, fixed = TRUE)
+}
+
 # ---- Internal: full HTML page template -------------------------------------
 
-.rah_html <- function(json_data, regions, csms = character(0), snap_dates = character(0), changes_json = "null", consumption_json = "null", lifecycle_stages = character(0), saas_json = "null", escalations_json = "null", updated = "", favicon = NULL, guide_b64 = "") {
+.rah_html <- function(json_data, regions, csms = character(0), snap_dates = character(0), changes_json = "null", consumption_json = "null", lifecycle_stages = character(0), saas_json = "null", escalations_json = "null", new_logos_json = "null", agentic_json = "null", updated = "", favicon = NULL, guide_b64 = "", doctrine_b64 = "", reporting_b64 = "") {
 
   region_pills <- paste(
     vapply(regions, function(r) {
@@ -717,7 +855,7 @@ report_all_accounts_html <- function(op_list,
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Immuta | Customer Accounts</title>
+<title>Immuta Customer 360</title>
 {{FAVICON}}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1061,6 +1199,7 @@ report_all_accounts_html <- function(op_list,
   .tag-sm-unsup { background: var(--red-lt);      color: #991B1B; border-color: #FCA5A5; }
   .tag-churn    { background: var(--amber-lt);   color: #92400E; border-color: #FCD34D; }
   .tag-renew    { background: var(--red-lt);     color: #991B1B; border-color: #FCA5A5; }
+  .tag-obo      { background: #EDE9FE;          color: #5B21B6; border-color: #C4B5FD; }
 
   .expand-icon {
     font-size: 10px;
@@ -1228,7 +1367,7 @@ report_all_accounts_html <- function(op_list,
 
   /* Per-account PBAC plot. Sized in the SVG viewBox rather than here so the
      band geometry stays in one place; this only caps how wide it may grow. */
-  .ov-mini-plot { width: 100%; max-width: 210px; height: auto; display: block; }
+  .ov-mini-plot { width: 100%; max-width: 230px; height: auto; display: block; }
   .ov-mini-caption { max-width: 210px; margin-top: 3px; font-size: 10.5px; font-weight: 700; letter-spacing: .2px; }
   .ov-mini-frame { fill: none; stroke: var(--border); stroke-width: 1; }
   .ov-mini-grid  { stroke: var(--border); stroke-width: 1; }
@@ -1690,6 +1829,36 @@ report_all_accounts_html <- function(op_list,
   #page-adoption.active,
   #page-performance.active { flex-direction: column; }
 
+  /* ── Documentation: Confluence banner + embedded doc iframes ──────────── */
+  /* Fixed to the viewport so each document scrolls inside its own frame. */
+  #page-documentation.active {
+    flex-direction: column;
+    height: calc(100vh - var(--topbar-h) - var(--tabs-h));
+  }
+  .doc-banner {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 20px;
+    padding: 12px 24px; background: var(--im-lime-lt); border-bottom: 1px solid var(--border); flex-shrink: 0;
+  }
+  .doc-banner-label { font-weight: 700; font-size: 14px; }
+  .doc-banner-sub { font-size: 12.5px; color: var(--text-2); }
+  .doc-banner-link {
+    font-size: 12.5px; font-weight: 700; text-decoration: none; white-space: nowrap;
+    padding: 7px 14px; border-radius: 4px; background: var(--im-black); color: var(--im-lime);
+    transition: background .14s;
+  }
+  .doc-banner-link:hover { background: #2A2A2A; }
+  .doc-open {
+    margin-left: auto; align-self: center; border: 1px solid var(--border); background: var(--im-white);
+    font-family: var(--font); font-size: 12px; font-weight: 600; color: var(--text-2);
+    padding: 5px 12px; border-radius: 4px; cursor: pointer; white-space: nowrap;
+  }
+  .doc-open:hover { border-color: var(--im-black); color: var(--text-1); }
+  #page-documentation .subpanel { overflow: hidden; }
+  #page-documentation .sub-tabs { overflow-y: hidden; }
+  .doc-frame { flex: 1; width: 100%; min-height: 0; border: 0; background: var(--surface); display: block; }
+  .doc-frame[hidden], .doc-missing[hidden] { display: none; }
+  .doc-missing { padding: 24px; color: var(--text-2); font-size: 13.5px; }
+
   /* ── Sub-tabs, shared by all three pages ──────────────────────────────── */
   .subpage { flex: 1; display: flex; flex-direction: column; min-height: 0; }
   .sub-tabs {
@@ -1720,10 +1889,13 @@ report_all_accounts_html <- function(op_list,
 
   /* ── PBAC panel: scatter + write-up ───────────────────────────────────── */
   .pbac-scatter-wrap { display: flex; gap: 18px; padding: 20px 24px; align-items: flex-start; }
-  .pbac-plot { flex: 1 1 auto; min-width: 0; overflow-x: auto; }
-  .pbac-plot svg { display: block; width: 100%; min-width: 600px; height: auto; }
+  /* The plot takes 90% of the width left after the side panel, and the panel
+     absorbs the rest — so the scatter is ~10% smaller (and shorter, since the
+     SVG keeps its aspect ratio) and the hover call-out stays on screen. */
+  .pbac-plot { flex: 0 1 calc(0.9 * (100% - 276px)); min-width: 0; overflow-x: auto; }
+  .pbac-plot svg { display: block; width: 100%; min-width: 540px; height: auto; }
   .pbac-side {
-    flex: 0 0 258px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+    flex: 1 0 258px; border: 1px solid var(--border); border-radius: var(--radius-sm);
     background: var(--im-white); padding: 14px 15px; font-size: 12.5px; min-height: 300px;
   }
   .pbac-side.pinned { border-color: var(--im-lime-dk); box-shadow: 0 0 0 2px var(--im-lime-lt); }
@@ -1790,6 +1962,7 @@ report_all_accounts_html <- function(op_list,
   #sub-panel-overview .adopt-stats { border-top: 1px solid var(--border); }
   @media (max-width: 900px) {
     .pbac-scatter-wrap { flex-direction: column; align-items: stretch; }
+    .pbac-plot { flex: none; }
     .pbac-side { flex: none; min-height: 0; }
   }
 
@@ -1797,6 +1970,80 @@ report_all_accounts_html <- function(op_list,
     padding: 14px 24px; display: flex; gap: 32px; border-bottom: 1px solid var(--border);
     background: var(--surface); flex-wrap: wrap; flex-shrink: 0;
   }
+
+  /* ── Critical churn risk (Adoption sub-tab) ───────────────────────────── */
+  .ccr-wrap { padding: 20px 24px 6px; flex-shrink: 0; }
+  .ccr-brief {
+    background: var(--im-white); border: 1px solid var(--border); border-radius: var(--radius);
+    box-shadow: var(--shadow); overflow: hidden; max-width: 1240px;
+  }
+  .ccr-head {
+    background: var(--im-black); color: var(--im-white); padding: 18px 22px 16px;
+    display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap;
+  }
+  .ccr-eyebrow {
+    font-size: 10.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--im-lime);
+  }
+  .ccr-title { font-size: 22px; font-weight: 800; letter-spacing: -.02em; line-height: 1.2; margin: 6px 0 4px; }
+  .ccr-sub { font-size: 12.5px; color: #A8A8A8; }
+  .ccr-toggle { display: inline-flex; background: #1F1F1F; border-radius: 8px; padding: 3px; gap: 2px; }
+  .ccr-tbtn {
+    font-family: var(--font); font-size: 12px; font-weight: 600; color: #BDBDBD; background: none;
+    border: 0; border-radius: 6px; padding: 6px 12px; cursor: pointer; white-space: nowrap;
+  }
+  .ccr-tbtn:hover { color: var(--im-white); }
+  .ccr-tbtn.active { background: var(--im-lime); color: var(--im-black); }
+  .ccr-kpis {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    border-bottom: 1px solid var(--border);
+  }
+  .ccr-kpi { padding: 12px 22px; border-right: 1px solid var(--border); }
+  .ccr-kpi:last-child { border-right: 0; }
+  .ccr-kpi-l { font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); }
+  .ccr-kpi-v { font-size: 22px; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+  .ccr-kpi-s { font-size: 11.5px; color: var(--text-3); }
+  .ccr-view { padding: 14px 18px 12px; overflow-x: auto; }
+  .ccr-view > svg { display: block; width: 100%; min-width: 640px; height: auto; }
+  .ccr-view .ccr-pt { cursor: pointer; }
+  .ccr-view .ccr-pt:hover .ccr-mark { stroke: var(--im-lime-dk); stroke-width: 3; }
+  .ccr-bar-val { font-size: 12px; font-weight: 800; fill: var(--text-1); font-family: var(--font); font-variant-numeric: tabular-nums; }
+  .ccr-seg-val { font-size: 10.5px; font-weight: 700; font-family: var(--font); font-variant-numeric: tabular-nums; }
+  .ccr-bar-n { font-size: 10.5px; fill: var(--text-3); font-family: var(--font); }
+  .ccr-lbl { cursor: pointer; }
+  .ccr-lbl-name { font-size: 12.5px; font-weight: 700; fill: var(--text-1); font-family: var(--font); }
+  .ccr-lbl-mo   { font-size: 10.5px; font-weight: 700; fill: var(--im-lime); font-family: var(--font); }
+  .ccr-lbl:hover .ccr-lbl-name { text-decoration: underline; }
+  .ccr-leader { stroke: #9A9A9A; stroke-width: .8; fill: none; }
+  .ccr-axis { fill: var(--text-3); font-size: 11px; font-variant-numeric: tabular-nums; font-family: var(--font); }
+  .ccr-axis-title { fill: var(--text-2); font-size: 11px; font-weight: 700; letter-spacing: .08em; font-family: var(--font); }
+  .ccr-legend { display: flex; flex-wrap: wrap; gap: 6px 20px; margin-top: 10px; font-size: 11.5px; color: var(--text-3); }
+  .ccr-key { display: inline-flex; align-items: center; gap: 6px; }
+  .ccr-key svg { width: 16px; height: 14px; }
+  .ccr-mo {
+    display: inline-block; min-width: 44px; text-align: center; font-size: 11.5px; font-weight: 700;
+    background: var(--im-black); color: var(--im-lime); border-radius: 999px; padding: 1px 8px;
+    font-variant-numeric: tabular-nums;
+  }
+  .ccr-tables { padding: 10px 24px 40px; display: flex; flex-direction: column; gap: 26px; flex-shrink: 0; }
+  .ccr-thead { display: flex; align-items: center; gap: 10px; }
+  .ccr-badge {
+    font-size: 12px; font-weight: 800; background: var(--im-black); color: var(--im-lime);
+    border-radius: 5px; padding: 2px 8px; letter-spacing: .04em;
+  }
+  .ccr-ttitle { font-size: 14px; font-weight: 700; }
+  .ccr-tmeta { margin-left: auto; font-size: 12.5px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+  .ccr-tmeta b { color: var(--text-1); }
+  .ccr-table tbody tr { cursor: pointer; }
+  .ccr-table tbody tr:hover td { background: var(--im-lime-lt); }
+  .ccr-table th { cursor: default; }
+  .ccr-table.ccr-sortable th { cursor: pointer; }
+  .ccr-table td { white-space: nowrap; }
+  .ccr-table.ccr-sortable th:hover { color: var(--text-1); }
+  .ccr-rating { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; font-weight: 600; }
+  .ccr-swatch { width: 11px; height: 11px; border-radius: 3px; flex: none; }
+  .ccr-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .ccr-empty { color: var(--text-3); font-size: 13px; padding: 14px 0 0; }
+  .ccr-foot { font-size: 11.5px; color: var(--text-3); line-height: 1.6; }
 
   /* ── SaaS migration board ─────────────────────────────────────────────── */
   .saas-board-wrap { flex: 1; overflow: auto; padding: 18px 24px 40px; min-height: 0; }
@@ -1913,6 +2160,8 @@ report_all_accounts_html <- function(op_list,
   .pct-none { color: var(--text-3); }
   .flat-table tr.low-con td { background: #FEF3C7; }
   .flat-table tr.low-con:hover td { background: #FDE68A; }
+
+{{AGX_CSS}}
 
   /* ── Flat table pages (Renewals / Expansions) ─────────────────────────── */
   .flat-page { flex: 1; display: flex; flex-direction: column; min-height: 0; }
@@ -2035,7 +2284,7 @@ report_all_accounts_html <- function(op_list,
     <svg width="114" height="20" viewBox="0 0 142 24" fill="none" xmlns="http://www.w3.org/2000/svg">
       <path d="M95.968 3.99802H99.8179V11.656C99.8179 16.8192 96.57 20.0561 92.1339 20.0561C87.6978 20.0561 84.5925 16.8192 84.5925 11.656V3.99802H88.4424V11.656C88.4424 14.7508 89.7733 16.5192 92.1339 16.5192C94.4946 16.5192 95.9838 14.7508 95.9838 11.656V3.99802H95.968ZM40.675 15.635L35.0507 3.99802H30.7571V19.7561H34.6071V11.7981L38.457 19.8982H42.7505L46.6004 11.7981V19.7561H50.4503V3.99802H46.1568L40.6909 15.635H40.675ZM77.4789 3.99802H73.1854L67.7195 15.4929L62.0951 3.99802H57.8016V19.7561H61.6515V11.7981L65.5014 19.8982H69.7949L73.6448 11.7981V19.7561H77.4947V3.99802H77.4789ZM120.509 3.99802H105.426V7.53491H111.051V19.7561H114.901V7.53491H120.525V3.99802H120.509ZM141.2 19.8982H137.065L136.036 17.3877H128.352L127.322 19.8982H123.329L130.126 4.14013H134.42L141.216 19.8982H141.2ZM134.689 14.3087L132.17 8.41913L129.651 14.3087H134.673H134.689ZM24.1188 0.161133V23.7351H0.464844V0.161133H24.1188ZM19.0965 3.99802H15.2466V19.7561H19.0965V3.99802Z" fill="white"/>
     </svg>
-    <span class="topbar-section">Customer Accounts</span>
+    <span class="topbar-section">Customer 360</span>
   </a>
   <div class="search-wrap">
     <span class="search-icon">&#128269;</span>
@@ -2051,15 +2300,11 @@ report_all_accounts_html <- function(op_list,
   </div>
   <div class="topbar-actions">
     <div class="topbar-btns">
-      <!-- Opens the reader\'s guide embedded below (GUIDE_B64, knitted from
-           inst/guide/immuta_accounts_guide.Rmd). The href is the fallback for
-           a build without the guide: the file sitting next to this one. -->
-      <a class="refresh-btn" href="immuta_accounts_guide.html" target="_blank" rel="noopener" onclick="return openGuide(event)" style="text-decoration:none">User Guide and Definitions</a>
       <!-- Drive file 1K5pNbz2TPrxGSvU8l2hbEjbMFfFShQ09, as the uc?export=download
            form so the button downloads directly rather than opening the Drive
            preview page. Swap to /file/d/<id>/view to land on the preview instead. -->
       <a class="refresh-btn" href="https://drive.google.com/uc?export=download&id=1K5pNbz2TPrxGSvU8l2hbEjbMFfFShQ09" target="_blank" rel="noopener" style="text-decoration:none">&#11123; Download Update</a>
-      <button class="refresh-btn" id="refresh-btn" onclick="triggerRefresh()">&#8635; Refresh</button>
+      <button class="refresh-btn" id="refresh-btn" onclick="triggerRefresh()" title="Only works for the product owner: needs the local R refresh server (scripts/serve.R) running. Everyone else: use Download Update.">&#8635; Refresh</button>
     </div>
     <!-- When op_list was built, not when this file was written. A refresh
          that fails leaves the old page on screen; a render date would keep
@@ -2082,9 +2327,10 @@ report_all_accounts_html <- function(op_list,
 </div>
 
 <!-- PAGE TABS -->
-<!-- Three pages, each a set of sub-tabs. The grouping is by question asked:
+<!-- Four pages, each a set of sub-tabs. The grouping is by question asked:
      who are they and what is moving (Engagement), what are they using
-     (Adoption), how is it running (Performance). -->
+     (Adoption), how is it running (Performance), how do we work
+     (Documentation: the CS Doctrine and this page\'s user guide). -->
 <div class="page-tabs">
   <button class="page-tab active" data-page="engagement" onclick="switchPage(\'engagement\')">
     Accounts and Engagement <span class="page-tab-count" id="tab-count-engagement">0</span>
@@ -2094,6 +2340,9 @@ report_all_accounts_html <- function(op_list,
   </button>
   <button class="page-tab" data-page="performance" onclick="switchPage(\'performance\')">
     Performance <span class="page-tab-count" id="tab-count-performance">—</span>
+  </button>
+  <button class="page-tab" data-page="documentation" onclick="switchPage(\'documentation\')">
+    Documentation
   </button>
 </div>
 
@@ -2109,6 +2358,9 @@ report_all_accounts_html <- function(op_list,
       </button>
       <button class="sub-btn" data-sub="expansions" onclick="switchSub(\'expansions\')">
         Expansions <span class="sub-count" id="sub-count-expansions">0</span>
+      </button>
+      <button class="sub-btn" data-sub="new_logos" onclick="switchSub(\'new_logos\')">
+        New Logos <span class="sub-count" id="sub-count-new_logos">0</span>
       </button>
       <button class="sub-btn" data-sub="changes" onclick="switchSub(\'changes\')">
         Changes <span class="sub-count" id="sub-count-changes">0</span>
@@ -2187,6 +2439,16 @@ report_all_accounts_html <- function(op_list,
       </div>
     </div>
 
+    <!-- New logos are prospects, not accounts on this page: region pills only
+         (no CSM facet), and account names are not links to an account card. -->
+    <div class="subpanel" id="sub-panel-new_logos">
+      <div class="flat-page">
+        <div class="flat-filters" id="new-logo-filters"></div>
+        <div class="flat-stats" id="new-logo-stats"></div>
+        <div class="flat-table-wrap" id="new-logo-table"></div>
+      </div>
+    </div>
+
     <div class="subpanel" id="sub-panel-changes">
       <div class="flat-page">
         <div class="changes-header" id="changes-header"></div>
@@ -2208,6 +2470,12 @@ report_all_accounts_html <- function(op_list,
       </button>
       <button class="sub-btn" data-sub="derivation" onclick="switchSub(\'derivation\')">
         How the Product Adoption Score Is Derived
+      </button>
+      <button class="sub-btn" data-sub="agentic" onclick="switchSub(\'agentic\')">
+        Agentic Engagement Overview <span class="sub-count" id="sub-count-agentic">—</span>
+      </button>
+      <button class="sub-btn" data-sub="critical_churn" onclick="switchSub(\'critical_churn\')">
+        Critical Churn Risk <span class="sub-count" id="sub-count-critical_churn">—</span>
       </button>
     </div>
 
@@ -2232,6 +2500,60 @@ report_all_accounts_html <- function(op_list,
 
     <div class="subpanel" id="sub-panel-derivation">
       <div class="pbac-writeup" id="pbac-writeup"></div>
+    </div>
+
+    <!-- Agentic profile from report 00OVV000007LHjN2AW (op_list$agentic_profile),
+         built by the same rules as agentic_owner_summary.html: KPIs, the
+         Coverage funnel and Conversation Status chart, evaluation / deployment
+         status, then one expandable card per account with every field. The
+         by-CSM table lives on Engagement > CS Coverage. -->
+    <div class="subpanel" id="sub-panel-agentic">
+{{AGX_PANEL}}
+    </div>
+
+    <!-- Black-rated accounts past their first six months: the Black cell of the
+         product adoption grid on its own (same axes, cropped to that cell),
+         labelled with tenure, over S1 and S2 tables. -->
+    <!-- The .ccr-brief card is laid out to be screenshotted whole for the
+         weekly ELT brief: title, as-of date, filter context, KPIs and chart in
+         one frame. The toggle switches between the Black-cell plot and the
+         ARR-at-risk-by-churn-quarter bars. -->
+    <div class="subpanel" id="sub-panel-critical_churn">
+      <!-- Churn quarter multi-select: filters the bars, the Black plot and
+           the tables under them. No selection = the default view. -->
+      <div class="flat-filters flat-filters-csm" id="ccr-quarter-filters"></div>
+      <div class="ccr-wrap">
+        <div class="ccr-brief">
+          <div class="ccr-head">
+            <div>
+              <div class="ccr-eyebrow">Product adoption &middot; critical churn risk</div>
+              <h2 class="ccr-title" id="ccr-title"></h2>
+              <div class="ccr-sub" id="ccr-sub"></div>
+            </div>
+            <div class="ccr-toggle" role="tablist">
+              <button class="ccr-tbtn active" data-view="bars" onclick="setCcrView(\'bars\')">ARR by churn quarter</button>
+              <button class="ccr-tbtn" data-view="plot" onclick="setCcrView(\'plot\')">Black accounts</button>
+            </div>
+          </div>
+          <div class="ccr-kpis" id="ccr-stats"></div>
+          <div class="ccr-view" id="ccr-view-plot" style="display:none">
+            <svg id="ccr-plot" viewBox="0 0 1000 500" role="img"
+                 aria-label="Black-rated accounts by consumption ratio and product adoption score"></svg>
+            <div class="ccr-legend">
+              <span class="ccr-key"><svg viewBox="0 0 16 14"><circle cx="8" cy="7" r="5" fill="#111" stroke="#fff" stroke-width="1.2"/></svg> account (size = contract ARR)</span>
+              <span class="ccr-key"><svg viewBox="0 0 16 14"><rect x="3" y="2" width="10" height="10" fill="#111" stroke="#fff" stroke-width="1.2"/></svg> lifecycle S1 (Installation and Config.)</span>
+              <span class="ccr-key"><svg viewBox="0 0 16 14"><circle cx="8" cy="7" r="5" fill="#111" fill-opacity=".4" stroke="#111" stroke-dasharray="2 2"/></svg> consumption ratio unavailable (drawn at zero)</span>
+              <span class="ccr-key"><span class="ccr-mo">38 mo</span> months as a customer</span>
+            </div>
+          </div>
+          <div class="ccr-view" id="ccr-view-bars">
+            <svg id="ccr-bars" viewBox="0 0 1000 500" role="img"
+                 aria-label="Renewal ARR of Black and Red accounts by churn quarter"></svg>
+            <div class="ccr-legend" id="ccr-bars-legend"></div>
+          </div>
+        </div>
+      </div>
+      <div class="ccr-tables" id="ccr-tables"></div>
     </div>
   </div>
 </div>
@@ -2291,6 +2613,50 @@ report_all_accounts_html <- function(op_list,
   </div>
 </div>
 
+<!-- DOCUMENTATION -->
+<!-- The CS Doctrine and the user guide are knitted from inst/guide/ (report_cs_doctrine(),
+     report_user_guide()), embedded as base64 (DOCTRINE_B64 / GUIDE_B64) and shown in
+     iframes built from Blobs on first view, so they keep their own styling and work in a
+     downloaded copy. -->
+<div id="page-documentation" class="page">
+  <div class="subpage">
+    <div class="doc-banner">
+      <div class="doc-banner-text">
+        <div class="doc-banner-label">Customer Success on Confluence</div>
+        <div class="doc-banner-sub">Team process, playbooks and anything not covered here.</div>
+      </div>
+      <a class="doc-banner-link" href="https://immuta.atlassian.net/wiki/spaces/CSD/overview?homepageId=4118053175" target="_blank" rel="noopener">Open the CSD Confluence space &#8599;</a>
+    </div>
+    <div class="sub-tabs">
+      <button class="sub-btn active" data-sub="doctrine" onclick="switchSub(\'doctrine\')">CS Doctrine</button>
+      <button class="sub-btn" data-sub="reporting" onclick="switchSub(\'reporting\')">CSM Reporting</button>
+      <button class="sub-btn" data-sub="guide" onclick="switchSub(\'guide\')">User Guide</button>
+      <button class="doc-open" onclick="openDoc()" title="Open this document in its own tab">Open in new tab &#8599;</button>
+    </div>
+    <div class="subpanel active" id="sub-panel-doctrine">
+      <iframe class="doc-frame" id="doc-frame-doctrine" title="CS Doctrine"></iframe>
+      <div class="doc-missing" id="doc-missing-doctrine" hidden>
+        The CS Doctrine was not built into this page. Run <code>report_cs_doctrine()</code> before
+        <code>report_all_accounts_html()</code>, or open <a href="cs_doctrine.html" target="_blank" rel="noopener">cs_doctrine.html</a>.
+      </div>
+    </div>
+    <div class="subpanel" id="sub-panel-reporting">
+      <iframe class="doc-frame" id="doc-frame-reporting" title="CSM Reporting Requirements"></iframe>
+      <div class="doc-missing" id="doc-missing-reporting" hidden>
+        CSM Reporting was not built into this page. Run <code>report_csm_reporting()</code> before
+        <code>report_all_accounts_html()</code>, or open <a href="csm_reporting.html" target="_blank" rel="noopener">csm_reporting.html</a>.
+      </div>
+    </div>
+    <div class="subpanel" id="sub-panel-guide">
+      <iframe class="doc-frame" id="doc-frame-guide" title="User Guide and Definitions"></iframe>
+      <div class="doc-missing" id="doc-missing-guide" hidden>
+        The user guide was not built into this page. Run <code>report_user_guide()</code> before
+        <code>report_all_accounts_html()</code>, or open <a href="immuta_accounts_guide.html" target="_blank" rel="noopener">immuta_accounts_guide.html</a>.
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 const ACCOUNTS          = {{JSON_DATA}};
 const SNAP_DATES        = {{SNAP_DATES}};
@@ -2298,20 +2664,56 @@ const CHANGES_DATA      = {{CHANGES}};
 const CONSUMPTION_DATA  = {{CONSUMPTION}};
 const SAAS_DATA         = {{SAAS}};
 const ESCALATIONS_DATA  = {{ESCALATIONS}};
+const NEW_LOGOS_DATA    = {{NEW_LOGOS}};
+const AGENTIC_DATA      = {{AGENTIC}};
 const GUIDE_B64         = "{{GUIDE_B64}}";
+const DOCTRINE_B64      = "{{DOCTRINE_B64}}";
+const REPORTING_B64     = "{{REPORTING_B64}}";
 
-// Open the embedded reader\'s guide in a new tab, from a Blob so it works in a
-// downloaded copy of this page. Falls through to the link href when the guide
-// was not embedded.
-function openGuide(e) {
-  if (!GUIDE_B64) return true;
-  e.preventDefault();
-  const bin   = atob(GUIDE_B64);
+// ── Documentation tab ─────────────────────────────────────────────────────
+// The embedded pages are decoded once, on first view, into the iframe\'s
+// srcdoc (works in sandboxed and file:// contexts, where Blob-URL frames can be
+// blocked) and, on demand, a Blob URL for "Open in new tab". Either way a
+// downloaded copy of this page works with nothing beside it. Section links
+// inside a srcdoc frame are handled by the page itself (c360_doc_head.html).
+const DOC_B64  = { doctrine: DOCTRINE_B64, reporting: REPORTING_B64, guide: GUIDE_B64 };
+const DOC_FILE = { doctrine: "cs_doctrine.html", reporting: "csm_reporting.html",
+                   guide: "immuta_accounts_guide.html" };
+const docBytes = {};
+const docUrls  = {};
+
+function docData(key) {
+  if (docBytes[key]) return docBytes[key];
+  const b64 = DOC_B64[key];
+  if (!b64) return null;
+  const bin   = atob(b64);
   const bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  const url = URL.createObjectURL(new Blob([bytes], { type: "text/html;charset=utf-8" }));
-  window.open(url, "_blank");
-  return false;
+  return (docBytes[key] = bytes);
+}
+
+function docUrl(key) {
+  if (docUrls[key]) return docUrls[key];
+  const bytes = docData(key);
+  if (!bytes) return null;
+  return (docUrls[key] = URL.createObjectURL(new Blob([bytes], { type: "text/html;charset=utf-8" })));
+}
+
+function renderDocumentation() {
+  const key   = PAGES.documentation.active;
+  const frame = document.getElementById("doc-frame-" + key);
+  const bytes = docData(key);
+  document.getElementById("doc-missing-" + key).hidden = !!bytes;
+  frame.hidden = !bytes;
+  if (bytes && !frame.dataset.loaded) {
+    frame.srcdoc = new TextDecoder("utf-8").decode(bytes);
+    frame.dataset.loaded = "1";
+  }
+}
+
+function openDoc() {
+  const key = PAGES.documentation.active;
+  window.open(docUrl(key) || DOC_FILE[key], "_blank");
 }
 
 // ── State ──────────────────────────────────────────────────────────────────
@@ -2324,6 +2726,7 @@ let renewalSort         = { col: "end_date_raw", dir: 1 };
 // (next renewal end date, grouped by that renewal\'s churn quarter).
 let accountSort         = "name";
 let expansionSort       = { col: "close_date_raw", dir: 1 };
+let newLogoSort         = { col: "close_date_raw", dir: 1 };
 let adoptSort           = { col: null, dir: 1 };
 let smSort              = { col: null, dir: 1 };
 let activeSMSupport     = "all";
@@ -2350,6 +2753,8 @@ setCount("tab-count-engagement", ACCOUNTS.length);
 setCount("sub-count-accounts",   ACCOUNTS.length);
 setCount("sub-count-renewals",   ALL_RENEWALS.length);
 setCount("sub-count-expansions", ALL_EXPANSIONS.length);
+const ALL_NEW_LOGOS = (NEW_LOGOS_DATA && NEW_LOGOS_DATA.rows) || [];
+setCount("sub-count-new_logos",  ALL_NEW_LOGOS.length);
 setCount("sub-count-changes",
   (CHANGES_DATA && CHANGES_DATA.has_data && CHANGES_DATA.summary)
     ? CHANGES_DATA.summary.reduce((s, r) => s + (r.Total_Moves || 0), 0)
@@ -2388,6 +2793,15 @@ function fieldHtml(label, value, extraClass) {
     <div class="field-label">${label}</div>
     <div class="field-value${extraClass ? \' \' + extraClass : \'\'}">${v}</div>
   </div>`;
+}
+
+// Customer age for account summaries: "50 months (since March 03, 2022)".
+// Same wording as fmt_tenure() in R/utils_internal.R; em-dash when unknown.
+function tenureText(a) {
+  const m = covNum(a.months_as_customer);
+  if (m === null) return "\\u2014";
+  const since = adoptBlank(a.customer_since) ? "" : ` (since ${a.customer_since})`;
+  return `${m} month${m === 1 ? "" : "s"}${since}`;
 }
 
 function fieldHtmlRaw(label, innerHtml) {
@@ -2509,74 +2923,74 @@ function pbacAdoptionHtml(a) {
   </div>`;
 }
 
-// ── Overview: per-account PBAC plot ────────────────────────────────────────
-// The Adoption tab\'s scatter at card size, with only this account drawn. The
-// bands come from pbacRatingAt() rather than a copied colour table, so moving a
-// threshold moves both plots together — a small chart that quietly disagreed
-// with the big one would be worse than no chart.
-const PBAC_MINI = { w: 196, h: 128, l: 20, r: 7, t: 7, b: 16, pin: 13 };
+// ── Overview: per-account product adoption plot ────────────────────────────
+// The Adoption tab\'s scatter at card size (product adoption score 0-12 against
+// consumption ratio), with only this account drawn. The bands come from
+// paRatingAt() rather than a copied colour table, so moving a threshold moves
+// both plots together. Same marker convention as the Adoption page: a square
+// for an account in lifecycle S1, a circle otherwise; dashed outline when the
+// ratio is unknown, heavy outline when it is off the right of the axis.
+const ADOPT_MINI = { w: 210, h: 140, l: 20, r: 7, t: 7, b: 16, pin: 13 };
 
-function pbacMiniSvg(a) {
-  if (!hasPbac(a)) {
-    return `<div class="ov-mini-empty">No PBAC rating \\u2014 needs a Looker run.</div>`;
+function adoptionMiniSvg(a) {
+  if (!hasProduct(a)) {
+    return `<div class="ov-mini-empty">No product adoption score \\u2014 needs a Looker run.</div>`;
   }
 
-  const M = PBAC_MINI;
+  const M = ADOPT_MINI;
   const pw = M.w - M.l - M.r, ph = M.h - M.t - M.b;
-  const X = v => M.l + Math.min(v, PBAC_CFG.ratioMax) / PBAC_CFG.ratioMax * (pw - M.pin);
-  const Y = s => M.t + ph - (Math.min(s, PBAC_CFG.scoreMax) / PBAC_CFG.scoreMax) * ph;
+  const X = v => M.l + Math.min(v, PA_CFG.ratioMax) / PA_CFG.ratioMax * (pw - M.pin);
+  const Y = s => M.t + ph - (Math.min(s, PA_CFG.scoreMax) / PA_CFG.scoreMax) * ph;
 
-  // Six bands, same row/column split as the full plot: r = 1 is the
-  // high-complexity row, columns break at ratioMinimal and ratioModerate.
-  const xEdges = [0, PBAC_CFG.ratioMinimal, PBAC_CFG.ratioModerate, PBAC_CFG.ratioMax];
+  // Six bands, same row/column split as the full plot.
+  const xEdges = [0, PA_CFG.ratioMinimal, PA_CFG.ratioModerate, PA_CFG.ratioMax];
   let bands = "";
   for (let r = 0; r < 2; r++) {
     for (let c = 0; c < 3; c++) {
-      const key  = pbacRatingAt(r === 1 ? PBAC_CFG.scoreMax : 0, (xEdges[c] + xEdges[c + 1]) / 2);
+      const key  = paRatingAt(r === 1 ? PA_CFG.scoreMax : 0, (xEdges[c] + xEdges[c + 1]) / 2);
       const x0   = X(xEdges[c]);
       const x1   = c === 2 ? M.l + pw : X(xEdges[c + 1]);
-      const yTop = Y(r === 1 ? PBAC_CFG.scoreMax : PBAC_CFG.complexityMin);
-      const yBot = Y(r === 1 ? PBAC_CFG.complexityMin : 0);
+      const yTop = Y(r === 1 ? PA_CFG.scoreMax : PA_CFG.adoptionMin);
+      const yBot = Y(r === 1 ? PA_CFG.adoptionMin : 0);
       bands += `<rect x="${x0}" y="${yTop}" width="${x1 - x0}" height="${yBot - yTop}" fill="${PBAC_COLOURS[key].bg}"/>`;
     }
   }
 
-  // A null ratio is a missing measurement, not a zero. It plots at the left
-  // edge with a dashed outline, the same convention the full scatter uses.
   const ratio   = a.consumption_ratio_raw;
   const missing = ratio === null || ratio === undefined || isNaN(ratio);
-  const over    = !missing && ratio > PBAC_CFG.ratioMax;
-  const colour  = ratingColour(a.pbac_rating) || "black";
+  const over    = !missing && ratio > PA_CFG.ratioMax;
+  const colour  = ratingColour(a.product_rating) || "black";
+  const score   = covNum(a.product_adoption);
 
-  // Held a dot-radius inside the frame. At this size a point at score 7 or
-  // ratio 0 sits exactly on the border and gets sliced in half by it, which
-  // reads as a rendering fault rather than as an extreme value. The nudge is
-  // smaller than the dot, so it cannot move a point across a band edge.
+  // Held a dot-radius inside the frame so an extreme value is not sliced in
+  // half by the border; the nudge is smaller than the dot, so it cannot move a
+  // point across a band edge.
   const R = 4.5;
   const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
   const cx = clamp(missing ? X(0) : (over ? M.l + pw - M.pin / 2 : X(ratio)),
                    M.l + R, M.l + pw - R);
-  const cy = clamp(Y(a.pbac_score), M.t + R, M.t + ph - R);
+  const cy = clamp(Y(score), M.t + R, M.t + ph - R);
 
-  const tip = `${a.name} \\u2014 score ${a.pbac_score} / ${PBAC_CFG.scoreMax}, ratio ${a.consumption_ratio}`;
+  const tip = `${a.name} \\u2014 product adoption ${score} / ${PA_CFG.scoreMax}, ratio ${a.consumption_ratio}` +
+              (isInstallStage(a) ? " (lifecycle S1)" : "");
+  const cls = `ov-mini-dot${missing ? " missing" : ""}${over ? " over" : ""}`;
 
   return `<svg class="ov-mini-plot" viewBox="0 0 ${M.w} ${M.h}" role="img" aria-label="${esc(tip)}">
     <title>${esc(tip)}</title>
     ${bands}
-    <line x1="${X(PBAC_CFG.ratioMax)}" y1="${M.t}" x2="${X(PBAC_CFG.ratioMax)}" y2="${M.t + ph}" class="ov-mini-pin"/>
-    <line x1="${M.l}" y1="${Y(PBAC_CFG.complexityMin)}" x2="${M.l + pw}" y2="${Y(PBAC_CFG.complexityMin)}" class="ov-mini-grid"/>
+    <line x1="${X(PA_CFG.ratioMax)}" y1="${M.t}" x2="${X(PA_CFG.ratioMax)}" y2="${M.t + ph}" class="ov-mini-pin"/>
+    <line x1="${M.l}" y1="${Y(PA_CFG.adoptionMin)}" x2="${M.l + pw}" y2="${Y(PA_CFG.adoptionMin)}" class="ov-mini-grid"/>
     <rect x="${M.l}" y="${M.t}" width="${pw}" height="${ph}" class="ov-mini-frame"/>
     ${isInstallStage(a)
-      ? `<rect x="${cx - R * 0.885}" y="${cy - R * 0.885}" width="${R * 1.77}" height="${R * 1.77}" fill="${PBAC_COLOURS[colour].dot}"
-              class="ov-mini-dot${missing ? " missing" : ""}${over ? " over" : ""}"/>`
-      : `<circle cx="${cx}" cy="${cy}" r="${R}" fill="${PBAC_COLOURS[colour].dot}"
-              class="ov-mini-dot${missing ? " missing" : ""}${over ? " over" : ""}"/>`}
-    <text x="${M.l - 4}" y="${Y(PBAC_CFG.scoreMax) + 3}" class="ov-mini-tick" text-anchor="end">${PBAC_CFG.scoreMax}</text>
+      ? `<rect x="${cx - R * 0.885}" y="${cy - R * 0.885}" width="${R * 1.77}" height="${R * 1.77}" fill="${PBAC_COLOURS[colour].dot}" class="${cls}"/>`
+      : `<circle cx="${cx}" cy="${cy}" r="${R}" fill="${PBAC_COLOURS[colour].dot}" class="${cls}"/>`}
+    <text x="${M.l - 4}" y="${Y(PA_CFG.scoreMax) + 3}" class="ov-mini-tick" text-anchor="end">${PA_CFG.scoreMax}</text>
+    <text x="${M.l - 4}" y="${Y(PA_CFG.adoptionMin) + 3}" class="ov-mini-tick" text-anchor="end">${PA_CFG.adoptionMin}</text>
     <text x="${M.l - 4}" y="${Y(0) + 3}" class="ov-mini-tick" text-anchor="end">0</text>
     <text x="${M.l}" y="${M.h - 4}" class="ov-mini-tick" text-anchor="start">0</text>
-    <text x="${M.l + pw}" y="${M.h - 4}" class="ov-mini-tick" text-anchor="end">&gt;${PBAC_CFG.ratioMax}</text>
+    <text x="${M.l + pw}" y="${M.h - 4}" class="ov-mini-tick" text-anchor="end">&gt;${PA_CFG.ratioMax}</text>
   </svg>
-  <div class="ov-mini-caption" style="color:${PBAC_COLOURS[colour].ink}">${esc(pbacFullLabel(a.pbac_rating))}</div>`;
+  <div class="ov-mini-caption" style="color:${PBAC_COLOURS[colour].ink}">${esc(pbacFullLabel(a.product_rating))}</div>`;
 }
 
 // PBAC rating badge with the scatter plot\'s labels and symbology: the full
@@ -2757,6 +3171,12 @@ function buildCard(a) {
         ? \'<span class="tag tag-sm-unsup">SM: Unsupported</span>\'
         : \'<span class="tag tag-sm-sup">SM: Supported</span>\')
     : "";
+  // Customer age (months since the first contract start), like the other tags.
+  const tenureTag = covNum(a.months_as_customer) === null ? ""
+    : `<span class="tag tag-region" title="Customer since ${esc(a.customer_since)}">${covNum(a.months_as_customer)} mo</span>`;
+  // OBO session revenue target: the account has an agentic PoV (accounts$OBO_revenue_TGT).
+  const oboTag = a.obo_revenue_tgt
+    ? `<span class="tag tag-obo" title="OBO_revenue_TGT: active agentic PoV">OBO target</span>` : "";
   const churnTag = a.churn_summary
     ? `<span class="tag tag-churn">${esc(a.churn_summary)}</span>` : "";
 
@@ -2769,7 +3189,7 @@ function buildCard(a) {
     ${a.consumption_link}
     ${a.customer_central_url ? `<a class="cc-link" href="${esc(a.customer_central_url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Customer Central &#8599;</a>` : \'\'}
     <div class="card-meta">
-      ${regionTag}${saasTag}${smTag}${churnTag}
+      ${regionTag}${tenureTag}${oboTag}${saasTag}${smTag}${churnTag}
     </div>
     <span class="expand-icon">&#9660;</span>
   </div>
@@ -2786,27 +3206,29 @@ function buildCard(a) {
       <div class="overview-cols">
         <div class="overview-col">
           ${fieldHtml("Contract ARR", a.arr, "arr-value")}
+          ${fieldHtml("Customer for", tenureText(a))}
           ${fieldHtml("Region", a.region)}
           ${fieldHtml("Customer Success Manager", a.csm)}
           ${fieldHtml("Account Owner", a.account_owner)}
           ${fieldHtml("Field CTO", a.field_cto)}
         </div>
 
-        <!-- Adoption runs across two columns. The split is evidence on the
-             left, ratings on the right: what we measured, then what we
-             concluded from it. -->
+        <!-- Adoption runs across two columns: the product adoption plot (the
+             Adoption page scatter, this account only) with the lifecycle stage
+             and the consumption figures behind its x axis; then the per-product
+             ratings (PBAC, Request, Agentic, Comply). -->
         <div class="overview-col">
           <div class="ov-head">Adoption</div>
+          ${adoptionMiniSvg(a)}
           ${fieldHtml("Lifecycle Stage", a.lifecycle_stage)}
-          ${pbacAdoptionHtml(a)}
-          ${adoptBlank(a.pbac_rating) ? pairHtml("Platforms", a.platform_html) : ""}
           ${pairHtml("Registered", esc(a.registered_users))}
           ${pairHtml("Licensed", esc(a.licensed_users))}
           ${pairHtml("Ratio", `<span class="${pctClass(a.consumption_ratio_raw)}">${esc(a.consumption_ratio)}</span>`)}
         </div>
         <div class="overview-col">
-          <div class="ov-head">Adoption</div>
-          ${pbacMiniSvg(a)}
+          <div class="ov-head">Products</div>
+          ${pbacAdoptionHtml(a)}
+          ${adoptBlank(a.pbac_rating) ? pairHtml("Platforms", a.platform_html) : ""}
           ${requestAdoptionHtml(a)}
           ${adoptionHtml("Agentic", a.agentic_governance_adoption)}
           ${adoptionHtml("Comply", a.comply_adoption)}
@@ -2967,6 +3389,7 @@ function renderCoverage() {
             ${onb ? `<span class="tag cov-onb-tag">Onboarding</span>` : ""}</td>
         <td>${esc(a.lifecycle_stage)}</td>
         <td>${esc(a.region)}</td>
+        <td class="cov-num" title="${esc(tenureText(a))}">${covNum(a.months_as_customer) === null ? "\\u2014" : covNum(a.months_as_customer) + " mo"}</td>
         <td class="cov-num">${esc(a.arr)}</td>
       </tr>`;
     }).join("");
@@ -2986,15 +3409,16 @@ function renderCoverage() {
       </div>
       <div class="card-body cov-body">
         <table class="flat-table cov-table">
-          <thead><tr><th>Adoption</th><th>Account</th><th>Lifecycle Stage</th><th>Region</th><th class="cov-num">ARR</th></tr></thead>
+          <thead><tr><th>Adoption</th><th>Account</th><th>Lifecycle Stage</th><th>Region</th><th class="cov-num">Customer for</th><th class="cov-num">ARR</th></tr></thead>
           <tbody>${body}</tbody>
         </table>
       </div>
     </div>`;
   }).join("");
 
-  document.getElementById("coverage-list").innerHTML =
-    html || `<div class="cov-empty">No accounts match.</div>`;
+  // Agentic profile by CSM first (moved here from Adoption > Agentic Engagement Overview).
+  document.getElementById("coverage-list").innerHTML = covAgenticHtml() +
+    (html || `<div class="cov-empty">No accounts match.</div>`);
   setCount("sub-count-coverage", shown);
 }
 
@@ -3002,9 +3426,10 @@ function renderCoverage() {
 // Each page remembers which sub-tab it was on, so coming back to Engagement
 // lands you where you left rather than resetting to Accounts.
 const PAGES = {
-  engagement:  { subs: ["accounts", "renewals", "expansions", "changes", "coverage"], active: "accounts" },
-  adoption:    { subs: ["overview", "derivation"],                        active: "overview" },
-  performance: { subs: ["self_managed", "saas_migration", "escalations"],  active: "self_managed" }
+  engagement:  { subs: ["accounts", "renewals", "expansions", "new_logos", "changes", "coverage"], active: "accounts" },
+  adoption:    { subs: ["overview", "derivation", "agentic", "critical_churn"], active: "overview" },
+  performance: { subs: ["self_managed", "saas_migration", "escalations"],  active: "self_managed" },
+  documentation: { subs: ["doctrine", "reporting", "guide"], active: "doctrine" }
 };
 
 function switchPage(name) {
@@ -3044,6 +3469,7 @@ function render() {
     else if (sub === "coverage")   renderCoverage();
     else if (sub === "renewals")   renderRenewals();
     else if (sub === "expansions") renderExpansions();
+    else if (sub === "new_logos")  renderNewLogos();
     else if (sub === "changes")    renderChanges();
   } else if (activePage === "adoption") {
     renderAdoption();
@@ -3051,6 +3477,8 @@ function render() {
     if      (sub === "saas_migration") renderSaaSMigration();
     else if (sub === "escalations")    renderEscalations();
     else                               renderSelfManaged();
+  } else if (activePage === "documentation") {
+    renderDocumentation();
   }
 }
 
@@ -3110,7 +3538,16 @@ function renderAdoption() {
   const faceted = ACCOUNTS.filter(adoptFacet);
   setCount("tab-count-adoption", faceted.length);
   setCount("sub-count-overview", faceted.filter(hasProduct).length);
+  setCount("sub-count-critical_churn", faceted.filter(ccrInCohort).length);
 
+  if (PAGES.adoption.active === "critical_churn") {
+    renderCriticalChurn();
+    return;
+  }
+  if (PAGES.adoption.active === "agentic") {
+    renderAgentic();
+    return;
+  }
   if (PAGES.adoption.active === "derivation") {
     const wu = document.getElementById("pbac-writeup");
     if (!wu.innerHTML) wu.innerHTML = productWriteupHtml();
@@ -3120,6 +3557,508 @@ function renderAdoption() {
   renderProductTable();
 }
 
+// ── Critical Churn Risk ────────────────────────────────────────────────────
+// Accounts rated Black on product adoption (low score, low consumption) that
+// have been customers for more than CCR_MIN_MONTHS. The plot is the Adoption
+// scatter cropped to the Black cell: x runs 0 to PA_CFG.ratioMinimal, y runs 0
+// to PA_CFG.adoptionMin, so the axes are the same scale family as the overview
+// and move with it if a threshold changes.
+const CCR_MIN_MONTHS = 6;
+const CCR_W = 1000, CCR_H = 500;
+const CCR_M = { top: 18, right: 22, bottom: 52, left: 58 };
+const CCR_PW = CCR_W - CCR_M.left - CCR_M.right;
+const CCR_PH = CCR_H - CCR_M.top - CCR_M.bottom;
+const ccrX = r => CCR_M.left + Math.max(0, Math.min(r, PA_CFG.ratioMinimal)) / PA_CFG.ratioMinimal * CCR_PW;
+const ccrY = s => CCR_M.top + CCR_PH - Math.max(0, Math.min(s, PA_CFG.adoptionMin)) / PA_CFG.adoptionMin * CCR_PH;
+
+function ccrInCohort(a) {
+  const m = covNum(a.months_as_customer);
+  return hasProduct(a) && ratingColour(a.product_rating) === "black" && m !== null && m > CCR_MIN_MONTHS;
+}
+
+// "S1" / "S2" / "other". Matched on the stage number or its words, like
+// isInstallStage(), so a picklist relabel does not empty the tables.
+function ccrStage(a) {
+  if (isInstallStage(a)) return "S1";
+  const st = String((a && a.lifecycle_stage) || "").trim().toLowerCase();
+  return (st.startsWith("s2") || st.includes("mvp")) ? "S2" : "other";
+}
+
+// Earliest open renewal end date on or after today, display form, or "".
+function ccrNextRenewal(a) {
+  const today = new Date().toISOString().slice(0, 10);
+  const up = (a.renewals || []).filter(r => r.end_date_raw && r.end_date_raw >= today)
+                               .sort((x, y) => x.end_date_raw.localeCompare(y.end_date_raw));
+  return up.length ? up[0].end_date : "";
+}
+
+function ccrUsd(v) {
+  if (v === null || !isFinite(v)) return "\\u2014";
+  if (v >= 1e6) return "$" + (v / 1e6).toFixed(1) + "M";
+  if (v >= 1e3) return "$" + Math.round(v / 1e3) + "K";
+  return "$" + Math.round(v);
+}
+const ccrArr = list => list.reduce((s, a) => s + (covNum(a.arr_raw) || 0), 0);
+
+// Which graphic the brief card shows: "bars" (renewal ARR by churn quarter,
+// the default) or "plot" (Black cell). Kept across re-renders and facets.
+let ccrView = "bars";
+function setCcrView(v) {
+  ccrView = v;
+  renderCriticalChurn();
+}
+
+// "As of <date> · <facet>" line for the brief header, so a screenshot carries
+// its own context.
+function ccrContext() {
+  const upd = (document.getElementById("topbar-updated") || {}).textContent || "";
+  const bits = [upd.trim() || ("As of " + new Date().toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" }))];
+  bits.push(activeRegion === "all" ? "All regions" : activeRegion);
+  if (activeCSM !== "all") bits.push("CSM: " + activeCSM);
+  if (searchTerm) bits.push("Search: \\u201C" + searchTerm + "\\u201D");
+  if (ccrQuarters.size) bits.push("Churn quarter: " + ccrSortedQuarters([...ccrQuarters]).join(", "));
+  return bits.map(esc).join(" &middot; ");
+}
+
+// ── Churn quarter filter (multi-select) ────────────────────────────────────
+// ccrQuarters empty = no filter: the bars show the next four fiscal quarters
+// and the Black plot shows every cohort account. Picking quarters narrows both
+// views (and their tables) to renewals / accounts in those quarters.
+let ccrQuarters = new Set();
+const ccrSortedQuarters = list => list.slice().sort((x, y) => saasQuarterKey(x) - saasQuarterKey(y));
+
+function toggleCcrQuarter(q) {
+  if (q === null) ccrQuarters.clear();
+  else if (ccrQuarters.has(q)) ccrQuarters.delete(q);
+  else ccrQuarters.add(q);
+  renderCriticalChurn();
+}
+
+// Every churn quarter on a Black / Red account renewal, plus the default
+// four-quarter window so those are always pickable.
+function ccrQuarterOptions() {
+  const qs = new Set(ccrWindow());
+  ACCOUNTS.filter(a => hasProduct(a) && ccrSeg(a)).forEach(a =>
+    (a.renewals || []).forEach(r => {
+      if (!adoptBlank(r.churn_quarter)) qs.add(String(r.churn_quarter).trim());
+    }));
+  ccrQuarters.forEach(q => qs.add(q));
+  return ccrSortedQuarters([...qs].filter(q => isFinite(saasQuarterKey(q))));
+}
+
+function buildCcrQuarterPills() {
+  const el = document.getElementById("ccr-quarter-filters");
+  if (!el) return;
+  const allLabel = ccrView === "bars" ? "Next 4 Quarters" : "All Churn Quarters";
+  el.innerHTML = [
+    `<button class="flat-pill${ccrQuarters.size ? "" : " active"}" onclick="toggleCcrQuarter(null)">${allLabel}</button>`
+  ].concat(ccrQuarterOptions().map(q =>
+    `<button class="flat-pill${ccrQuarters.has(q) ? " active" : ""}" title="${esc(saasQuarterMonths(q))}" ` +
+    `onclick="toggleCcrQuarter(${esc(JSON.stringify(q))})">${esc(q)}</button>`
+  )).join("");
+}
+
+// Plot view: with quarters picked, keep accounts with a renewal in one of them.
+function ccrInQuarters(a) {
+  if (!ccrQuarters.size) return true;
+  return (a.renewals || []).some(r => !adoptBlank(r.churn_quarter) && ccrQuarters.has(String(r.churn_quarter).trim()));
+}
+
+const ccrKpi = (l, v, s) => `<div class="ccr-kpi"><div class="ccr-kpi-l">${l}</div>` +
+  `<div class="ccr-kpi-v">${v}</div><div class="ccr-kpi-s">${s || "&nbsp;"}</div></div>`;
+
+function renderCriticalChurn() {
+  document.querySelectorAll(".ccr-tbtn").forEach(b => b.classList.toggle("active", b.dataset.view === ccrView));
+  document.getElementById("ccr-view-plot").style.display = ccrView === "plot" ? "" : "none";
+  document.getElementById("ccr-view-bars").style.display = ccrView === "bars" ? "" : "none";
+  buildCcrQuarterPills();
+  if (ccrView === "bars") {
+    document.getElementById("ccr-tables").innerHTML = "";
+    renderCcrBars();
+    return;
+  }
+
+  const rows = ACCOUNTS.filter(a => ccrInCohort(a) && paInView(a) && ccrInQuarters(a))
+                       .sort((x, y) => (covNum(y.arr_raw) || 0) - (covNum(x.arr_raw) || 0) || x.name.localeCompare(y.name));
+  const s1 = rows.filter(a => ccrStage(a) === "S1"), s2 = rows.filter(a => ccrStage(a) === "S2");
+  const other = rows.filter(a => ccrStage(a) === "other");
+  const blackInView = ACCOUNTS.filter(a => paInView(a) && ccrInQuarters(a) && hasProduct(a) && ratingColour(a.product_rating) === "black");
+  const noTenure = blackInView.filter(a => covNum(a.months_as_customer) === null).length;
+
+  const mos = rows.map(a => covNum(a.months_as_customer)).sort((x, y) => x - y);
+  const med = !mos.length ? null : mos.length % 2 ? mos[(mos.length - 1) / 2]
+            : Math.round((mos[mos.length / 2 - 1] + mos[mos.length / 2]) / 2);
+
+  document.getElementById("ccr-title").textContent =
+    rows.length + (rows.length === 1 ? " customer" : " customers") + " past " + CCR_MIN_MONTHS +
+    " months still rated Black: Critical Churn Risk";
+  document.getElementById("ccr-sub").innerHTML = ccrContext() +
+    " &middot; low product adoption and consumption under " + Math.round(PA_CFG.ratioMinimal * 100) + "%";
+  document.getElementById("ccr-stats").innerHTML =
+    ccrKpi("Accounts", rows.length, "of " + blackInView.length + " rated Black") +
+    ccrKpi("ARR at Risk", ccrUsd(ccrArr(rows)), "contract ARR") +
+    ccrKpi("S1 &middot; Install", s1.length, ccrUsd(ccrArr(s1)) + " ARR") +
+    ccrKpi("S2 &middot; MVP", s2.length, ccrUsd(ccrArr(s2)) + " ARR") +
+    ccrKpi("Median Tenure", med === null ? "\\u2014" : med + " mo", "months as a customer");
+
+  ccrPlot(rows);
+
+  const dash = `<span class="em-dash">\\u2014</span>`;
+  const table = (key, title, list) => {
+    const head = `<div class="ccr-thead"><span class="ccr-badge">${key}</span><span class="ccr-ttitle">${title}</span>` +
+      `<span class="ccr-tmeta"><b>${list.length}</b> ${list.length === 1 ? "account" : "accounts"} &middot; <b>${ccrUsd(ccrArr(list))}</b> ARR</span></div>`;
+    if (!list.length) return `<div>${head}<p class="ccr-empty">No ${key} accounts in view.</p></div>`;
+    const body = list.map(a => {
+      const ratio = covNum(a.consumption_ratio_raw);
+      const ren = ccrNextRenewal(a);
+      return `<tr onclick="goToAccount(${esc(JSON.stringify(a.name))})">
+        <td><span class="acct-link">${esc(a.name)}</span></td>
+        <td class="num"><span class="ccr-mo">${covNum(a.months_as_customer)} mo</span></td>
+        <td>${adoptBlank(a.customer_since) ? dash : esc(a.customer_since)}</td>
+        <td class="num">${adoptBlank(a.arr) ? dash : esc(a.arr)}</td>
+        <td class="num">${ratio === null ? dash : Math.round(ratio * 1000) / 10 + "%"}</td>
+        <td class="num">${a.product_adoption}<span class="pa-of"> / ${PA_CFG.scoreMax}</span></td>
+        <td>${ren ? esc(ren) : dash}</td>
+        <td>${adoptBlank(a.csm) ? dash : esc(a.csm)}</td>
+        <td>${adoptBlank(a.region) ? dash : esc(a.region)}</td>
+      </tr>`;
+    }).join("");
+    return `<div>${head}<table class="flat-table ccr-table"><thead><tr>
+      <th>Account</th><th class="num">Tenure</th><th>Customer Since</th><th class="num">ARR</th>
+      <th class="num">Consumption</th><th class="num">Product Adoption</th><th>Next Renewal</th><th>CSM</th><th>Region</th>
+      </tr></thead><tbody>${body}</tbody></table></div>`;
+  };
+
+  const notes = [];
+  if (other.length) notes.push(`Plotted but not tabled (other lifecycle stage): ` +
+    other.map(a => esc(a.name) + " (" + (adoptBlank(a.lifecycle_stage) ? "no stage" : esc(a.lifecycle_stage)) + ")").join(", ") + ".");
+  if (noTenure) notes.push(`${noTenure} Black ${noTenure === 1 ? "account has" : "accounts have"} no contract start date in the tenure report and ${noTenure === 1 ? "is" : "are"} not shown.`);
+  notes.push(`Tenure is whole months since the earliest contract start date. Shown: product adoption rated Black and more than ${CCR_MIN_MONTHS} months as a customer.`);
+
+  document.getElementById("ccr-tables").innerHTML =
+    table("S1", "Installation and Config.", s1) +
+    table("S2", "MVP in prod, use case pipelining", s2) +
+    `<div class="ccr-foot">${notes.join("<br>")}</div>`;
+}
+
+function ccrPlot(rows) {
+  const svg = document.getElementById("ccr-plot");
+  svg.textContent = "";
+  const xMax = PA_CFG.ratioMinimal, yMax = PA_CFG.adoptionMin;
+
+  // The Black cell is the whole plot.
+  svg.appendChild(svgEl("rect", { x: CCR_M.left, y: CCR_M.top, width: CCR_PW, height: CCR_PH,
+                                  fill: PBAC_COLOURS.black.bg, stroke: "#B8B8B8", "stroke-width": 1 }));
+  const xTicks = [0, 0.05, 0.10, 0.15, 0.20, 0.25].filter(v => v <= xMax + 1e-9);
+  xTicks.forEach(v => {
+    if (v > 0 && v < xMax) svg.appendChild(svgEl("line", { x1: ccrX(v), y1: CCR_M.top, x2: ccrX(v), y2: CCR_M.top + CCR_PH,
+                                                          stroke: "#FFFFFF", "stroke-width": 1 }));
+    svg.appendChild(svgEl("text", { x: ccrX(v), y: CCR_M.top + CCR_PH + 18, class: "ccr-axis", "text-anchor": "middle" }, v.toFixed(2)));
+  });
+  for (let s = 0; s <= yMax; s++) {
+    if (s > 0 && s < yMax) svg.appendChild(svgEl("line", { x1: CCR_M.left, y1: ccrY(s), x2: CCR_M.left + CCR_PW, y2: ccrY(s),
+                                                          stroke: "#FFFFFF", "stroke-width": 1 }));
+    svg.appendChild(svgEl("text", { x: CCR_M.left - 10, y: ccrY(s) + 4, class: "ccr-axis", "text-anchor": "end" }, s));
+  }
+  svg.appendChild(svgEl("text", { x: CCR_M.left + CCR_PW / 2, y: CCR_H - 12, class: "ccr-axis-title", "text-anchor": "middle" },
+                        "CONSUMPTION RATIO (REGISTERED \\u00F7 LICENSED USERS)"));
+  const yT = svgEl("text", { x: 16, y: CCR_M.top + CCR_PH / 2, class: "ccr-axis-title", "text-anchor": "middle" },
+                   "PRODUCT ADOPTION SCORE");
+  yT.setAttribute("transform", "rotate(-90 16 " + (CCR_M.top + CCR_PH / 2) + ")");
+  svg.appendChild(yT);
+
+  if (!rows.length) {
+    svg.appendChild(svgEl("text", { x: CCR_M.left + CCR_PW / 2, y: CCR_M.top + CCR_PH / 2, class: "ccr-axis-title",
+                                    "text-anchor": "middle" }, "NO ACCOUNTS IN VIEW"));
+    return;
+  }
+
+  // Points. Radius on sqrt(ARR) like the overview, scaled up since the plot
+  // holds a handful of accounts rather than the whole book.
+  const R_MIN = 5, R_MAX = 12;
+  const roots = rows.map(a => Math.sqrt(Math.max(0, covNum(a.arr_raw) || 0)));
+  const rLo = Math.min.apply(null, roots), rHi = Math.max.apply(null, roots);
+  const step = CCR_PH / yMax;
+  const nodes = rows.map((a, i) => {
+    const ratio = covNum(a.consumption_ratio_raw);
+    const known = ratio !== null;
+    const r  = rHi > rLo ? R_MIN + (roots[i] - rLo) / (rHi - rLo) * (R_MAX - R_MIN) : (R_MIN + R_MAX) / 2;
+    // Unknown ratios sit at zero by convention; spread them along the left
+    // edge so they do not stack (their x is a placeholder anyway).
+    const jx = known ? (pbacSeed(a.name) - 0.5) * 10 : pbacSeed(a.name) * 34;
+    const jy = (pbacSeed(a.name + "y") - 0.5) * step * 0.5;
+    return { a, r, known,
+      cx: Math.max(CCR_M.left + r + 2, Math.min(CCR_M.left + CCR_PW - r - 2, ccrX(known ? ratio : 0) + jx)),
+      cy: Math.max(CCR_M.top + r + 2, Math.min(CCR_M.top + CCR_PH - r - 2, ccrY(covNum(a.product_adoption)) + jy)) };
+  });
+
+  const gLead = svgEl("g", {}), gPts = svgEl("g", {}), gLbl = svgEl("g", {});
+  svg.appendChild(gLead); svg.appendChild(gPts); svg.appendChild(gLbl);
+
+  nodes.forEach(n => {
+    const g = svgEl("g", { class: "ccr-pt" });
+    const base = { fill: "#111111", stroke: "#FFFFFF", "stroke-width": 1.8, class: "ccr-mark" };
+    const side = n.r * 1.772;   // square with the same area as the dot
+    const m = isInstallStage(n.a)
+      ? svgEl("rect", Object.assign({ x: n.cx - side / 2, y: n.cy - side / 2, width: side, height: side, rx: 1.5 }, base))
+      : svgEl("circle", Object.assign({ cx: n.cx, cy: n.cy, r: n.r }, base));
+    if (!n.known) { m.setAttribute("fill-opacity", ".4"); m.setAttribute("stroke", "#111111"); m.setAttribute("stroke-dasharray", "2 2"); }
+    const ratio = covNum(n.a.consumption_ratio_raw);
+    g.appendChild(svgEl("title", {}, n.a.name + " \\u2014 " + covNum(n.a.months_as_customer) + " months as a customer" +
+      (adoptBlank(n.a.customer_since) ? "" : " (since " + n.a.customer_since + ")") +
+      ", ratio " + (ratio === null ? "n/a" : Math.round(ratio * 1000) / 10 + "%") +
+      ", score " + n.a.product_adoption + " / " + PA_CFG.scoreMax + ", " + n.a.arr + " ARR"));
+    g.appendChild(m);
+    g.addEventListener("click", () => goToAccount(n.a.name));
+    gPts.appendChild(g);
+  });
+
+  // Labels: name + months pill at the bottom right of each point. Greedy, top
+  // to bottom; a label that would collide takes the cheapest free slot nearby
+  // (right/down first, then up, then the left side) with a leader line back.
+  const boxes = nodes.map(n => ({ x: n.cx - n.r - 2, y: n.cy - n.r - 2, w: 2 * n.r + 4, h: 2 * n.r + 4 }));
+  const hits = (p, q) => p.x < q.x + q.w && q.x < p.x + p.w && p.y < q.y + q.h && q.y < p.y + p.h;
+  const LH = 18;
+  nodes.map((n, i) => i).sort((i, j) => (nodes[i].cy - nodes[j].cy) || (nodes[i].cx - nodes[j].cx)).forEach(i => {
+    const n = nodes[i];
+    const g = svgEl("g", { class: "ccr-lbl" });
+    const name = svgEl("text", { x: 0, y: 13, class: "ccr-lbl-name" }, n.a.name);
+    g.appendChild(name); gLbl.appendChild(g);
+    const nw = name.getComputedTextLength();
+    const mo = svgEl("text", { x: 0, y: 12.5, class: "ccr-lbl-mo", "text-anchor": "middle" }, covNum(n.a.months_as_customer) + " mo");
+    g.appendChild(mo);
+    const mw = mo.getComputedTextLength() + 14;
+    g.insertBefore(svgEl("rect", { x: nw + 6, y: 2, width: mw, height: 15, rx: 7.5, fill: "#0D0D0D" }), mo);
+    mo.setAttribute("x", nw + 6 + mw / 2);
+    const w = nw + 6 + mw + 2, h = LH;
+
+    const ax = n.cx + n.r * 0.7 + 3, ay = Math.min(n.cy + n.r * 0.7 - 2, CCR_M.top + CCR_PH - h - 3);
+    let best = null;
+    for (const dir of [1, -1]) {
+      for (let dy = -10 * LH; dy <= 6 * LH; dy += LH / 2) {
+        const y = ay + dy;
+        if (y < CCR_M.top + 3 || y + h > CCR_M.top + CCR_PH - 3) continue;
+        for (let dx = 0; dx < 600; dx += 6) {
+          const x = dir > 0 ? ax + dx : n.cx - n.r * 0.7 - 3 - w - dx;
+          if (x < CCR_M.left + 3 || x + w > CCR_M.left + CCR_PW - 3) break;
+          const cost = dx + (dy < 0 ? 3.2 : 2) * Math.abs(dy) + (dir > 0 ? 0 : 60);
+          if (best && cost >= best.cost) break;
+          const box = { x: x, y: y, w: w, h: h };
+          if (!boxes.some(b => hits(box, b))) { best = { box, cost, moved: dx > 8 || dy !== 0 || dir < 0 }; break; }
+        }
+      }
+    }
+    if (!best) best = { box: { x: ax, y: ay, w: w, h: h }, cost: 0, moved: false };
+    boxes.push(best.box);
+    g.setAttribute("transform", "translate(" + best.box.x + "," + best.box.y + ")");
+    g.addEventListener("click", () => goToAccount(n.a.name));
+    if (best.moved) {
+      const ex = best.box.x > n.cx ? best.box.x - 2 : best.box.x + w + 2;
+      gLead.appendChild(svgEl("path", { class: "ccr-leader", d: "M" + n.cx + "," + n.cy + " L" + ex + "," + (best.box.y + h / 2) }));
+    }
+  });
+}
+
+// ── Critical churn risk: renewal ARR by churn quarter ──────────────────────
+// Every Black and Red account in view (no tenure filter: this is the whole
+// exposure), each open renewal counted in its Churn Quarter at its renewal
+// Amount (falling back to contract ARR when the opportunity has no amount).
+// Stacked by product adoption rating so the adoption story is the colour.
+const CCR_SEGS = [
+  { key: "black",           label: "Black: Critical Churn Risk",        fill: "#111111", ink: "#FFFFFF" },
+  { key: "red_adoption",    label: "Red: High Risk \\u2013 Adoption",    fill: "#DC2626", ink: "#FFFFFF" },
+  { key: "red_consumption", label: "Red: High Risk \\u2013 Consumption", fill: "#FCA5A5", ink: "#7F1D1D" }
+];
+const CCR_NO_Q = "No churn quarter";
+
+function ccrSeg(a) {
+  const c = ratingColour(a.product_rating);
+  if (c === "black") return "black";
+  if (c !== "red") return null;
+  return String(a.product_rating).toLowerCase().includes("consumption") ? "red_consumption" : "red_adoption";
+}
+
+function ccrNiceMax(v) {
+  if (v <= 0) return 1;
+  const p = Math.pow(10, Math.floor(Math.log10(v)));
+  const m = v / p;
+  return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10) * p;
+}
+
+// Fiscal quarter n quarters after q ("Q3-2027", 1 -> "Q4-2027").
+function ccrQuarterAdd(q, n) {
+  const k = saasQuarterKey(q);
+  if (!isFinite(k)) return q;
+  const idx = Math.floor(k / 10) * 4 + (k % 10 - 1) + n;
+  return "Q" + (idx % 4 + 1) + "-" + Math.floor(idx / 4);
+}
+
+// The chart window: the current fiscal quarter and the three after it.
+function ccrWindow() {
+  const cur = currentFiscalQuarter();
+  return [0, 1, 2, 3].map(n => ccrQuarterAdd(cur, n));
+}
+
+// Table under the bars: one row per renewal in the window. Sortable; quarter
+// and rating sort on their natural order, not their text.
+let ccrBarSort = { col: "quarter", dir: 1 };
+const CCR_SEG_RANK = { black: 1, red_adoption: 2, red_consumption: 3 };
+function sortCcrBars(col) {
+  ccrBarSort = ccrBarSort.col === col ? { col: col, dir: -ccrBarSort.dir }
+             : { col: col, dir: ["arr", "score", "ratio"].includes(col) ? -1 : 1 };
+  renderCcrBars();
+}
+
+function renderCcrBars() {
+  const picked = ccrQuarters.size > 0;
+  const win = picked ? ccrSortedQuarters([...ccrQuarters]) : ccrWindow();
+  const accts = ACCOUNTS.filter(a => paInView(a) && hasProduct(a) && ccrSeg(a));
+  const byQ = {};
+  win.forEach(q => { byQ[q] = { q: q, total: 0, accts: new Set(), black: 0, red_adoption: 0, red_consumption: 0 }; });
+  const tRows = [];
+  accts.forEach(a => {
+    const seg = ccrSeg(a);
+    (a.renewals || []).forEach(r => {
+      const q = adoptBlank(r.churn_quarter) ? CCR_NO_Q : String(r.churn_quarter).trim();
+      if (!byQ[q]) return;   // outside the selected / default quarters
+      const amt = covNum(r.amount_raw) !== null ? covNum(r.amount_raw) : (covNum(a.arr_raw) || 0);
+      byQ[q][seg] += amt;
+      byQ[q].total += amt;
+      byQ[q].accts.add(a.name);
+      tRows.push({ a: a, r: r, q: q, seg: seg, amt: amt });
+    });
+  });
+  const qs = win.map(q => byQ[q]);
+  const sum = k => qs.reduce((s, d) => s + d[k], 0);
+  const total = sum("total");
+  const nAccts = new Set(tRows.map(t => t.a.name)).size;
+
+  document.getElementById("ccr-title").textContent =
+    ccrUsd(total) + " of renewal ARR " +
+    (picked ? "in " + (win.length === 1 ? win[0] : win.length + " selected quarters") : "in the next four quarters") +
+    " sits with Black and Red adoption accounts";
+  document.getElementById("ccr-sub").innerHTML = ccrContext() +
+    (picked ? "" : " &middot; " + win[0] + " to " + win[win.length - 1]) +
+    " &middot; open renewals stacked by product adoption rating";
+  const top = qs.reduce((b, d) => (!b || d.total > b.total ? d : b), null);
+  document.getElementById("ccr-stats").innerHTML =
+    ccrKpi("Renewal ARR at Risk", ccrUsd(total), nAccts + " Black / Red accounts") +
+    ccrKpi("Black", ccrUsd(sum("black")), "critical churn risk") +
+    ccrKpi("Red \\u2013 Adoption", ccrUsd(sum("red_adoption")), "low adoption score") +
+    ccrKpi("Red \\u2013 Consumption", ccrUsd(sum("red_consumption")), "low seat consumption") +
+    ccrKpi("Peak Quarter", top ? esc(top.q) : "\\u2014", top ? ccrUsd(top.total) + " up for renewal" : "");
+
+  document.getElementById("ccr-bars-legend").innerHTML =
+    CCR_SEGS.map(s => `<span class="ccr-key"><svg viewBox="0 0 16 14"><rect x="2" y="2" width="12" height="10" rx="2" fill="${s.fill}"/></svg> ${s.label}</span>`).join("") +
+    `<span class="ccr-key">ARR = renewal opportunity amount (contract ARR where blank)</span>`;
+
+  ccrBarTable(tRows);
+
+  const svg = document.getElementById("ccr-bars");
+  svg.textContent = "";
+  const M = { top: 34, right: 16, bottom: 56, left: 70 };
+  const PW = CCR_W - M.left - M.right, PH = CCR_H - M.top - M.bottom;
+  if (total <= 0) {
+    svg.appendChild(svgEl("text", { x: CCR_W / 2, y: CCR_H / 2, class: "ccr-axis-title", "text-anchor": "middle" },
+                          "NO OPEN RENEWALS FOR BLACK OR RED ACCOUNTS IN VIEW"));
+    return;
+  }
+  const yMax = ccrNiceMax(Math.max.apply(null, qs.map(d => d.total)) * 1.08);
+  const Yb = v => M.top + PH - v / yMax * PH;
+  for (let i = 0; i <= 5; i++) {
+    const v = yMax * i / 5;
+    svg.appendChild(svgEl("line", { x1: M.left, y1: Yb(v), x2: M.left + PW, y2: Yb(v),
+                                    stroke: i === 0 ? "#B8B8B8" : "#ECECEC", "stroke-width": 1 }));
+    svg.appendChild(svgEl("text", { x: M.left - 10, y: Yb(v) + 4, class: "ccr-axis", "text-anchor": "end" }, ccrUsd(v)));
+  }
+  const yT = svgEl("text", { x: 16, y: M.top + PH / 2, class: "ccr-axis-title", "text-anchor": "middle" }, "RENEWAL ARR");
+  yT.setAttribute("transform", "rotate(-90 16 " + (M.top + PH / 2) + ")");
+  svg.appendChild(yT);
+
+  const band = PW / qs.length, bw = Math.min(84, band * 0.62);
+  qs.forEach((d, i) => {
+    const x = M.left + band * i + (band - bw) / 2;
+    let base = 0;
+    CCR_SEGS.forEach(s => {
+      const v = d[s.key];
+      if (v <= 0) return;
+      const y1 = Yb(base + v), y0 = Yb(base);
+      const rect = svgEl("rect", { x: x, y: y1, width: bw, height: Math.max(0, y0 - y1), fill: s.fill });
+      rect.appendChild(svgEl("title", {}, d.q + " \\u2014 " + s.label.replace("\\u2013", "-") + ": " + ccrUsd(v)));
+      svg.appendChild(rect);
+      if (y0 - y1 >= 17) svg.appendChild(svgEl("text", { x: x + bw / 2, y: (y0 + y1) / 2 + 4, class: "ccr-seg-val",
+                                                          fill: s.ink, "text-anchor": "middle" }, ccrUsd(v)));
+      base += v;
+    });
+    svg.appendChild(svgEl("text", { x: x + bw / 2, y: Yb(d.total) - 8, class: "ccr-bar-val", "text-anchor": "middle" }, ccrUsd(d.total)));
+    svg.appendChild(svgEl("text", { x: x + bw / 2, y: M.top + PH + 18, class: "ccr-axis", "text-anchor": "middle",
+                                    "font-weight": "700", fill: "#111111" }, d.q));
+    svg.appendChild(svgEl("text", { x: x + bw / 2, y: M.top + PH + 33, class: "ccr-bar-n", "text-anchor": "middle" },
+                          d.accts.size + (d.accts.size === 1 ? " account" : " accounts")));
+  });
+}
+
+// Every renewal behind the bars, one row each, below the brief card.
+function ccrBarTable(tRows) {
+  const el = document.getElementById("ccr-tables");
+  const dash = `<span class="em-dash">\\u2014</span>`;
+  const segOf = k => CCR_SEGS.find(s => s.key === k);
+  const cols = [
+    { key: "name",    label: "Account",          val: t => t.a.name.toLowerCase() },
+    { key: "quarter", label: "Churn Quarter",    val: t => saasQuarterKey(t.q) },
+    { key: "rating",  label: "Adoption Rating",  val: t => CCR_SEG_RANK[t.seg] },
+    { key: "arr",     label: "Renewal ARR",      val: t => t.amt, num: true },
+    { key: "end",     label: "Contract End",     val: t => t.r.end_date_raw || "" },
+    { key: "ratio",   label: "Consumption",      val: t => covNum(t.a.consumption_ratio_raw), num: true },
+    { key: "score",   label: "Product Adoption", val: t => covNum(t.a.product_adoption), num: true },
+    { key: "csm",     label: "CSM",              val: t => String(t.a.csm || "").toLowerCase() },
+    { key: "region",  label: "Region",           val: t => String(t.a.region || "").toLowerCase() }
+  ];
+  const col = cols.find(c => c.key === ccrBarSort.col) || cols[1];
+  // Ties fall back to quarter, then rating, then ARR (largest first), so a
+  // sort on either key keeps the other in a sensible order.
+  const tie = (x, y) => (saasQuarterKey(x.q) - saasQuarterKey(y.q)) ||
+                        (CCR_SEG_RANK[x.seg] - CCR_SEG_RANK[y.seg]) || (y.amt - x.amt) ||
+                        x.a.name.localeCompare(y.a.name);
+  const rows = tRows.slice().sort((x, y) => {
+    const xv = col.val(x), yv = col.val(y);
+    const xb = xv === null || xv === "", yb = yv === null || yv === "";
+    if (xb !== yb) return xb ? 1 : -1;
+    const d = typeof xv === "number" && typeof yv === "number" ? xv - yv : String(xv).localeCompare(String(yv));
+    return d * ccrBarSort.dir || tie(x, y);
+  });
+
+  const total = rows.reduce((s, t) => s + t.amt, 0);
+  const head = `<div class="ccr-thead"><span class="ccr-ttitle">Accounts in the chart</span>` +
+    `<span class="ccr-tmeta"><b>${new Set(rows.map(t => t.a.name)).size}</b> accounts &middot; ` +
+    `<b>${rows.length}</b> ${rows.length === 1 ? "renewal" : "renewals"} &middot; <b>${ccrUsd(total)}</b> ARR</span></div>`;
+  if (!rows.length) {
+    el.innerHTML = `<div>${head}<p class="ccr-empty">No open renewals for Black or Red accounts in these quarters.</p></div>`;
+    return;
+  }
+  const hdr = cols.map(c => {
+    const arrow = ccrBarSort.col === c.key ? (ccrBarSort.dir === 1 ? " \\u2191" : " \\u2193") : "";
+    return `<th class="${c.num ? "num" : ""}" onclick="sortCcrBars(${esc(JSON.stringify(c.key))})">${c.label}${arrow}</th>`;
+  }).join("");
+  const body = rows.map(t => {
+    const s = segOf(t.seg), ratio = covNum(t.a.consumption_ratio_raw);
+    return `<tr onclick="goToAccount(${esc(JSON.stringify(t.a.name))})">
+      <td><span class="acct-link">${esc(t.a.name)}</span></td>
+      <td><b>${esc(t.q)}</b></td>
+      <td><span class="ccr-rating"><span class="ccr-swatch" style="background:${s.fill}"></span>${s.label}</span></td>
+      <td class="num">${ccrUsd(t.amt)}</td>
+      <td>${adoptBlank(t.r.end_date) ? dash : esc(t.r.end_date)}</td>
+      <td class="num">${ratio === null ? dash : Math.round(ratio * 1000) / 10 + "%"}</td>
+      <td class="num">${t.a.product_adoption}<span class="pa-of"> / ${PA_CFG.scoreMax}</span></td>
+      <td>${adoptBlank(t.a.csm) ? dash : esc(t.a.csm)}</td>
+      <td>${adoptBlank(t.a.region) ? dash : esc(t.a.region)}</td>
+    </tr>`;
+  }).join("");
+  el.innerHTML = `<div>${head}<table class="flat-table ccr-table ccr-sortable"><thead><tr>${hdr}</tr></thead><tbody>${body}</tbody></table></div>`;
+}
+
+{{AGX_JS}}
+
 // ── Product adoption: scatter of the two axes the rating is built from ─────
 // Consumption ratio on x, product adoption (PBAC complexity + Request points)
 // on y, with the rating grid shaded behind. The bands are computed from
@@ -3128,8 +4067,8 @@ function renderAdoption() {
 //
 // PBAC_CFG stays for the PBAC-only mini plot on each account card.
 const PBAC_CFG = { ratioMax: 1.25, scoreMax: 7, ratioMinimal: 0.25, ratioModerate: 0.75, complexityMin: 4 };
-const PA_CFG   = { ratioMax: 1.25, scoreMax: 10, ratioMinimal: 0.25, ratioModerate: 0.75, adoptionMin: 4,
-                   requestRetained: 3, requestAdopted: 1 };
+const PA_CFG   = { ratioMax: 1.25, scoreMax: 12, ratioMinimal: 0.25, ratioModerate: 0.75, adoptionMin: 4,
+                   requestRetained: 3, requestAdopted: 1, complyMax: 2 };
 const PBAC_COLOURS = {
   black: { dot: "#111111", bg: "#ECECEC", ink: "#374151" },
   red:   { dot: "#EF4444", bg: "#FEE2E2", ink: "#991B1B" },
@@ -3403,6 +4342,7 @@ function pbacSide() {
   const pinned = known && ratio > PA_CFG.ratioMax;
   const none   = `<span class="ov-adopt-none">None</span>`;
   const reqPts = covNum(a.request_points) || 0;
+  const cmpPts = covNum(a.comply_points) || 0;
   const stage  = covRequestStage(a);
   const badge  = fmtStoplightAs(a.product_rating, pbacFullLabel(a.product_rating), a.product_rating);
 
@@ -3416,6 +4356,7 @@ function pbacSide() {
       `<div class="ps-kv"><span>Score</span><span>${a.product_adoption} / ${PA_CFG.scoreMax}</span></div>` +
       `<div class="ps-kv"><span>PBAC complexity</span><span>${a.pbac_score} / ${PBAC_CFG.scoreMax}</span></div>` +
       `<div class="ps-kv"><span>Request${stage ? " (" + esc(adoptCap(stage)) + ")" : ""}</span><span>+${reqPts}</span></div>` +
+      `<div class="ps-kv"><span>Comply</span><span>+${cmpPts}</span></div>` +
     `</div>` +
 
     `<div class="ps-block"><div class="ps-h">Consumption</div>` +
@@ -3444,7 +4385,7 @@ let paSort = { col: "product_adoption", dir: -1 };
 
 function sortPa(col) {
   // Numbers and ratings read best high-to-low first; text reads A-Z first.
-  const numericFirst = ["product_adoption", "product_rating", "arr_raw", "consumption_ratio_raw",
+  const numericFirst = ["product_adoption", "product_rating", "arr_raw", "months_as_customer", "consumption_ratio_raw",
                         "pbac_score", "request_points", "comply_adoption", "agentic_governance_adoption"];
   paSort = paSort.col === col ? { col: col, dir: -paSort.dir }
                               : { col: col, dir: numericFirst.includes(col) ? -1 : 1 };
@@ -3487,6 +4428,9 @@ function renderProductTable() {
     ["csm",    "CSM",    a => txt(a.csm)],
     ["region", "Region", a => txt(a.region)],
     ["arr_raw", "ARR", a => `<span class="pa-num">${txt(a.arr)}</span>`, a => covNum(a.arr_raw)],
+    ["months_as_customer", "Months as Customer", a => covNum(a.months_as_customer) === null ? dash
+        : `<span class="pa-num" title="Customer since ${esc(a.customer_since)}">${a.months_as_customer}</span>`,
+      a => covNum(a.months_as_customer)],
     ["product_adoption", "Product Adoption", a => hasProduct(a)
         ? `<span class="pa-num pa-score">${a.product_adoption}</span><span class="pa-of"> / ${PA_CFG.scoreMax}</span>` : dash,
       a => covNum(a.product_adoption)],
@@ -3514,7 +4458,7 @@ function renderProductTable() {
     ["lifecycle_stage", "Lifecycle Stage", a => txt(a.lifecycle_stage)]
   ];
 
-  const col = cols.find(c => c[0] === paSort.col) || cols[4];
+  const col = cols.find(c => c[0] === paSort.col) || cols.find(c => c[0] === "product_adoption");
   const key = col[3] || (a => {
     const v = a[col[0]];
     return adoptBlank(v) ? "" : String(v).replace(/<[^>]*>/g, "").toLowerCase();
@@ -3569,15 +4513,18 @@ function productWriteupHtml() {
     <p>Seat usage on its own is a poor read on adoption. An account can log in constantly and still run one trivial policy on one platform; another can have modest login numbers while governing three platforms with guardrails and discovery in place, and running access requests through Immuta. The rating scores each account on two independent axes and crosses the result \\u2014 <b>product adoption</b> (how much the account asks of the product) against <b>consumption</b> (how much of what they bought they use).</p>
 
     <h3>Product adoption score</h3>
-    <p>The score runs 0\\u2013${PA_CFG.scoreMax} and is the sum of two parts: the PBAC complexity score (0\\u2013${PBAC_CFG.scoreMax}) and Request adoption points (0\\u2013${PA_CFG.requestRetained}).</p>
+    <p>The score runs 0\\u2013${PA_CFG.scoreMax} and is the sum of three parts: the PBAC complexity score (0\\u2013${PBAC_CFG.scoreMax}), Request adoption points (0\\u2013${PA_CFG.requestRetained}) and Comply points (0\\u2013${PA_CFG.complyMax}).</p>
 
     <h3>1. PBAC complexity (0\\u2013${PBAC_CFG.scoreMax})</h3>
     <p>Five yes/no signals from the Looker consumption looks and the Domains dashboard. Multi-platform is worth three because running policy across two or more platforms is the qualitative jump; the rest are worth one each. Policy signals count Production instances only \\u2014 a guardrail on a dev instance is not production complexity.</p>
     <table class="pbac-weights"><tbody>${pbacWeights}</tbody></table>
 
     <h3>2. Request adoption (0\\u2013${PA_CFG.requestRetained})</h3>
-    <p>Points for the account Request stage. The stage comes from the Looker Request metrics dashboard (1009) where the account appears on it, and from the Salesforce Request Adoption picklist otherwise (green = retained, amber = adopted). Retained carries the same weight as multi-platform: a request workflow people use week after week is as strong a signal as governing a second platform.</p>
+    <p>Points for the account Request stage. The stage comes from the Looker Request metrics dashboard (1009); an account on none of its stage tiles is None. Retained carries the same weight as multi-platform: a request workflow people use week after week is as strong a signal as governing a second platform.</p>
     <table class="pbac-weights"><tbody>${requestWeights}</tbody></table>
+
+    <h3>3. Comply (0\\u2013${PA_CFG.complyMax})</h3>
+    <p>One point each for <code>access_summary_export</code> and <code>comply_enabled</code> in the account Features List (Looker look 1814, Production instances). <code>comply_enabled</code> rates Comply Amber; <code>access_summary_export</code> alone rates it Red; neither is Black.</p>
 
     <p>The threshold for <b>high adoption</b> is ${PA_CFG.adoptionMin}. Routes past it include multi-platform plus any one other PBAC signal or an adopted Request workflow (3 + 1), a retained Request workflow plus any one PBAC signal (3 + 1), or all four single-weight PBAC signals. Multi-platform alone, or a retained Request workflow alone, scores 3 and does not clear it.</p>
 
@@ -4337,7 +5284,86 @@ function renderExpansions() {
     : `<table class="flat-table"><thead><tr>${headers}</tr></thead><tbody>${bodyRows}</tbody></table>`;
 }
 
+// ── New logos render ───────────────────────────────────────────────────────
+// Rows come from NEW_LOGOS_DATA (op_list$new_logos), not ACCOUNTS: these are
+// prospects, so there is no account card to jump to and no CSM to filter on.
+// Region and the search box apply; the CSM pills are not shown here.
+function renderNewLogos() {
+  const q = searchTerm.toLowerCase();
+  const region = activeRegion;
+
+  let rows = ALL_NEW_LOGOS.filter(n =>
+    (region === "all" || n.region === region) &&
+    (!q || String(n.account || "").toLowerCase().includes(q) ||
+           String(n.name || "").toLowerCase().includes(q))
+  );
+
+  rows = rows.slice().sort((a, b) => {
+    let av = a[newLogoSort.col] || "", bv = b[newLogoSort.col] || "";
+    if (newLogoSort.col === "amount_raw") { av = +av || 0; bv = +bv || 0; }
+    return newLogoSort.dir * (av < bv ? -1 : av > bv ? 1 : 0);
+  });
+
+  const total   = rows.reduce((s, n) => s + (+n.amount_raw || 0), 0);
+  const acctSet = new Set(rows.map(n => n.account));
+  document.getElementById("new-logo-stats").innerHTML = `
+    <div class="stat-item"><div class="stat-label">Open New Logos</div><div class="stat-value">${rows.length}</div></div>
+    <div class="stat-item"><div class="stat-label">Pipeline Value</div><div class="stat-value">${fmtUsd(total)}</div></div>
+    <div class="stat-item"><div class="stat-label">Prospects</div><div class="stat-value">${acctSet.size}</div></div>`;
+  setCount("sub-count-new_logos", rows.length);
+  document.getElementById("count-badge").textContent = rows.length + " new logo" + (rows.length !== 1 ? "s" : "");
+
+  buildFlatPills("new-logo-filters", "new_logo");
+
+  const cols = [
+    { key: "account",        label: "Account" },
+    { key: "name",           label: "Opportunity" },
+    { key: "owner",          label: "Owner" },
+    { key: "amount_raw",     label: "Amount" },
+    { key: "stage",          label: "Stage" },
+    { key: "probability",    label: "Probability" },
+    { key: "fiscal_period",  label: "Fiscal Period" },
+    { key: "close_date_raw", label: "Close Date" },
+    { key: "next_steps",     label: "Next Steps" },
+    { key: "region",         label: "Region" }
+  ];
+  const headers = cols.map(c => {
+    const cls = newLogoSort.col === c.key ? (newLogoSort.dir === 1 ? "sort-asc" : "sort-desc") : "";
+    return `<th class="${cls}" onclick="sortNewLogos(\'${c.key}\')">${c.label}</th>`;
+  }).join("");
+
+  const newLogoRow = n => `<tr>
+    <td>${esc(n.account)}</td>
+    <td>${n.url && n.url !== "—" ? `<a class="opp-link" href="${esc(n.url)}" target="_blank" rel="noopener">${esc(n.name)}</a>` : esc(n.name)}</td>
+    <td>${esc(n.owner)}</td>
+    <td>${esc(n.amount)}</td>
+    <td>${esc(n.stage)}</td>
+    <td>${esc(n.probability)}</td>
+    <td>${esc(n.fiscal_period)}</td>
+    <td>${esc(n.close_date)}</td>
+    <td>${esc(n.next_steps)}</td>
+    <td>${esc(n.region)}</td>
+  </tr>`;
+  // Sorted by Close Date: grouped by fiscal quarter, same as Expansions.
+  const bodyRows = newLogoSort.col === "close_date_raw"
+    ? groupByChurnQuarter(rows, n => expansionQuarter(n), n => n.close_date_raw, newLogoSort.dir)
+        .map(g => cqGroupRow(g, cols.length, "new logo", n => n.amount_raw) +
+                  g.items.map(newLogoRow).join("")).join("")
+    : rows.map(newLogoRow).join("");
+
+  document.getElementById("new-logo-table").innerHTML = rows.length === 0
+    ? (NEW_LOGOS_DATA && NEW_LOGOS_DATA.has_data
+        ? \'<p class="empty-msg" style="padding:24px">No new logo opportunities match the current filter.</p>\'
+        : \'<p class="empty-msg" style="padding:24px">No new logo data in this snapshot \\u2014 re-run the pipeline after adding New Business opportunities to the Salesforce report.</p>\')
+    : `<table class="flat-table"><thead><tr>${headers}</tr></thead><tbody>${bodyRows}</tbody></table>`;
+}
+
 // ── Sort handlers ──────────────────────────────────────────────────────────
+function sortNewLogos(col) {
+  newLogoSort.dir = newLogoSort.col === col ? -newLogoSort.dir : 1;
+  newLogoSort.col = col;
+  renderNewLogos();
+}
 function sortRenewals(col) {
   renewalSort.dir = renewalSort.col === col ? -renewalSort.dir : 1;
   renewalSort.col = col;
@@ -4359,7 +5385,9 @@ function goToAccount(name) {
   document.getElementById("search").value = name;
   render();
   setTimeout(() => {
-    const cards = document.querySelectorAll(".card");
+    // Scoped to the Accounts list: the Coverage and Agentic Engagement Overview tabs keep
+    // their own .card elements in the DOM.
+    const cards = document.querySelectorAll("#account-list .card");
     if (cards.length === 1) { cards[0].classList.add("open"); cards[0].scrollIntoView({ behavior: "smooth", block: "center" }); }
   }, 50);
 }
@@ -4474,10 +5502,13 @@ function renderChanges() {
     buildChangeSection("accounts",      "Accounts",        CHANGES_DATA.accounts,      renderAccountChanges),
     buildChangeSection("renewals",      "Renewals",        CHANGES_DATA.renewals,      renderRenewalChanges),
     buildChangeSection("expansions",    "Expansions",      CHANGES_DATA.expansions,    renderExpansionChanges),
+    buildChangeSection("new_logos",     "New Logos",       CHANGES_DATA.new_logos,     d => renderExpansionChanges(d, false)),
     buildChangeSection("forecast",      "Churn Forecast",  CHANGES_DATA.forecast,      renderForecastChanges),
     buildChangeSection("csm_table",     "CSM Assignments", CHANGES_DATA.csm_table,     renderCSMChanges),
     buildChangeSection("saas_pipeline", "SaaS Pipeline",   CHANGES_DATA.saas_pipeline, renderSaaSChanges),
-    buildChangeSection("escalations",   "Escalations",     CHANGES_DATA.escalations,   renderEscalationChanges)
+    buildChangeSection("escalations",   "Escalations",     CHANGES_DATA.escalations,   renderEscalationChanges),
+    // Same table as the Agentic Engagement Overview\'s "What changed" card (agxChangesHtml()).
+    buildChangeSection("agentic",       "Agentic Engagement", CHANGES_DATA.agentic,    d => agxChangesHtml(d))
   ].join("");
 }
 
@@ -4560,7 +5591,8 @@ function renderAccountChanges(data) {
       ["Field CTO",                "Field CTO"],
       ["Region",                   "Region"],
       ["Adoption Phase",           "Adoption"],
-      ["request_adoption_looker_stage", "Request stage"]
+      ["request_adoption_looker_stage", "Request stage"],
+      ["comply_adoption_looker_stage",  "Comply stage"]
     ].filter(([f]) => fc.some(r => {
       const n = r[f + ".new"], o = r[f + ".old"];
       return (n || o) && n !== o;
@@ -4624,7 +5656,9 @@ function renderRenewalChanges(data) {
   return html;
 }
 
-function renderExpansionChanges(data) {
+// linkAccounts = false for new logos: their accounts are prospects with no card
+// on this page, so the name is shown as plain text rather than a dead link.
+function renderExpansionChanges(data, linkAccounts = true) {
   const addCols = [
     { key: "Opportunity Name",  label: "Opportunity" },
     { key: "Account Name",      label: "Account" },
@@ -4643,7 +5677,7 @@ function renderExpansionChanges(data) {
       const acct = r["Account Name"] || "";
       return `<tr>
         <td>${esc(r["Opportunity Name"] || "")}</td>
-        <td><span class="acct-link" onclick="goToAccount(\'${esc(acct)}\')">${esc(acct)}</span></td>
+        <td>${linkAccounts ? `<span class="acct-link" onclick="goToAccount(\'${esc(acct)}\')">${esc(acct)}</span>` : esc(acct)}</td>
         ${r.amount_changed ? `<td>${chgArrow(r["Amount.old"],        r["Amount.new"])}</td>`        : na}
         ${r.period_changed ? `<td>${chgArrow(r["Fiscal Period.old"], r["Fiscal Period.new"])}</td>` : na}
       </tr>`;
@@ -4931,6 +5965,11 @@ render();
 </body>
 </html>'
 
+  # Agentic Engagement Overview: shared with report_agentic_owner_html()
+  # (R/agentic_overview_assets.R). Literal fill, before the data placeholders.
+  tmpl <- .ao_fill(tmpl, "{{AGX_CSS}}",   .AGX_CSS)
+  tmpl <- .ao_fill(tmpl, "{{AGX_PANEL}}", .AGX_PANEL)
+  tmpl <- .ao_fill(tmpl, "{{AGX_JS}}",    .AGX_JS)
   tmpl <- gsub("{{FAVICON}}",     .rah_favicon_tag(favicon), tmpl, fixed = TRUE)
   tmpl <- gsub("{{UPDATED}}",     html_escape(updated),  tmpl, fixed = TRUE)
   tmpl <- gsub("{{REGION_PILLS}}", region_pills,          tmpl, fixed = TRUE)
@@ -4941,7 +5980,11 @@ render();
   tmpl <- gsub("{{CONSUMPTION}}",  consumption_json,      tmpl, fixed = TRUE)
   tmpl <- gsub("{{SAAS}}",         saas_json,             tmpl, fixed = TRUE)
   tmpl <- gsub("{{ESCALATIONS}}",  escalations_json,      tmpl, fixed = TRUE)
+  tmpl <- gsub("{{NEW_LOGOS}}",    new_logos_json,        tmpl, fixed = TRUE)
+  tmpl <- gsub("{{AGENTIC}}",      agentic_json,          tmpl, fixed = TRUE)
   tmpl <- gsub("{{GUIDE_B64}}",    guide_b64,             tmpl, fixed = TRUE)
+  tmpl <- gsub("{{DOCTRINE_B64}}", doctrine_b64,          tmpl, fixed = TRUE)
+  tmpl <- gsub("{{REPORTING_B64}}", reporting_b64,        tmpl, fixed = TRUE)
   tmpl <- gsub("{{JSON_DATA}}",    json_data,             tmpl, fixed = TRUE)
   tmpl
 }

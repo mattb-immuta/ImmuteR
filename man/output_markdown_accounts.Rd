@@ -2,7 +2,7 @@
 % Please edit documentation in R/output_markdown_accounts.R
 \name{output_markdown_accounts}
 \alias{output_markdown_accounts}
-\title{Generate per-account markdown files for Asana task descriptions.}
+\title{Generate per-account markdown briefs.}
 \usage{
 output_markdown_accounts(op_list, output_dir = "output/account_briefs/")
 }

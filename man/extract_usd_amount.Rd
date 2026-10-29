@@ -7,17 +7,21 @@
 extract_usd_amount(currency_vector)
 }
 \arguments{
-\item{currency_vector}{Character vector of Salesforce currency strings,
-e.g. \code{c("USD 1,250,000", "USD 300,000")}.}
+\item{currency_vector}{Character (or numeric) vector of Salesforce currency
+values, e.g. \code{c("USD 1,250,000.00", "USD 300,000")}.}
 }
 \value{
 Numeric vector of the same length as \code{currency_vector}.
 }
 \description{
-Removes the \code{"USD "} prefix and any comma separators from a character
-vector of currency strings exported by Salesforce, then coerces to numeric.
+Converts Salesforce currency strings such as \code{"USD 792,500.00"} to
+numbers. Removes the \code{"USD"} code, a \code{"$"} sign, commas and
+whitespace. Handles negatives written as \code{"-USD 5"}, \code{"USD -5"} or
+\code{"(USD 5)"}. Salesforce's blank placeholders (\code{"-"}, \code{"—"},
+\code{""}) become \code{NA}, as does anything else that isn't a number. A
+numeric vector is returned unchanged, so it is safe to call twice.
 }
 \examples{
-extract_usd_amount(c("USD 1,250,000", "USD 300,000"))
-# [1] 1250000  300000
+extract_usd_amount(c("USD 1,250,000", "USD 300,000.50", "-", "(USD 10)"))
+# [1] 1250000.0  300000.5        NA      -10.0
 }

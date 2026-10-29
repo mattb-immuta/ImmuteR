@@ -20,7 +20,9 @@
 #' @return A named list with elements:
 #' \describe{
 #'   \item{\code{account}}{name, region, arr, ae, csm, fcto, next_renewal,
-#'     account_url, customer_central_url.}
+#'     months_as_customer (number, \code{NA} if unknown), customer_for
+#'     ("50 months (since Mar 2022)", \code{fmt_tenure()}), account_url,
+#'     customer_central_url.}
 #'   \item{\code{adoption}}{modules (a list of label/status/colour/source
 #'     entries — PBAC and Request rated from Looker, Comply and Agentic from
 #'     the Salesforce picklists, with \code{source} naming which), platforms,
@@ -79,8 +81,8 @@ account_slide_payload <- function(account_name, op_list) {
   } else "No open renewal"
 
   # ── Adoption ───────────────────────────────────────────────────────────────
-  # PBAC and Request are rated from Looker, Comply and Agentic from the
-  # Salesforce picklists — adoption_rows() is shared with
+  # PBAC, Request and Comply are rated from Looker (each falling back to its
+  # picklist), Agentic from Salesforce — adoption_rows() is shared with
   # generate_slide_tile() so the PNG and this feed always agree, including on
   # the fallback when a run had no Looker data.
   #
@@ -155,6 +157,9 @@ account_slide_payload <- function(account_name, op_list) {
       csm                  = .coalesce_chr(a_data[["Customer Success Manager"]], "—"),
       fcto                 = .coalesce_chr(a_data[["Field CTO"]], "—"),
       next_renewal         = next_renewal,
+      months_as_customer   = if (is.null(a_data[["months_as_customer"]])) NA_real_ else
+                               suppressWarnings(as.numeric(a_data[["months_as_customer"]][1])),
+      customer_for         = fmt_tenure(a_data[["months_as_customer"]], a_data[["customer_since"]]),
       account_url          = .coalesce_chr(a_data[["account_url"]], ""),
       customer_central_url = .coalesce_chr(a_data[["customer_central_url"]], "")
     ),

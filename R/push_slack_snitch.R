@@ -1,4 +1,4 @@
-#' Ask CSMs in Slack to update stale Next Steps (and overdue QBR/EBRs)
+#' Ask CSMs in Slack to update stale Next Steps and SaaS migration notes
 #'
 #' Takes the result of \code{\link{report_next_step_snitch}} and posts one
 #' Slack message per flagged account to that account's internal channel
@@ -43,7 +43,9 @@
 #'   issue. Default \code{TRUE}.
 #' @param include_qbr Logical. Also mention an overdue QBR/EBR
 #'   (\code{snitch$no_recent_qbr}), and message accounts that only have that
-#'   issue. Default \code{TRUE}.
+#'   issue. Default \code{FALSE}: messages cover Next Steps and SaaS migration
+#'   notes only. To message QBR/EBR, set \code{TRUE} here and run
+#'   \code{report_next_step_snitch(include_qbr = TRUE)}.
 #' @param accounts Character vector of account names to limit the run to, e.g.
 #'   for a test post. Default \code{NULL} (every flagged account).
 #' @param dry_run Logical. \code{TRUE} (default) previews only; \code{FALSE}
@@ -59,7 +61,8 @@
 #'   \code{interactive()}.
 #'
 #' @return Invisibly, a data frame with one row per flagged account:
-#'   \code{Account Name}, \code{Customer Success Manager}, \code{channel},
+#'   \code{Account Name}, \code{Customer Success Manager}, \code{csm_slack_id},
+#'   \code{channel},
 #'   \code{renewals} (count), \code{saas} (logical), \code{qbr} (logical), \code{status}
 #'   (\code{"dry run"}, \code{"sent"}, \code{"skipped: no channel"} or
 #'   \code{"error: ..."}), \code{ts} (Slack message timestamp when sent) and
@@ -76,7 +79,7 @@
 push_slack_snitch <- function(snitch,
                               op_list,
                               include_saas  = TRUE,
-                              include_qbr   = TRUE,
+                              include_qbr   = FALSE,
                               accounts      = NULL,
                               dry_run       = TRUE,
                               template_path = "data/input/snitch_slack_template.md",
@@ -85,61 +88,18 @@ push_slack_snitch <- function(snitch,
                               token         = Sys.getenv("SLACK_BOT_TOKEN"),
                               confirm       = interactive()) {
 
-  if (!is.list(snitch) || !all(c("next_steps", "no_recent_qbr") %in% names(snitch))) {
-    stop("`snitch` must be the list returned by report_next_step_snitch().")
-  }
-  if (!file.exists(template_path)) stop("Template not found: ", template_path)
-  template <- paste(readLines(template_path, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
-
-  ns  <- snitch$next_steps
-  qbr <- if (isTRUE(include_qbr)) snitch$no_recent_qbr else snitch$no_recent_qbr[0, , drop = FALSE]
-  # saas_notes is absent from a snitch run before that check existed.
-  saas <- snitch$saas_notes
-  if (is.null(saas) || !isTRUE(include_saas)) {
-    saas <- data.frame(`Account Name` = character(0), check.names = FALSE)
-  }
-  as_of <- attr(snitch, "as_of") %||% Sys.Date()
-
-  # Channels: from op_list$accounts, or straight from the CSV for a snapshot
-  # saved before the channel columns existed.
-  accts <- op_list$accounts
-  if (!all(c("slack_channel", "slack_channel_id") %in% names(accts))) {
-    accts <- .accounts_add_slack_channels(accts, op_list_slack_channels())
-  }
-  user_ids <- .slack_user_ids(users_path)
-
-  flagged <- unique(c(as.character(ns$`Account Name`), as.character(saas$`Account Name`),
-                      as.character(qbr$`Account Name`)))
-  if (!is.null(accounts)) flagged <- intersect(flagged, accounts)
-  if (length(flagged) == 0) {
-    message(".. push_slack_snitch: nothing to send")
-    return(invisible(data.frame()))
+  # push_slack_snitch(op_list): build the snitch with defaults rather than fail.
+  if (missing(op_list) && is.list(snitch) && !is.null(snitch$renewals) && is.null(snitch$next_steps)) {
+    op_list <- snitch
+    snitch  <- report_next_step_snitch(op_list, include_qbr = include_qbr)
   }
 
-  rows <- lapply(flagged, function(acct) {
-    r <- ns[ns$`Account Name` == acct, , drop = FALSE]
-    q <- qbr[qbr$`Account Name` == acct, , drop = FALSE]
-    m <- saas[saas$`Account Name` == acct, , drop = FALSE]
-
-    csm <- c(as.character(r$`Customer Success Manager`),
-             as.character(m$`Customer Success Manager`),
-             as.character(q$`Customer Success Manager`))
-    csm <- csm[!is.na(csm) & nzchar(csm)][1]
-
-    a <- accts[trimws(as.character(accts$`Account Name`)) == trimws(acct), , drop = FALSE]
-    ch_id   <- if (nrow(a)) a$slack_channel_id[1] else NA_character_
-    ch_name <- if (nrow(a)) a$slack_channel[1]    else NA_character_
-    channel <- if (!is.na(ch_id) && nzchar(ch_id)) ch_id else
-               if (!is.na(ch_name) && nzchar(ch_name)) ch_name else NA_character_
-
-    md <- .snitch_render(template, acct, csm, user_ids, r, q, as_of, m)
-    data.frame(`Account Name` = acct, `Customer Success Manager` = csm %||% NA_character_,
-               channel = channel, renewals = nrow(r), saas = nrow(m) > 0, qbr = nrow(q) > 0,
-               status = NA_character_, ts = NA_character_,
-               markdown = md, message = .md_to_slack(md),
-               check.names = FALSE, stringsAsFactors = FALSE)
-  })
-  out <- do.call(rbind, rows)
+  built <- .snitch_build(snitch, op_list, include_saas, include_qbr, accounts,
+                         template_path, users_path, caller = "push_slack_snitch")
+  if (is.null(built)) return(invisible(data.frame()))
+  out      <- built$out
+  as_of    <- built$as_of
+  user_ids <- built$user_ids
 
   no_ch <- is.na(out$channel)
   out$status[no_ch] <- "skipped: no channel"
@@ -158,7 +118,7 @@ push_slack_snitch <- function(snitch,
   .snitch_write_preview(out, preview_path, as_of, dry_run)
 
   # Report links left as https://PASTE-...-URL in the template.
-  unfilled <- unique(unlist(regmatches(out$markdown, gregexpr("https://PASTE-[A-Za-z0-9-]+", out$markdown))))
+  unfilled <- .snitch_unfilled_links(out$markdown)
   if (length(unfilled)) {
     msg <- paste0("Template still has placeholder link(s): ", paste(unfilled, collapse = ", "),
                   " - paste the Salesforce report URLs into ", template_path, ".")
@@ -206,6 +166,90 @@ push_slack_snitch <- function(snitch,
 
 # ---- Internal helpers ----------------------------------------------------------
 
+#' Build one row (and message) per flagged account. Shared by
+#' push_slack_snitch() and output_dust_snitch() so both send identical text.
+#'
+#' @param unresolved_mention What to put where {{csm}} goes when the CSM has
+#'   no Slack ID: "name" (plain name, used for direct posting) or "token" (the
+#'   literal `{{mention}}`, which the Dust agent resolves via Slack's user list).
+#' @param mention_override If not NULL, used as the mention in every message
+#'   (test mode: ping the tester rather than the CSMs).
+#' @return NULL when nothing is flagged, else list(out, as_of, user_ids).
+#' @noRd
+.snitch_build <- function(snitch, op_list, include_saas, include_qbr, accounts,
+                          template_path, users_path, caller = "snitch",
+                          unresolved_mention = c("name", "token"),
+                          mention_override = NULL) {
+  unresolved_mention <- match.arg(unresolved_mention)
+
+  if (!is.list(snitch) || !all(c("next_steps", "no_recent_qbr") %in% names(snitch))) {
+    stop("`snitch` must be the list returned by report_next_step_snitch().")
+  }
+  if (!file.exists(template_path)) stop("Template not found: ", template_path)
+  template <- paste(readLines(template_path, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+
+  ns  <- snitch$next_steps
+  qbr <- if (isTRUE(include_qbr)) snitch$no_recent_qbr else snitch$no_recent_qbr[0, , drop = FALSE]
+  # saas_notes is absent from a snitch run before that check existed.
+  saas <- snitch$saas_notes
+  if (is.null(saas) || !isTRUE(include_saas)) {
+    saas <- data.frame(`Account Name` = character(0), check.names = FALSE)
+  }
+  as_of <- attr(snitch, "as_of") %||% Sys.Date()
+
+  # Channels: from op_list$accounts, or straight from the CSV for a snapshot
+  # saved before the channel columns existed.
+  accts <- op_list$accounts
+  if (!all(c("slack_channel", "slack_channel_id") %in% names(accts))) {
+    accts <- .accounts_add_slack_channels(accts, op_list_slack_channels())
+  }
+  user_ids <- .slack_user_ids(users_path)
+
+  flagged <- unique(c(as.character(ns$`Account Name`), as.character(saas$`Account Name`),
+                      as.character(qbr$`Account Name`)))
+  if (!is.null(accounts)) flagged <- intersect(flagged, accounts)
+  if (length(flagged) == 0) {
+    message(".. ", caller, ": nothing to send")
+    return(NULL)
+  }
+
+  rows <- lapply(flagged, function(acct) {
+    r <- ns[ns$`Account Name` == acct, , drop = FALSE]
+    q <- qbr[qbr$`Account Name` == acct, , drop = FALSE]
+    m <- saas[saas$`Account Name` == acct, , drop = FALSE]
+
+    csm <- c(as.character(r$`Customer Success Manager`),
+             as.character(m$`Customer Success Manager`),
+             as.character(q$`Customer Success Manager`))
+    csm <- csm[!is.na(csm) & nzchar(csm)][1]
+
+    a <- accts[trimws(as.character(accts$`Account Name`)) == trimws(acct), , drop = FALSE]
+    ch_id   <- if (nrow(a)) a$slack_channel_id[1] else NA_character_
+    ch_name <- if (nrow(a)) a$slack_channel[1]    else NA_character_
+    channel <- if (!is.na(ch_id) && nzchar(ch_id)) ch_id else
+               if (!is.na(ch_name) && nzchar(ch_name)) ch_name else NA_character_
+
+    csm_id  <- if (!is.na(csm) && csm %in% names(user_ids)) user_ids[[csm]] else NA_character_
+    mention <- if (!is.null(mention_override)) mention_override else
+               if (is.na(csm_id) && !is.na(csm) && unresolved_mention == "token") "{{mention}}" else NULL
+
+    md <- .snitch_render(template, acct, csm, user_ids, r, q, as_of, m, mention = mention)
+    data.frame(`Account Name` = acct, `Customer Success Manager` = csm %||% NA_character_,
+               csm_slack_id = csm_id,
+               channel = channel, renewals = nrow(r), saas = nrow(m) > 0, qbr = nrow(q) > 0,
+               status = NA_character_, ts = NA_character_,
+               markdown = md, message = .md_to_slack(md),
+               check.names = FALSE, stringsAsFactors = FALSE)
+  })
+  list(out = do.call(rbind, rows), as_of = as_of, user_ids = user_ids)
+}
+
+#' Report links left as https://PASTE-...-URL in the template.
+#' @noRd
+.snitch_unfilled_links <- function(md) {
+  unique(unlist(regmatches(md, gregexpr("https://PASTE-[A-Za-z0-9-]+", md))))
+}
+
 #' Named vector CSM name -> Slack member ID, from the users CSV.
 #' @noRd
 .slack_user_ids <- function(path) {
@@ -241,7 +285,7 @@ push_slack_snitch <- function(snitch,
 #' Fill the template for one account. Returns Markdown (pre-Slack conversion).
 #' @noRd
 .snitch_render <- function(template, account, csm, user_ids, r, q, as_of,
-                           m = data.frame()) {
+                           m = data.frame(), mention = NULL) {
   fmt_d <- function(d) if (is.na(d)) NA_character_ else format(as.Date(d), "%m/%d/%Y")
 
   renewal_items <- if (nrow(r) == 0) "" else paste(vapply(seq_len(nrow(r)), function(i) {
@@ -279,8 +323,10 @@ push_slack_snitch <- function(snitch,
             .slack_escape(m$`SaaS Migration Pipeline Stage`[1]), why)
   }
 
-  mention <- if (is.null(csm) || is.na(csm)) "team" else
-             if (csm %in% names(user_ids)) paste0("<@", user_ids[[csm]], ">") else .slack_escape(csm)
+  if (is.null(mention)) {
+    mention <- if (is.null(csm) || is.na(csm)) "team" else
+               if (csm %in% names(user_ids)) paste0("<@", user_ids[[csm]], ">") else .slack_escape(csm)
+  }
 
   txt <- template
   # Optional blocks first, then any remaining (instruction) comments.
@@ -305,6 +351,9 @@ push_slack_snitch <- function(snitch,
 #' @noRd
 .md_to_slack <- function(md) {
   parts <- strsplit(md, "```", fixed = TRUE)[[1]]
+  # strsplit drops a trailing empty piece, which would lose the closing fence
+  # of a message that ends with a code block.
+  if (endsWith(md, "```")) parts <- c(parts, "")
   for (i in seq_along(parts)) {
     # Inside a code block: no formatting, but Slack still parses <...> as a
     # link or mention, so placeholders like <owner> must be escaped.

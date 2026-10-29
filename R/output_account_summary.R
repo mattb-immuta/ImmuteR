@@ -47,7 +47,10 @@ output_account_summary <- function(account_name, op_list) {
     csm           = acct$`Customer Success Manager`,
     account_owner = acct$`Account Owner`,
     field_cto     = acct$`Field CTO`,
-    region        = acct$Region
+    region        = acct$Region,
+    # Tenure (op_list_customer_tenure()); NA on snapshots built before it existed.
+    months_as_customer = if (is.null(acct$months_as_customer)) NA else acct$months_as_customer,
+    customer_since     = if (is.null(acct$customer_since)) NA else acct$customer_since
   )
 
   # --- Opportunities ---------------------------------------------------------

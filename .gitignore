@@ -2,3 +2,19 @@
 .Rproj.user
 data/
 .positai
+
+# Generated artifacts: regenerate with scripts/main.R and the report_*/output_*/generate_* functions.
+# Not committed: they carry customer account data (ARR, contacts) and change on every run.
+output/
+
+# R session state and macOS clutter: per-machine, never shared.
+.RData
+.Rhistory
+.DS_Store
+
+# Knitted report outputs (customer data; regenerate by knitting the .Rmd).
+reports/*.html
+reports/*.pdf
+reports/*.tex
+reports/*.log
+reports/*_files/

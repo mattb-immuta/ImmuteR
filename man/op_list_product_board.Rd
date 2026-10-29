@@ -4,46 +4,51 @@
 \alias{op_list_product_board}
 \title{Build the \code{op_list$product_board} child object}
 \usage{
-op_list_product_board(accounts)
+op_list_product_board(accounts, pb = NULL, customers_only = TRUE)
 }
 \arguments{
 \item{accounts}{Data frame of Immuta accounts (typically
-\code{op_list$accounts}). Must contain an \code{Account Name} column.}
+\code{op_list$accounts}). Must contain \code{Account Name} and
+\code{Account ID}.}
+
+\item{pb}{Optional list from \code{pb_pull_insights()} /
+\code{pb_load_insights()}, to reuse a pull instead of calling the API.}
+
+\item{customers_only}{Logical. Default \code{TRUE}: keep only notes tied
+to an account in \code{accounts} (existing customers), dropping
+prospects, partners, unmatched companies and notes with no customer.
+\code{FALSE} keeps the whole corpus.}
 }
 \value{
 A named list:
   \describe{
-    \item{notes}{Tibble of all notes pulled from Productboard.}
-    \item{features}{Tibble of all features pulled from Productboard.}
+    \item{notes}{Tibble of notes (see \code{\link{pb_pull_insights}}) with
+      \code{account_name} / \code{account_id}; customers only by default.}
+    \item{features}{Tibble of features and subfeatures.}
     \item{note_links}{Tibble: one row per note, with \code{note_id},
       \code{company_name} (as resolved from Productboard), \code{account_name}
       (matched Immuta account, or \code{NA} if unmatched), and
-      \code{feature_ids} (list-column of linked feature UUIDs).}
+      \code{feature_ids} (list-column of linked feature/subfeature ids).}
     \item{by_account}{Tibble: one row per Immuta account that has any
       linked Productboard activity, with \code{account_name},
       \code{note_count}, \code{feature_request_count}, and list-columns
       \code{feature_names} / \code{note_names} for display.}
     \item{feature_requests}{Tibble: one row per feature that has at least
       one linked note, with \code{feature_id}, \code{feature_name},
-      \code{status} (if available), \code{request_count}, and a
-      \code{accounts} list-column of requesting Immuta account names
-      (unmatched companies are listed under their raw Productboard name).}
-    \item{unmatched_companies}{Character vector of resolved company names
-      that didn't match any Immuta account — useful for spotting naming
-      drift between Productboard and Salesforce.}
+      \code{status}, \code{request_count}, and an \code{accounts}
+      list-column of requesting accounts (unmatched companies are listed
+      under their raw Productboard name).}
+    \item{unmatched_companies}{Tibble (\code{company_name}, \code{notes}) of
+      Productboard companies on notes that didn't match any account —
+      reported even when \code{customers_only = TRUE}, since a name
+      mismatch here can hide a real customer's notes.}
   }
 }
 \description{
-Pulls Productboard notes (customer feedback) and features (roadmap), then
-resolves each note's customer relationship down to a company and
-fuzzy-matches that company name against the Immuta account table (name
-matching is case/punctuation/suffix-insensitive — see
-\code{.pb_normalize_name()} — since Productboard's company names and
-Salesforce's Account Names aren't guaranteed to be byte-identical).
-}
-\details{
-This is the slow step of the pipeline: Productboard's API only exposes
-note relationships one note at a time (see \code{pb_get_note_relationships()}),
-so this makes roughly \code{nrow(notes)} additional API calls. At the
-default 50 req/s rate limit that's a few thousand notes per minute.
+Pulls the Productboard note corpus with \code{\link{pb_pull_insights}}
+(notes with their inline relationships, plus companies, users and
+features), matches each note's company to an Immuta account with
+\code{\link{pb_match_accounts}} (Salesforce Account ID where Productboard
+has it, otherwise a case/punctuation/suffix-insensitive name match — see
+\code{.pb_normalize_name()}), and summarises by account and by feature.
 }

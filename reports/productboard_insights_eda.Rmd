@@ -1,0 +1,327 @@
+---
+title: "Productboard Insights — Exploratory Analysis"
+author: "Customer Success"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    df_print: paged
+# Knit writes the HTML to data/productboard/ (gitignored) rather than next to
+# this file: the report quotes customer feedback verbatim.
+knit: (function(input, ...) rmarkdown::render(input, output_dir = file.path(dirname(input), "..", "data", "productboard"), envir = globalenv()))
+---
+
+<!--
+One-off EDA of the existing Productboard note ("insight") corpus, ahead of
+designing a structured format for CSMs to log substantive delivery
+requirements. Not part of the pipeline.
+
+Run order:
+  1. devtools::load_all() from the project root.
+  2. pb_pull_insights()   # once — caches data/productboard/pb_insights_<date>.rds
+  3. Knit this file (it loads the newest cache; set PULL_FRESH <- TRUE to re-pull).
+Requires PRODUCTBOARD_API_TOKEN in .Renviron for step 2.
+-->
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, fig.width = 10, fig.height = 4.5)
+library(dplyr)
+library(ggplot2)
+
+PROJ           <- normalizePath(file.path(getwd(), ".."))
+PULL_FRESH     <- FALSE
+CUSTOMERS_ONLY <- TRUE    # only notes tied to an account in op_list$accounts
+TODAY          <- Sys.Date()
+
+devtools::load_all(PROJ, quiet = TRUE)
+
+pb <- if (PULL_FRESH) pb_pull_insights(cache_dir = file.path(PROJ, "data", "productboard")) else
+        pb_load_insights(file.path(PROJ, "data", "productboard"))
+
+# Latest pipeline snapshot, for account context (ARR, CSM, adoption rating).
+snaps <- list.files(file.path(PROJ, "data"), pattern = "^opportunities_\\d{4}-\\d{2}-\\d{2}\\.RData$", full.names = TRUE)
+load(sort(snaps, decreasing = TRUE)[1])   # -> op_list
+accts <- op_list$accounts
+N_ALL <- nrow(pb$notes)
+pb    <- pb_match_accounts(pb, accts, customers_only = CUSTOMERS_ONLY)
+
+notes <- pb$notes %>%
+  mutate(
+    created_date = as.Date(created_at),
+    fq           = ifelse(is.na(created_date), NA_character_, date_to_fiscal_quarter(created_date)),
+    n_words      = ifelse(is.na(content_text), 0L, lengths(strsplit(trimws(content_text), "\\s+"))),
+    has_customer = !is.na(customer_id),
+    has_company  = !is.na(company_id),
+    has_account  = !is.na(account_name)
+  )
+feat_links <- pb$links %>% filter(target_type %in% c("feature", "subfeature"))
+notes$n_features <- as.integer(table(factor(feat_links$note_id, levels = notes$note_id)))
+
+theme_set(theme_minimal(base_size = 12) + theme(panel.grid.minor = element_blank()))
+LIME <- "#A8CC18"; INK <- "#111111"
+pct  <- function(x) scales::percent(mean(x, na.rm = TRUE), accuracy = 1)
+kbl  <- function(d, ...) knitr::kable(d, format.args = list(big.mark = ","), ...)
+```
+
+`r if (CUSTOMERS_ONLY) paste0("**Existing customers only:** ", nrow(notes), " of ", N_ALL, " notes are tied to an account in op_list (", length(unique(notes$account_name)), " accounts). The other ", N_ALL - nrow(notes), " — prospects, partners, unmatched companies, or no customer — are excluded; set CUSTOMERS_ONLY <- FALSE to include them.") else ""`
+
+Pulled `r format(pb$pulled_at, "%d %b %Y %H:%M")` · **`r nrow(notes)` notes** · `r nrow(pb$companies)` companies · `r nrow(pb$users)` users · `r nrow(pb$features)` features/subfeatures · account context from `r basename(sort(snaps, decreasing = TRUE)[1])`.
+
+# 0. Pull health
+
+Fill rate of each note field. Anything unexpectedly at 0% means the API returned that field under a different name than the connector reads — check that before trusting the sections below. Emails reading `[redacted]` mean the token lacks the `members:pii:read` scope.
+
+```{r health}
+fill <- notes %>%
+  select(-tags) %>%
+  summarise(across(everything(), ~ mean(!is.na(.x) & as.character(.x) != ""))) %>%
+  tidyr::pivot_longer(everything(), names_to = "field", values_to = "filled") %>%
+  arrange(filled)
+kbl(fill %>% mutate(filled = scales::percent(filled, 1)))
+
+red <- c(owner = mean(notes$owner_email %in% "[redacted]"), creator = mean(notes$creator_email %in% "[redacted]"))
+if (any(red > 0)) cat("Redacted emails — owner:", scales::percent(red[["owner"]]), " creator:", scales::percent(red[["creator"]]), "\n")
+```
+
+# 1. Corpus overview
+
+```{r overview}
+tibble::tibble(
+  Metric = c("Notes", "Date range", "Text / conversation / opportunity",
+             "Processed", "Archived", "Linked to a customer (user or company)",
+             "Resolved to a company", "Matched to an Immuta account",
+             "Linked to ≥1 feature (a Productboard 'insight')", "Tagged"),
+  Value = c(
+    nrow(notes),
+    paste(format(min(notes$created_date, na.rm = TRUE)), "to", format(max(notes$created_date, na.rm = TRUE))),
+    paste(sum(notes$note_type %in% "textNote"), sum(notes$note_type %in% "conversationNote"),
+          sum(notes$note_type %in% "opportunityNote"), sep = " / "),
+    pct(notes$processed), pct(notes$archived), pct(notes$has_customer), pct(notes$has_company),
+    pct(notes$has_account), pct(notes$n_features > 0), pct(!is.na(notes$tag_string))
+  )
+) %>% kbl()
+```
+
+**Source systems** (how notes got into Productboard):
+
+```{r sources}
+notes %>% count(source = coalesce(source_system, "(none / manual)"), sort = TRUE) %>%
+  mutate(share = scales::percent(n / sum(n), 1)) %>% kbl()
+```
+
+**Top tags:**
+
+```{r tags}
+tibble::tibble(tag = unlist(notes$tags)) %>% count(tag, sort = TRUE) %>% head(25) %>% kbl()
+```
+
+# 2. Volume over time
+
+```{r volume}
+vol <- notes %>% filter(!is.na(fq)) %>%
+  count(fq, source = coalesce(source_system, "manual")) %>%
+  mutate(key = as.integer(substr(fq, 4, 7)) * 10 + as.integer(substr(fq, 2, 2)))
+ggplot(vol, aes(reorder(fq, key), n, fill = source)) + geom_col() +
+  labs(x = "Fiscal quarter created", y = "Notes", fill = NULL, title = "Notes created per fiscal quarter") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+# 3. Who writes them
+
+Creator = the Productboard member who created the note. "Is a CSM" is inferred by turning `first.last@immuta.com` into a name and matching it to the account report's Customer Success Manager list.
+
+```{r writers}
+csm_names <- unique(na.omit(as.character(accts$`Customer Success Manager`)))
+email_name <- function(e) {
+  n <- sub("@.*", "", e); n <- gsub("[._-]+", " ", n)
+  tools::toTitleCase(trimws(n))
+}
+notes <- notes %>% mutate(
+  creator_name = ifelse(is.na(creator_email) | creator_email == "[redacted]", NA, email_name(creator_email)),
+  creator_is_csm = tolower(creator_name) %in% tolower(csm_names)
+)
+notes %>%
+  group_by(creator = coalesce(creator_email, "(unknown)")) %>%
+  summarise(notes = n(), is_csm = any(creator_is_csm), median_words = median(n_words),
+            pct_linked_feature = pct(n_features > 0), pct_account = pct(has_account),
+            last_note = max(created_date, na.rm = TRUE), .groups = "drop") %>%
+  arrange(desc(notes)) %>% head(30) %>% kbl()
+```
+
+Share of notes written by CSMs: **`r pct(notes$creator_is_csm)`**. CSMs with no notes in the last 180 days:
+
+```{r quiet-csms}
+recent <- notes %>% filter(created_date >= TODAY - 180, creator_is_csm)
+tibble::tibble(csm = csm_names) %>%
+  mutate(notes_180d = vapply(tolower(csm), function(c) sum(tolower(recent$creator_name) == c), integer(1)),
+         accounts   = vapply(csm, function(c) sum(accts$`Customer Success Manager` %in% c), integer(1))) %>%
+  arrange(notes_180d, desc(accounts)) %>% kbl()
+```
+
+# 4. Content and quality
+
+```{r length, fig.height=3.5}
+ggplot(notes, aes(pmax(n_words, 1))) + geom_histogram(bins = 40, fill = INK) +
+  scale_x_log10() + labs(x = "Words in note body (log scale)", y = "Notes", title = "Note length")
+```
+
+```{r quality}
+tibble::tibble(
+  Check = c("Empty body", "Under 20 words", "20–100 words", "Over 100 words", "Over 300 words",
+            "Exact-duplicate body text"),
+  Share = c(pct(notes$n_words == 0), pct(notes$n_words > 0 & notes$n_words < 20),
+            pct(notes$n_words >= 20 & notes$n_words <= 100), pct(notes$n_words > 100),
+            pct(notes$n_words > 300),
+            pct(duplicated(notes$content_text) & !is.na(notes$content_text)))
+) %>% kbl()
+```
+
+# 5. Existing structure
+
+How much of the corpus already carries structure a template could build on: bullets, headings, and `Label: value` lines. The label table is the most useful input for the new format — it shows what people already reach for when they structure a note.
+
+```{r structure}
+txt <- coalesce(notes$content_text, "")
+html <- coalesce(notes$content_html, "")
+label_rx <- "(?m)^\\s*(?:-\\s*)?\\**([A-Z][A-Za-z0-9 /&()'-]{1,40}?)\\**\\s*:\\s*\\S"
+notes$n_labels  <- lengths(regmatches(txt, gregexpr(label_rx, txt, perl = TRUE)))
+notes$has_bullets  <- grepl("(?m)^- ", txt, perl = TRUE)
+notes$has_headings <- grepl("<h[1-6]|<b>|<strong>", html, ignore.case = TRUE)
+
+tibble::tibble(
+  Signal = c("Bulleted lists", "Headings / bold", "≥1 'Label: value' line", "≥3 'Label: value' lines"),
+  Share  = c(pct(notes$has_bullets), pct(notes$has_headings), pct(notes$n_labels >= 1), pct(notes$n_labels >= 3))
+) %>% kbl()
+```
+
+**Most common labels** (number of notes using each, case-folded):
+
+```{r labels}
+labs <- regmatches(txt, gregexpr(label_rx, txt, perl = TRUE))
+lab_tbl <- tibble::tibble(note = rep(seq_along(labs), lengths(labs)), raw = unlist(labs)) %>%
+  mutate(label = tolower(trimws(gsub("^\\s*-?\\s*\\**|\\**\\s*:.*$", "", raw)))) %>%
+  distinct(note, label) %>% count(label, sort = TRUE)
+kbl(head(lab_tbl, 40))
+```
+
+**Delivery-requirement language.** Share of notes using each family of words. A rough proxy for how often a note states something concrete the customer needs delivered.
+
+```{r req-lang}
+fam <- list(
+  `Need / must / require`   = "\\b(must|need(s|ed)?|require(s|d|ment|ments)?|mandatory)\\b",
+  `Blocker / gap`           = "\\b(block(er|ed|ing)?|gap|missing|cannot|can't|unable|limitation)\\b",
+  `Date / deadline`         = "\\b(deadline|by (q[1-4]|end of|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)|go[- ]live|timeline|due)\\b",
+  `Renewal / commercial`    = "\\b(renewal|renew|churn|arr|contract|expansion|upsell|\\$[0-9])",
+  `Workaround`              = "\\b(work ?around|manual(ly)?|custom script)\\b",
+  `Use case`                = "\\buse[- ]cases?\\b",
+  `Platform named`          = "\\b(snowflake|databricks|bigquery|redshift|starburst|trino|s3|azure|synapse|postgres|oracle|sql server|unity catalog)\\b"
+)
+low <- tolower(paste(coalesce(notes$title, ""), txt))
+hits <- sapply(fam, function(rx) grepl(rx, low, perl = TRUE))
+notes$req_families <- rowSums(hits)
+tibble::tibble(Family = names(fam), Share = apply(hits, 2, pct)) %>% kbl()
+```
+
+`r pct(notes$req_families >= 3)` of notes hit three or more families. Those are the closest thing in the current corpus to a "substantive delivery requirement".
+
+# 6. Themes
+
+Most frequent words and two-word phrases in note titles and bodies (stopwords removed).
+
+```{r themes}
+stop <- c("the","a","an","and","or","to","of","in","on","for","with","is","are","was","were","be","been","it","its",
+          "this","that","these","those","they","them","their","we","our","us","you","your","i","he","she","as","at",
+          "by","from","but","not","no","so","if","then","than","there","here","have","has","had","do","does","did",
+          "can","could","would","should","will","just","also","more","about","into","out","up","all","any","some",
+          "what","which","who","when","how","want","like","get","use","using","via","re","etc","one","new")
+tok <- function(s) { w <- strsplit(gsub("[^a-z0-9 ]", " ", s), "\\s+")[[1]]; w[nchar(w) > 2 & !w %in% stop] }
+toks <- lapply(low, tok)
+uni <- tibble::tibble(term = unlist(lapply(toks, unique))) %>% count(term, sort = TRUE) %>% head(30)
+bi  <- tibble::tibble(term = unlist(lapply(toks, function(w) if (length(w) > 1) unique(paste(head(w, -1), tail(w, -1))) else character(0)))) %>%
+  count(term, sort = TRUE) %>% head(30)
+knitr::kables(list(kbl(uni, col.names = c("Word", "Notes")), kbl(bi, col.names = c("Phrase", "Notes"))))
+```
+
+# 7. Account coverage
+
+```{r coverage}
+acct_cov <- accts %>%
+  transmute(account = `Account Name`, csm = `Customer Success Manager`, region = Region,
+            arr = suppressWarnings(as.numeric(`Contract ARR Rollup`)),
+            rating = vapply(product_adoption_rating, pbac_rating_colour, character(1))) %>%
+  left_join(notes %>% filter(has_account) %>% group_by(account = account_name) %>%
+              summarise(notes = n(), notes_180d = sum(created_date >= TODAY - 180, na.rm = TRUE),
+                        last_note = max(created_date, na.rm = TRUE), .groups = "drop"),
+            by = "account") %>%
+  mutate(notes = coalesce(notes, 0L), notes_180d = coalesce(notes_180d, 0L))
+
+tibble::tibble(
+  Metric = c("Accounts with ≥1 note", "…in the last 180 days", "ARR covered by ≥1 note (180d)",
+             "Black / Red accounts with a note (180d)"),
+  Value  = c(pct(acct_cov$notes > 0), pct(acct_cov$notes_180d > 0),
+             scales::percent(sum(acct_cov$arr[acct_cov$notes_180d > 0], na.rm = TRUE) / sum(acct_cov$arr, na.rm = TRUE), 1),
+             pct(acct_cov$notes_180d[acct_cov$rating %in% c("black", "red")] > 0))
+) %>% kbl()
+```
+
+```{r coverage-plot, fig.height=5}
+ggplot(acct_cov %>% filter(!is.na(arr)), aes(arr, notes + 1, colour = rating)) +
+  geom_point(size = 2.4, alpha = .85) + scale_x_log10(labels = scales::dollar) + scale_y_log10() +
+  scale_colour_manual(values = c(black = INK, red = "#DC2626", amber = "#F59E0B", green = "#22C55E"), na.value = "grey70") +
+  labs(x = "Contract ARR (log)", y = "Notes + 1 (log)", colour = "Adoption", title = "Notes per account vs ARR")
+```
+
+**Largest accounts with no notes in the last 180 days:**
+
+```{r silent}
+acct_cov %>% filter(notes_180d == 0) %>% arrange(desc(arr)) %>% head(20) %>%
+  mutate(arr = scales::dollar(arr)) %>% select(account, csm, region, rating, arr, notes, last_note) %>% kbl()
+```
+
+**Unmatched Productboard companies** (on notes but not matched to a Salesforce account, so excluded above — if any are real customers, fix the name in Productboard or the CRM sync):
+
+```{r unmatched}
+pb$unmatched_companies %>% head(30) %>% kbl()
+```
+
+# 8. Features
+
+```{r features}
+fr <- feat_links %>%
+  left_join(notes %>% select(note_id, account_name), by = "note_id") %>%
+  left_join(acct_cov %>% select(account, arr, rating), by = c("account_name" = "account")) %>%
+  group_by(feature_id = target_id) %>%
+  summarise(notes = n_distinct(note_id), accounts = n_distinct(na.omit(account_name)),
+            arr_asking = sum(arr[!duplicated(account_name)], na.rm = TRUE),
+            black_red_accounts = n_distinct(account_name[rating %in% c("black", "red")]), .groups = "drop") %>%
+  left_join(pb$features %>% select(feature_id = id, feature = name, type, status), by = "feature_id") %>%
+  arrange(desc(arr_asking))
+fr %>% head(30) %>% mutate(arr_asking = scales::dollar(arr_asking)) %>%
+  select(feature, type, status, notes, accounts, arr_asking, black_red_accounts) %>% kbl()
+```
+
+# 9. Exemplars
+
+The most structured notes (most `Label: value` lines) and the most requirement-like (most language families), for reference when drafting the template. Text is truncated to 600 characters.
+
+```{r exemplars, results="asis"}
+show <- function(d, heading) {
+  cat("\n\n### ", heading, "\n\n", sep = "")
+  for (i in seq_len(nrow(d))) {
+    body <- substr(coalesce(d$content_text[i], ""), 1, 600)
+    cat("**", coalesce(d$title[i], "(untitled)"), "** — ", coalesce(d$account_name[i], d$company_name[i], "no account"),
+        " · ", coalesce(d$creator_email[i], "?"), " · ", format(d$created_date[i]),
+        if (!is.na(d$html_url[i])) paste0(" · [open](", d$html_url[i], ")") else "", "\n\n", sep = "")
+    cat("<pre style='white-space:pre-wrap;font-size:12px'>", htmltools::htmlEscape(body), "</pre>\n\n", sep = "")
+  }
+}
+show(notes %>% arrange(desc(n_labels), desc(n_words)) %>% head(8), "Most structured")
+show(notes %>% filter(n_labels < 3) %>% arrange(desc(req_families), desc(n_words)) %>% head(8), "Most requirement-like, unstructured")
+```
+
+```{r export, include=FALSE}
+# Flat copy for poking at in a spreadsheet (gitignored folder).
+out <- notes %>% select(-tags, -content_html)
+readr::write_csv(out, file.path(PROJ, "data", "productboard", paste0("notes_flat_", TODAY, ".csv")))
+```
